@@ -26,26 +26,13 @@
   <a href="https://github.com/google-research/android_world"><img src="https://img.shields.io/badge/AndroidWorld-99%25%2B%20SOTA-success.svg" alt="AndroidWorld SOTA"></a>
 </p>
 
-<!-- 演示效果图 -->
-<p align="center">
-  <img src="./docs/assets/demo.gif" alt="Artemis 演示效果" width="100%" />
-  <br>
-  <em>实机演示：在 Google Maps 中设置驾车路线并计算总耗时，随后打开 YouTube 播放 Coldplay 的歌曲。</em>
-</p>
-
-## 核心亮点
-
-* **跨 App 自动化**：根据自然语言指令，在 Android 上执行测试流程和日常任务。
-* **多模态定位**：优先使用元素索引，对自绘界面提供坐标和视觉定位兜底。
-* **IDE 内诊断**：通过 **MCP 协议**，让 **Antigravity、Claude Code、Windsurf** 操作测试设备，收集 **Logcat** 输出和截图。
-* **Flash 执行**：使用观察、执行循环和异步历史摘要，单步通常约 **3–5 秒**。
-* **Pro 探索**：单个动作执行前校验目标，被拦截的动作交回 Operator 处理。支持长时间探索和稳定性测试。
-* **AndroidWorld 结果**：在 Google Research **AndroidWorld** 基准评测（100+ 多步任务）中取得 **99%+ 任务完成率**。
-
 <a id="codex-client-integration"></a>
-## 本分支新增能力
+## 本 Fork 的新增特性
 
-本分支可以把本机 **Codex CLI** 的 ChatGPT 登录态作为默认模型 Provider。Artemis 启动 `codex app-server`，通过 JSONL/stdio 调用当前账号可用的模型；不会读取或复制 `~/.codex/auth.json`，默认运行路径也不需要配置 `OPENAI_API_KEY`。
+> [!NOTE]
+> 本仓库是开源项目 [google/artemis](https://github.com/google/artemis) 的社区 Fork。以下内容专门说明本 Fork 新增的能力，后续章节保留原 ARTEMIS 的功能介绍与使用文档；上游作者署名和 Apache 2.0 许可证保持不变。
+
+本 Fork 可以把本机 **Codex CLI** 的 ChatGPT 登录态作为默认模型 Provider。Artemis 启动 `codex app-server`，通过 JSONL/stdio 调用当前账号可用的模型；不会读取或复制 `~/.codex/auth.json`，默认运行路径也不需要配置 `OPENAI_API_KEY`。
 
 | 新增内容 | 具体行为 |
 |---|---|
@@ -74,6 +61,22 @@ codex login status
 adb devices -l
 uv run artemis doctor
 ```
+
+<!-- 演示效果图 -->
+<p align="center">
+  <img src="./docs/assets/demo.gif" alt="Artemis 演示效果" width="100%" />
+  <br>
+  <em>实机演示：在 Google Maps 中设置驾车路线并计算总耗时，随后打开 YouTube 播放 Coldplay 的歌曲。</em>
+</p>
+
+## 核心亮点
+
+* **跨 App 自动化**：根据自然语言指令，在 Android 上执行测试流程和日常任务。
+* **多模态定位**：优先使用元素索引，对自绘界面提供坐标和视觉定位兜底。
+* **IDE 内诊断**：通过 **MCP 协议**，让 **Antigravity、Claude Code、Windsurf** 操作测试设备，收集 **Logcat** 输出和截图。
+* **Flash 执行**：使用观察、执行循环和异步历史摘要，单步通常约 **3–5 秒**。
+* **Pro 探索**：单个动作执行前校验目标，被拦截的动作交回 Operator 处理。支持长时间探索和稳定性测试。
+* **AndroidWorld 结果**：在 Google Research **AndroidWorld** 基准评测（100+ 多步任务）中取得 **99%+ 任务完成率**。
 
 <a id="workflow-showcase"></a>
 <a id="全流程演示"></a>
@@ -344,10 +347,11 @@ ARTEMIS 提供两种运行模式以适应不同的自动化需求：
 欢迎通过以下方式参与项目建设：
 * **Star 本项目**以关注最新进展与更新
 * 加入 [Discord 社区](https://discord.gg/wF2FN4WHGY) 参与技术探讨与功能建议
-* 提交 [Issue](https://github.com/google/artemis/issues) 反馈 Bug，欢迎发起 [Pull Request](https://github.com/google/artemis/pulls) 贡献代码
+* 在本 Fork 提交 [Issue](https://github.com/HJunLong601/artemis-codex/issues) 或发起 [Pull Request](https://github.com/HJunLong601/artemis-codex/pulls)
+* 关注[上游 google/artemis 项目](https://github.com/google/artemis)，了解原项目路线图和版本发布
 
 ## 开源许可证
 
 本项目基于 [Apache License 2.0](LICENSE) 协议开源。
 
-本项目包含由 [Minitap, Inc.](https://github.com/minitap-ai/mobile-use) 开发的源代码。
+本仓库基于 [google/artemis](https://github.com/google/artemis)，并包含由 [Minitap, Inc.](https://github.com/minitap-ai/mobile-use) 开发的源代码；原始版权和许可证声明均予以保留。

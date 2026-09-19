@@ -26,24 +26,11 @@
   <a href="https://github.com/google-research/android_world"><img src="https://img.shields.io/badge/AndroidWorld-99%25%2B%20SOTA-success.svg" alt="AndroidWorld SOTA"></a>
 </p>
 
-<!-- Demo Showcase -->
-<p align="center">
-  <img src="./docs/assets/demo.gif" alt="Artemis in Action" width="100%" />
-  <br>
-  <em>Live Demo: Setup driving routes and calculate total durations in Google Maps, then open YouTube to play a Coldplay song.</em>
-</p>
-
-## Key Highlights
-
-* **Cross-App Automation**: Executes testing workflows and everyday tasks on Android from natural language instructions.
-* **Multimodal Targeting**: Uses element indices when available, with coordinate and visual locating fallbacks for custom interfaces.
-* **IDE Diagnostics**: **Model Context Protocol (MCP)** integration lets **Antigravity, Claude Code, and Windsurf** drive test devices and collect **Logcat** output and screenshots.
-* **Flash Execution**: A reactive observe-and-act loop with asynchronous history summaries, typically **3–5s per step**.
-* **Pro Exploration**: Checks targets before individual actions and returns blocked actions to the Operator for recovery. Supports long-running exploratory and stability tests.
-* **AndroidWorld Results**: **99%+ task completion** on Google Research's **AndroidWorld** benchmark (100+ multi-step tasks).
-
 <a id="codex-client-integration"></a>
-## What This Fork Adds
+## Fork-Specific Features
+
+> [!NOTE]
+> This repository is a community fork of the open-source [google/artemis](https://github.com/google/artemis) project. The section below describes the capabilities added by this fork; the original ARTEMIS documentation follows afterward. Upstream authorship and the Apache 2.0 license are preserved.
 
 This fork can use the ChatGPT session from the locally installed **Codex CLI** as its default model provider. Artemis starts `codex app-server`, communicates over JSONL/stdio, and routes model requests through the models available to the signed-in account. It does not read or copy `~/.codex/auth.json`, and the default path does not require `OPENAI_API_KEY`.
 
@@ -74,6 +61,22 @@ codex login status
 adb devices -l
 uv run artemis doctor
 ```
+
+<!-- Demo Showcase -->
+<p align="center">
+  <img src="./docs/assets/demo.gif" alt="Artemis in Action" width="100%" />
+  <br>
+  <em>Live Demo: Setup driving routes and calculate total durations in Google Maps, then open YouTube to play a Coldplay song.</em>
+</p>
+
+## Key Highlights
+
+* **Cross-App Automation**: Executes testing workflows and everyday tasks on Android from natural language instructions.
+* **Multimodal Targeting**: Uses element indices when available, with coordinate and visual locating fallbacks for custom interfaces.
+* **IDE Diagnostics**: **Model Context Protocol (MCP)** integration lets **Antigravity, Claude Code, and Windsurf** drive test devices and collect **Logcat** output and screenshots.
+* **Flash Execution**: A reactive observe-and-act loop with asynchronous history summaries, typically **3–5s per step**.
+* **Pro Exploration**: Checks targets before individual actions and returns blocked actions to the Operator for recovery. Supports long-running exploratory and stability tests.
+* **AndroidWorld Results**: **99%+ task completion** on Google Research's **AndroidWorld** benchmark (100+ multi-step tasks).
 
 <a id="workflow-showcase"></a>
 ## Antigravity × ARTEMIS: Autonomous Testing Workflow
@@ -346,10 +349,11 @@ ARTEMIS supports two execution profiles tailored for different automation requir
 Contributions are warmly welcomed!
 * **Star the repo** to follow updates and releases
 * Join the [Discord Community](https://discord.gg/wF2FN4WHGY) for technical discussions
-* Open an [Issue](https://github.com/google/artemis/issues) or submit a [Pull Request](https://github.com/google/artemis/pulls)
+* Open an [Issue](https://github.com/HJunLong601/artemis-codex/issues) or submit a [Pull Request](https://github.com/HJunLong601/artemis-codex/pulls) to this fork
+* Follow the [upstream google/artemis project](https://github.com/google/artemis) for the original project roadmap and releases
 
 ## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
 
-This project includes source code developed by [Minitap, Inc.](https://github.com/minitap-ai/mobile-use).
+This repository is based on [google/artemis](https://github.com/google/artemis) and includes source code developed by [Minitap, Inc.](https://github.com/minitap-ai/mobile-use). Original copyright and license notices are retained.
