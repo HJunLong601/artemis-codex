@@ -62,6 +62,40 @@ adb devices -l
 uv run artemis doctor
 ```
 
+### Refresh an Existing Global Installation
+
+From an up-to-date checkout, remove the previous global tool environment and install
+the current branch again:
+
+```bash
+git pull --ff-only origin main
+uv tool uninstall artemis
+uv tool install -e .
+artemis doctor
+```
+
+The installation resolves `codex-client-provider==0.1.0` from PyPI. Use
+`uv tool list` to confirm the global Artemis installation.
+
+### Verified Without API Keys
+
+The key-free Codex path was revalidated on 2026-09-19 against a connected Xiaomi
+Android device. A Pro run opened Xiaohongshu, searched for `秋日穿搭`, confirmed several
+matching results, and stayed on the results page without liking, saving, following,
+commenting, or publishing.
+
+| Capability | Result |
+|---|---|
+| Planner and Operator | Passed using the signed-in Codex client |
+| Screenshot understanding and step summaries | Passed through Codex image input |
+| Checkpoint and final Checker | 4/4 assertions passed |
+| Outputter report | Passed |
+| OpenAI, Google, Gemini, Anthropic, OpenRouter, xAI keys | Not configured |
+| Cloud OCR key | Not configured; Accessibility Helper, UI hierarchy, and Codex vision handled this task |
+
+Cloud OCR remains an optional external service and still requires `OCR_API_KEY` when
+explicitly enabled. It is not required for the default XML-plus-Codex-vision path.
+
 <!-- Demo Showcase -->
 <p align="center">
   <img src="./docs/assets/demo.gif" alt="Artemis in Action" width="100%" />

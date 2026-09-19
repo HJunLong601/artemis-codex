@@ -62,6 +62,38 @@ adb devices -l
 uv run artemis doctor
 ```
 
+### 刷新已有的全局安装
+
+在已更新到最新提交的仓库中，先移除旧的全局工具环境，再安装当前分支：
+
+```bash
+git pull --ff-only origin main
+uv tool uninstall artemis
+uv tool install -e .
+artemis doctor
+```
+
+安装过程会从 PyPI 获取 `codex-client-provider==0.1.0`。可通过 `uv tool list`
+确认全局 Artemis 已正确安装。
+
+### 无 API Key 实机验证
+
+2026-09-19 已在连接的小米 Android 真机上重新验证零 Key Codex 路径。Pro 模式成功
+打开小红书、搜索“秋日穿搭”、确认多条相关结果并停留在结果页，全程未点赞、收藏、
+关注、评论或发布内容。
+
+| 能力 | 验证结果 |
+|---|---|
+| Planner 与 Operator | 通过，复用已登录的 Codex 客户端 |
+| 截图理解与步骤摘要 | 通过，使用 Codex 图片输入 |
+| Checkpoint 与最终 Checker | 4/4 检查通过 |
+| Outputter 报告 | 通过 |
+| OpenAI、Google、Gemini、Anthropic、OpenRouter、xAI Key | 均未配置 |
+| 云 OCR Key | 未配置；本次由 Accessibility Helper、UI 层级和 Codex 视觉完成 |
+
+云 OCR 仍是可选的外部服务，显式启用时依然需要 `OCR_API_KEY`。默认的 UI XML
+加 Codex 视觉路径不依赖该 Key。
+
 <!-- 演示效果图 -->
 <p align="center">
   <img src="./docs/assets/demo.gif" alt="Artemis 演示效果" width="100%" />
