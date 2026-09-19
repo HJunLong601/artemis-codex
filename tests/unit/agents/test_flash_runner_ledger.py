@@ -27,6 +27,7 @@ bounded loops, and a no-tool-call turn is nudged, not terminated.
 
 import base64
 import re
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 import pytest
@@ -54,6 +55,33 @@ OBSERVATION_HEADER_RE = re.compile(r"^# CURRENT OBSERVATION \[T\+\d{2,}:\d{2}\]$
 FAILED_RESULT_RE = re.compile(
     rf"^{re.escape(EXECUTION_RESULT_MARKER)} \(T\+\d{{2,}}:\d{{2}}\) ---\nStatus: failed\n"
 )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("provider", "expected_kwargs"),
+    [("codex", {"tool_choice": "required"}), ("google", {})],
+)
+async def test_invoke_model_requires_a_tool_only_for_codex(provider, expected_kwargs):
+    class FakeLLM:
+        endpoint = SimpleNamespace(provider=SimpleNamespace(value=provider))
+
+        def bind_tools(self, tools, **kwargs):
+            self.bound_tools = tools
+            self.bind_kwargs = kwargs
+            return self
+
+    async def fake_acomplete(_bound_llm, _messages):
+        return AIMessage(content="ok")
+
+    llm = FakeLLM()
+    runner = object.__new__(FlashRunner)
+    with patch("artemis.agents.flash.runner.acomplete", side_effect=fake_acomplete):
+        result = await runner._invoke_model(llm, ["tool"], [HumanMessage(content="go")])
+
+    assert result.content == "ok"
+    assert llm.bound_tools == ["tool"]
+    assert llm.bind_kwargs == expected_kwargs
 
 
 @pytest.fixture

@@ -63,8 +63,7 @@ async def test_planner_validation():
 
 
 def test_planner_validation_node_defaults_to_lightweight_judge():
-    """Unconfigured planner_validation resolves to the same flash-lite default
-    as the pixel safety net (cheap, temperature 0)."""
+    """Planner validation and pixel safety share the low-cost client model."""
     from artemis.config import get_default_llm_config
 
     llm_cfg = get_default_llm_config()
@@ -73,7 +72,8 @@ def test_planner_validation_node_defaults_to_lightweight_judge():
     assert node.model == safety_net.model
     assert node.provider == safety_net.provider
     assert node.temperature == 0.0
-    assert "lite" in node.model
+    assert node.provider == "codex"
+    assert node.model == "gpt-5.6-luna"
 
 
 if __name__ == "__main__":

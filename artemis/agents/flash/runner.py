@@ -164,6 +164,7 @@ class FlashRunner:
             VisualStepSummarizer(
                 ctx,
                 model_name=self.step_summarizer_cfg.model,
+                provider=self.step_summarizer_cfg.provider,
                 retry_limit=self.memory_runtime_cfg.retry_limit,
                 max_concurrency=self.memory_runtime_cfg.max_concurrency,
                 flush_timeout_s=self.memory_runtime_cfg.flush_timeout_s,
@@ -883,8 +884,16 @@ class FlashRunner:
 
     async def _invoke_model(self, llm, current_tools: list, messages: list[BaseMessage]):
         """Binds the active tools and invokes the model through the LLM gateway."""
-        # Bind active tools
-        bound_llm = llm.bind_tools(current_tools)
+        # Every Codex-backed Flash turn must either act or finish through
+        # ``report_task_status``. App Server has an explicit final-answer
+        # channel, so leaving tool choice optional can produce an empty final
+        # answer that only costs a retry. Preserve the existing binding mode
+        # for other providers, whose tool-choice vocabularies differ.
+        endpoint = getattr(llm, "endpoint", None)
+        provider = getattr(endpoint, "provider", None)
+        provider_value = str(getattr(provider, "value", provider) or "").lower()
+        bind_kwargs = {"tool_choice": "required"} if provider_value == "codex" else {}
+        bound_llm = llm.bind_tools(current_tools, **bind_kwargs)
 
         # Invoke Model. Streaming, live-token UI deltas, classified
         # retries, and pause/resume are all owned by the LLM gateway

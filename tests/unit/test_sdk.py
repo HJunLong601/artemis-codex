@@ -54,7 +54,11 @@ def test_full_runtime_reexports_thin_client_types():
     assert artemis.ArtemisClient is ThinArtemisClient
 
 
-def test_legacy_constructor_settings_are_remote_defaults():
+def test_legacy_constructor_settings_are_remote_defaults(monkeypatch):
+    # Keep this default-value test independent from a developer's project .env.
+    monkeypatch.delenv("ARTEMIS_BASE_URL", raising=False)
+    monkeypatch.delenv("ARTEMIS_DAEMON_HOST", raising=False)
+    monkeypatch.delenv("ARTEMIS_DAEMON_PORT", raising=False)
     client = ArtemisClient(
         device_serial="emulator-5554",
         default_profile="pro",

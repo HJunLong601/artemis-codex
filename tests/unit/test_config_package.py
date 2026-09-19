@@ -152,7 +152,14 @@ def test_llm_config_parsing_and_merging():
     """Test LLMConfig parsing, agent querying, and deep merging."""
     llm_cfg = get_default_llm_config()
     assert isinstance(llm_cfg, LLMConfig)
-    assert llm_cfg.planner.provider in ("google", "openai", "openrouter", "xai", "vertexai")
+    assert llm_cfg.planner.provider in (
+        "google",
+        "openai",
+        "codex",
+        "openrouter",
+        "xai",
+        "vertexai",
+    )
     assert llm_cfg.get_agent("planner") is not None
     assert llm_cfg.get_utils("hopper") is not None
 
@@ -451,8 +458,7 @@ def test_explorer_builder_and_resolution(monkeypatch):
 
     monkeypatch.delenv("ARTEMIS_EXPLORER_VERSION", raising=False)
 
-    # Default builder inherits from artemis.jsonc (default="flash", flash_mode="flash",
-    # pro_mode="flash", caching unset, no per-agent override).
+    # Default builder inherits the one-shot explorer path from artemis.jsonc.
     builder = AgentConfigBuilder()
     cfg = builder.build()
     assert cfg.explorer.default_version == "flash"

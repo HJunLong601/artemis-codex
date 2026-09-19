@@ -70,6 +70,7 @@ class ReadinessEngine:
         self._report_cache: SystemReadinessReport | None = None
         self._report_cache_time = 0.0
         self._report_cache_generation = -1
+        self._report_revision = 0
         self._cache_generation = 0
         self._report_lock = asyncio.Lock()
 
@@ -144,7 +145,7 @@ class ReadinessEngine:
         device check.
         """
         cacheable = categories is None
-        request_started = time.monotonic()
+        request_revision = self._report_revision
         if cacheable and not force_refresh:
             cached = self._cached_report(self._REPORT_CACHE_TTL_SECONDS)
             if cached is not None:
@@ -153,7 +154,10 @@ class ReadinessEngine:
         async with self._report_lock:
             # A refresh that completed while this caller waited satisfies even a
             # forced request that began before it, coalescing concurrent clicks.
-            if cacheable and self._report_cache_time >= request_started:
+            # A revision is used instead of comparing monotonic timestamps:
+            # Windows can return the same clock tick for two sequential calls,
+            # which must not make a later forced refresh reuse the old report.
+            if cacheable and self._report_revision != request_revision:
                 cached = self._cached_report(float("inf"))
                 if cached is not None:
                     return cached
@@ -175,6 +179,7 @@ class ReadinessEngine:
                 self._report_cache = report.model_copy(deep=True)
                 self._report_cache_time = time.monotonic()
                 self._report_cache_generation = build_generation
+                self._report_revision += 1
             return report
 
     async def _build_report(

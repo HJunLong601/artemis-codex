@@ -14,6 +14,7 @@
 
 """System Readiness & Diagnostics Router for Artemis Admin Console."""
 
+import asyncio
 import ipaddress
 import os
 import secrets
@@ -297,6 +298,14 @@ async def get_credentials():
     providers = ("google", "openai", "anthropic", "openrouter", "ocr")
     status = {name: bool(settings.get_api_key(name)) for name in providers}
     status["gemini"] = status["google"]
+    try:
+        from artemis.config.llm import parse_llm_config
+        from artemis.llm.codex_app_server import codex_client_status
+
+        uses_codex = parse_llm_config().planner.provider == "codex"
+        status["codex"] = uses_codex and (await asyncio.to_thread(codex_client_status))[0]
+    except Exception:
+        status["codex"] = False
     return {
         "providers": [
             {"name": name, "configured": configured} for name, configured in status.items()

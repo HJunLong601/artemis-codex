@@ -78,14 +78,16 @@
 ## 快速上手
 
 确保电脑已连接 Android 实体机（已开启 **USB 调试**）或 Android 模拟器。一键启动脚本将会自动完成以下配置：
-- **安装系统环境依赖**：自动检测并安装 ADB、scrcpy、FFmpeg 与 Python（`uv`）运行时及项目依赖。
+- **安装系统环境依赖**：自动检测并安装 ADB、scrcpy、FFmpeg、Codex CLI、Python（`uv`）运行时、Node.js 及项目依赖。
 - **全局挂载 MCP 服务与测试准则 (Rules)**：主动引导并自动将全局 MCP 服务与 **Artemis 移动端测试思维准则 (`rules.md`)** 挂载至你使用的 AI IDE（支持 **Antigravity**、**Cursor**、**Claude Code**、**Codex**、**Windsurf**、**VS Code**、**Cline/Roo**、**OpenClaw**）。
+
+当前分支默认复用本机已登录的 **Codex 客户端**。首次启动会自动安装 Codex CLI；安装后按提示执行一次 `codex login`，Artemis 随后通过 Codex App Server 调用模型，无需配置 OpenAI API Key。配置方式和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。macOS 的兼容性、权限和旧系统限制见 [macOS 运行说明](./docs/macos-support.md)。
 
 ### macOS 与 Linux
 
 ```bash
 # 1. 克隆代码仓库并进入目录
-git clone https://github.com/google/artemis.git && cd artemis
+git clone https://github.com/HJunLong601/artemis-codex.git && cd artemis-codex
 
 # 2. 一键启动
 ./start.sh
@@ -95,8 +97,8 @@ git clone https://github.com/google/artemis.git && cd artemis
 
 ```powershell
 # 1. 克隆代码仓库并进入目录
-git clone https://github.com/google/artemis.git
-cd artemis
+git clone https://github.com/HJunLong601/artemis-codex.git
+cd artemis-codex
 
 # 2. 一键启动
 .\start.bat
@@ -210,7 +212,7 @@ PYTHONPATH = "/path/to/artemis"
 开发电脑只需安装零运行时依赖的薄客户端；ADB、Agent、模型与图像处理全部留在设备主机：
 
 ```powershell
-uv add "artemis-client @ git+https://github.com/google/artemis.git#subdirectory=packages/artemis-client"
+uv add "artemis-client @ git+https://github.com/HJunLong601/artemis-codex.git#subdirectory=packages/artemis-client"
 ```
 
 ```python

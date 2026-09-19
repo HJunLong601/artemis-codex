@@ -16,7 +16,7 @@
 
 Provides role-based LLM/VLM dispatching, dynamic fallback chains,
 and unified provider configuration across Gemini, Vertex AI, OpenAI,
-Anthropic, OpenRouter, and local Ollama/vLLM endpoints.
+Anthropic, OpenRouter, the signed-in Codex client, and local Ollama/vLLM endpoints.
 """
 
 from enum import StrEnum
@@ -39,6 +39,7 @@ class ModelProvider(StrEnum):
     GEMINI = "google"
     VERTEX_AI = "vertexai"
     OPENAI = "openai"
+    CODEX = "codex"
     ANTHROPIC = "anthropic"
     OPENROUTER = "openrouter"
     XAI = "xai"
@@ -67,6 +68,9 @@ class ModelProvider(StrEnum):
             "vertexai": cls.VERTEX_AI,
             "vertex": cls.VERTEX_AI,
             "openai": cls.OPENAI,
+            "codex": cls.CODEX,
+            "codexclient": cls.CODEX,
+            "chatgptclient": cls.CODEX,
             "anthropic": cls.ANTHROPIC,
             "claude": cls.ANTHROPIC,
             "openrouter": cls.OPENROUTER,
@@ -257,6 +261,16 @@ class ModelFactory:
                 },
             }
             return ChatGoogleGenerativeAI(**{k: v for k, v in kwargs.items() if v is not None})
+
+        elif provider == ModelProvider.CODEX:
+            from artemis.llm.codex_app_server import CodexAppServerChatModel
+
+            return CodexAppServerChatModel(
+                model_name=endpoint.model_name,
+                reasoning_effort=endpoint.reasoning_effort,
+                timeout_seconds=endpoint.timeout_seconds,
+                cwd=os.getcwd(),
+            )
 
         elif provider == ModelProvider.VERTEX_AI:
             from langchain_google_vertexai import (

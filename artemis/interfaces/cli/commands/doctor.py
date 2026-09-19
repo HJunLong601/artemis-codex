@@ -357,7 +357,7 @@ def _render_footer(console: Console, verdict: Verdict, results: list[ProbeResult
     tips = [
         "[bold yellow]💡 Blocking issues:[/bold yellow] " + escape(", ".join(failing)),
         "",
-        "• API keys & device setup: run [bold cyan]artemis init[/bold cyan].",
+        "• Model provider & device setup: run [bold cyan]artemis init[/bold cyan].",
         "• Follow the [bold cyan]Run:[/bold cyan] lines above, then re-run "
         "[bold cyan]artemis doctor[/bold cyan].",
         "• Using an IDE (Claude Code, Cursor, ...)? Ask it to call "

@@ -76,14 +76,16 @@
 ## Quick Start
 
 Ensure an Android device (with **USB Debugging** enabled) or emulator is connected. The one-click startup script will automatically:
-- **Install System Toolchains**: Detect and auto-install ADB, scrcpy, FFmpeg, and Python (`uv`) dependencies.
+- **Install System Toolchains**: Detect and install ADB, scrcpy, FFmpeg, Codex CLI, Python (`uv`), Node.js, and project dependencies.
 - **Mount Global MCP Server & AI Agent Rules**: Prompt to automatically install global MCP configurations and the **Artemis Mobile Testing Mindset (`rules.md`)** into your AI IDEs (**Antigravity**, **Cursor**, **Claude Code**, **Codex**, **Windsurf**, **VS Code**, **Cline/Roo**, **OpenClaw**).
+
+This fork defaults to the locally signed-in **Codex client**. The first launch installs Codex CLI; follow the prompt to run `codex login` once. Artemis then uses Codex App Server without an OpenAI API key. See [Codex client provider](./docs/codex-client-provider.md) and [macOS support](./docs/macos-support.md).
 
 ### macOS and Linux
 
 ```bash
 # 1. Clone repo & navigate to directory
-git clone https://github.com/google/artemis.git && cd artemis
+git clone https://github.com/HJunLong601/artemis-codex.git && cd artemis-codex
 
 # 2. One-click launch
 ./start.sh
@@ -93,8 +95,8 @@ git clone https://github.com/google/artemis.git && cd artemis
 
 ```powershell
 # 1. Clone repo & navigate to directory
-git clone https://github.com/google/artemis.git
-cd artemis
+git clone https://github.com/HJunLong601/artemis-codex.git
+cd artemis-codex
 
 # 2. One-click launch
 .\start.bat
@@ -209,7 +211,7 @@ Install the zero-runtime-dependency client on the development machine. ADB,
 agents, models, and image processing remain on the device host:
 
 ```powershell
-uv add "artemis-client @ git+https://github.com/google/artemis.git#subdirectory=packages/artemis-client"
+uv add "artemis-client @ git+https://github.com/HJunLong601/artemis-codex.git#subdirectory=packages/artemis-client"
 ```
 
 ```python

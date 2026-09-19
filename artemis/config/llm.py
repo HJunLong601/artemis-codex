@@ -77,7 +77,9 @@ class LLM(BaseModel):
     temperature: float | None = None
     thinking_budget: int | None = None
     thinking_level: Literal["minimal", "low", "medium", "high"] | None = None
-    reasoning_effort: Literal["none", "low", "medium", "high"] | None = None
+    reasoning_effort: (
+        Literal["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] | None
+    ) = None
     include_thoughts: bool | None = None
     enable_grounding: bool | None = None
 
@@ -100,6 +102,12 @@ class LLM(BaseModel):
         elif self.provider == "xai":
             if not settings.XAI_API_KEY:
                 raise Exception(f"{name} requires XAI_API_KEY in .env")
+        elif self.provider == "codex":
+            from artemis.llm.codex_app_server import codex_client_status
+
+            available, detail = codex_client_status()
+            if not available:
+                raise Exception(f"{name} requires an installed, signed-in Codex client. {detail}")
 
     def __str__(self) -> str:
         return f"{self.provider}/{self.model}"
@@ -260,6 +268,10 @@ def _expand_default_into_nodes(config_dict: dict) -> dict:
         "history_analyzer_expert",
         "diagnoser_expert",
         "explorer",
+        "history_analyzer",
+        "validator_pixel_safety_net",
+        "planner_validation",
+        "output_analyzer",
     ]
 
     all_utils_nodes = [

@@ -24,6 +24,7 @@ from artemis.config.constants import (
     AGENT_CONFIG_FILENAME,
     DEFAULT_EXPLORER_VERSION,
     ExplorerVersion,
+    LLMProvider,
 )
 from artemis.config.paths import ROOT_DIR, get_config_path
 from artemis.llm.google import VideoProcessing
@@ -394,6 +395,10 @@ class StepSummarizerConfig(BaseModel):
         default="gemini-2.5-flash-lite",
         description="Lightweight model used for background step state summarization.",
     )
+    provider: LLMProvider | None = Field(
+        default=None,
+        description="Provider for the background summarizer; defaults to the summarizer LLM role.",
+    )
     prune_history_xml: bool = Field(
         default=True,
         description="Whether to prune outdated heavy UI XML trees from historical turns.",
@@ -690,6 +695,10 @@ class MemoryChunkingConfig(BaseModel):
     model: str = Field(
         default="gemini-3.8-flash",
         description="Model used for the chunk-level StepCapsuleLens (bands ①+②).",
+    )
+    provider: LLMProvider | None = Field(
+        default=None,
+        description="Provider for the chunk-level StepCapsuleLens; defaults to the summarizer role.",
     )
     max_chunks: int = Field(
         default=8,

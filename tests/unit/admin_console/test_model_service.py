@@ -25,7 +25,7 @@ def test_get_active_model_info_pro_architecture():
     info = ModelService.get_active_model_info("pro")
     assert info["name"] == "Pro"
     assert info["architecture"] == "ARTEMIS Pro"
-    assert info["provider"] == "google"
+    assert info["provider"] == "codex"
     assert "id" in info
 
 
@@ -34,7 +34,7 @@ def test_get_active_model_info_flash_architecture():
     info = ModelService.get_active_model_info("flash")
     assert info["name"] == "Flash"
     assert info["architecture"] == "ARTEMIS Flash"
-    assert info["provider"] == "google"
+    assert info["provider"] == "codex"
 
 
 def test_resolve_session_profile_from_device_info():

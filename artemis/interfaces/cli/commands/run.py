@@ -502,9 +502,9 @@ def run_command(
             console.print(
                 Panel(
                     f"[bold red]✖ Authentication Error:[/bold red] {err_msg}\n\n"
-                    "💡 [bold cyan]Quick Fix:[/bold cyan] Run [bold green]artemis init[/bold green] to configure your API key in 10 seconds,\n"
-                    "or add [bold]GEMINI_API_KEY=your_key[/bold] to [dim].env[/dim].",
-                    title="Missing API Key",
+                    "💡 [bold cyan]Quick Fix:[/bold cyan] Run [bold green]artemis init[/bold green]. "
+                    "For the key-free default, open/sign in to Codex or run [bold]codex login[/bold].",
+                    title="Model Authentication",
                     expand=False,
                 )
             )

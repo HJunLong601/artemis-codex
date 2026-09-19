@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -89,6 +90,24 @@ mcp = FastMCP("Android_ADB_Controller")
 
 _GLOBAL_CONTROLLER = None
 _CONTROLLERS: dict[str, Any] = {}
+
+
+def _tool_with_clean_doc():
+    """Register a tool with a stable, indentation-free description.
+
+    MCP 1.29 stopped normalizing indented function docstrings before exposing
+    them in the tool schema. Cleaning them here preserves the public schema
+    seen by existing MCP clients across SDK versions.
+    """
+
+    def decorator(func):
+        raw_description = func.__doc__ or ""
+        description = inspect.cleandoc(raw_description)
+        if "\n" in raw_description:
+            description += "\n"
+        return mcp.tool(description=description)(func)
+
+    return decorator
 
 
 def _get_controller(device_serial: str | None = None):
@@ -188,7 +207,7 @@ from artemis.mcp.actuators.adb import (  # noqa: E402  pylint: disable=wrong-imp
 )
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def tap(
     ctx: Context,
     coordinates: list[int],
@@ -219,7 +238,7 @@ async def tap(
     return "Success"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def long_press_on(
     ctx: Context,
     coordinates: list[int],
@@ -250,7 +269,7 @@ async def long_press_on(
     return "Success"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def swipe(
     ctx: Context,
     coordinates: list[int],
@@ -284,7 +303,7 @@ async def swipe(
     return "Success"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def back(ctx: Context) -> str:
     """Simulates pressing the system back button."""
     try:
@@ -296,7 +315,7 @@ async def back(ctx: Context) -> str:
     return "Success" if success else "Failed"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def launch_app(ctx: Context, package_name: str) -> str:
     """Launches an application by its Android package name with retries and smart polling."""
     try:
@@ -308,7 +327,7 @@ async def launch_app(ctx: Context, package_name: str) -> str:
     return "Success" if success else f"Failed: {error_msg}"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def stop_app(ctx: Context, package_name: str) -> str:
     """Force stops an application by its Android package name."""
     try:
@@ -320,7 +339,7 @@ async def stop_app(ctx: Context, package_name: str) -> str:
     return "Success" if success else "Failed"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def open_link(ctx: Context, url: str) -> str:
     """Opens a URL or deep link on the device."""
     try:
@@ -332,7 +351,7 @@ async def open_link(ctx: Context, url: str) -> str:
     return "Success" if success else "Failed"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def focus_and_input_text(
     ctx: Context,
     coordinates: list[int],
@@ -369,7 +388,7 @@ async def focus_and_input_text(
     return "Success" if success else "Failed"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def focus_and_clear_text(
     ctx: Context,
     coordinates: list[int],
@@ -394,7 +413,7 @@ async def focus_and_clear_text(
     return "Success" if success else "Failed"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def erase_one_char(ctx: Context) -> str:
     """Erases a single character (simulates Backspace)."""
     try:
@@ -406,7 +425,7 @@ async def erase_one_char(ctx: Context) -> str:
     return "Success" if success else "Failed"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def press_key(ctx: Context, keycode: str) -> str:
     """Presses a specific Android key event (e.g., KEYCODE_ENTER, KEYCODE_HOME)."""
     try:
@@ -421,7 +440,7 @@ async def press_key(ctx: Context, keycode: str) -> str:
         return f"Error: {e}"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def take_screenshot(ctx: Context) -> str:
     """Takes a screenshot of the device screen.
 
@@ -439,7 +458,7 @@ async def take_screenshot(ctx: Context) -> str:
         return f"Error: {e}"
 
 
-@mcp.tool()
+@_tool_with_clean_doc()
 async def get_ui_hierarchy(ctx: Context) -> str:
     """Retrieves the current UI elements hierarchy from the device."""
     try:

@@ -52,6 +52,7 @@ function Update-EnvironmentPath {
         "$env:LOCALAPPDATA\Programs\uv",
         "$env:LOCALAPPDATA\uv",
         "$env:APPDATA\uv",
+        "$env:LOCALAPPDATA\Programs\OpenAI\Codex\bin",
         "$env:USERPROFILE\.cargo\bin",
         "$env:USERPROFILE\.local\bin",
         "$env:USERPROFILE\scoop\shims",
@@ -229,9 +230,10 @@ function Test-NodeCompatible {
         if ($parts.Count -ge 2) {
             $major = [int]$parts[0]
             $minor = [int]$parts[1]
+            $patch = if ($parts.Count -ge 3) { [int]($parts[2] -replace '[^0-9].*$', '') } else { 0 }
             if ($major -ge 26) { return $true }
             if ($major -eq 24 -and $minor -ge 15) { return $true }
-            if ($major -eq 22 -and $minor -ge 22) { return $true }
+            if ($major -eq 22 -and (($minor -gt 22) -or ($minor -eq 22 -and $patch -ge 3))) { return $true }
         }
     } catch {
         return $false
@@ -291,6 +293,45 @@ function Install-PortableNode {
         Write-Host "   [WARN] Failed to install portable Node.js: $_" -ForegroundColor DarkYellow
     }
     return $false
+}
+
+function Install-CodexCli {
+    Write-Host "`n3. Checking Codex CLI (default model provider)..." -ForegroundColor Yellow
+    if (-not (Test-CommandExists "codex")) {
+        Write-Host "   Codex CLI not found. Installing the official standalone client..." -ForegroundColor Cyan
+        $installerPath = Join-Path $env:TEMP "artemis-codex-install.ps1"
+        if (Invoke-DownloadFile -Uri "https://chatgpt.com/codex/install.ps1" -OutFile $installerPath -TimeoutSec 120) {
+            $previousNonInteractive = $env:CODEX_NON_INTERACTIVE
+            try {
+                $env:CODEX_NON_INTERACTIVE = "1"
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $installerPath
+            } catch {
+                Write-Host "   [WARN] Codex CLI installer failed: $_" -ForegroundColor DarkYellow
+            } finally {
+                if ($null -eq $previousNonInteractive) {
+                    Remove-Item Env:\CODEX_NON_INTERACTIVE -ErrorAction SilentlyContinue
+                } else {
+                    $env:CODEX_NON_INTERACTIVE = $previousNonInteractive
+                }
+                Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
+            }
+            Update-EnvironmentPath
+        }
+    }
+
+    if (Test-CommandExists "codex") {
+        $codexVersion = (& codex --version 2>$null)
+        Write-Host "   [OK] Codex CLI is ready ($codexVersion)." -ForegroundColor Green
+        & codex login status *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "   [WARN] Codex is installed but not signed in. Run: codex login" -ForegroundColor DarkYellow
+            Write-Host "          For a terminal without a browser: codex login --device-auth" -ForegroundColor DarkYellow
+        }
+    } else {
+        Write-Host "   [WARN] Codex CLI installation did not complete." -ForegroundColor DarkYellow
+        Write-Host "          Retry: `$env:CODEX_NON_INTERACTIVE=1; irm https://chatgpt.com/codex/install.ps1 | iex" -ForegroundColor Cyan
+        Write-Host "          You may still configure an API-key provider with: uv run artemis init" -ForegroundColor Cyan
+    }
 }
 
 # 0. Initial PATH refresh
@@ -374,14 +415,17 @@ if (Test-CommandExists "uv") {
     Exit 1
 }
 
-# 3. Setup Python Runtime & Sync Dependencies
-Write-Host "`n3. Configuring Python Runtime & Syncing Dependencies..." -ForegroundColor Yellow
+# 3. Install the default keyless model client
+Install-CodexCli
+
+# 4. Setup Python Runtime & Sync Dependencies
+Write-Host "`n4. Configuring Python Runtime & Syncing Dependencies..." -ForegroundColor Yellow
 Write-Host "   [INFO] Running uv sync (auto-provisioning Python >=3.12 & dependencies)..." -ForegroundColor Cyan
 uv sync
 Write-Host "   [OK] Dependencies synced successfully." -ForegroundColor Green
 
-# 4. Check .env Configuration
-Write-Host "`n4. Checking Environment Configuration (.env)..." -ForegroundColor Yellow
+# 5. Check .env Configuration
+Write-Host "`n5. Checking Environment Configuration (.env)..." -ForegroundColor Yellow
 if (-not (Test-Path ".env")) {
     if (Test-Path ".env.example") {
         Copy-Item ".env.example" ".env"
@@ -394,8 +438,8 @@ if (-not (Test-Path ".env")) {
     Write-Host "   [OK] .env configuration file exists." -ForegroundColor Green
 }
 
-# 5. Check and Build Showcase UI (Angular)
-Write-Host "`n5. Checking Showcase UI Build (Angular)..." -ForegroundColor Yellow
+# 6. Check and Build Showcase UI (Angular)
+Write-Host "`n6. Checking Showcase UI Build (Angular)..." -ForegroundColor Yellow
 $ShowcaseIndex = "$RootDir\apps\showcase_ui\dist\frontend\browser\index.html"
 $ShowcaseIndexAlt1 = "$RootDir\apps\showcase_ui\dist\browser\index.html"
 $ShowcaseIndexAlt2 = "$RootDir\apps\showcase_ui\dist\index.html"
@@ -403,7 +447,7 @@ if ((-not (Test-Path $ShowcaseIndex)) -and (-not (Test-Path $ShowcaseIndexAlt1))
     if (-not (Test-NodeCompatible)) {
         if (Test-CommandExists "node") {
             $curVer = (& node -v 2>$null)
-            Write-Host "   [WARN] Detected Node.js $curVer, but Angular CLI requires Node.js >= v22.22.0." -ForegroundColor Yellow
+            Write-Host "   [WARN] Detected Node.js $curVer, but Angular CLI requires Node.js >= v22.22.3." -ForegroundColor Yellow
         } else {
             Write-Host "   [WARN] Node.js/npm not found (required for Showcase UI)." -ForegroundColor Cyan
         }
@@ -456,10 +500,6 @@ if ((-not (Test-Path $ShowcaseIndex)) -and (-not (Test-Path $ShowcaseIndexAlt1))
                 Write-Host "   [WARN] npm install returned exit code $LASTEXITCODE. Trying silent install..." -ForegroundColor DarkYellow
                 & $npmExec install --silent
             }
-            $cliNodeVersion = "$RootDir\apps\showcase_ui\node_modules\@angular\cli\src\utilities\node-version.js"
-            if (Test-Path $cliNodeVersion) {
-                (Get-Content $cliNodeVersion) -replace '22\.22\.3', '22.22.0' | Set-Content $cliNodeVersion
-            }
             Write-Host "   [INFO] Building Angular frontend application..." -ForegroundColor Cyan
             & $npmExec run build
             if (Test-Path $ShowcaseIndex) {
@@ -475,15 +515,15 @@ if ((-not (Test-Path $ShowcaseIndex)) -and (-not (Test-Path $ShowcaseIndexAlt1))
             Pop-Location
         }
     } else {
-        Write-Host "   [WARN] Could not configure compatible Node.js (>= 22.22.0). Showcase UI will show fallback notice on launch." -ForegroundColor DarkYellow
+        Write-Host "   [WARN] Could not configure compatible Node.js (>= 22.22.3). Showcase UI will show fallback notice on launch." -ForegroundColor DarkYellow
     }
 } else {
     Write-Host "   [OK] Showcase UI build already exists." -ForegroundColor Green
 }
 
-# 6. Toolchain Readiness Summary
-Write-Host "`n6. Toolchain Readiness Summary:" -ForegroundColor Yellow
-$tools = @("adb", "ffmpeg", "scrcpy", "uv", "npm")
+# 7. Toolchain Readiness Summary
+Write-Host "`n7. Toolchain Readiness Summary:" -ForegroundColor Yellow
+$tools = @("adb", "ffmpeg", "scrcpy", "codex", "uv", "npm")
 foreach ($t in $tools) {
     $hasCmd = Test-CommandExists $t
     if (-not $hasCmd -and $t -eq "npm") {

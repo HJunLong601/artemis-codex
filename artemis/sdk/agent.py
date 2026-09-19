@@ -281,6 +281,26 @@ class Agent:
                 "model_ready", "Model connection is ready (fake LLM)", session_id=self._session_id
             )
             return
+        try:
+            from artemis.config.llm import get_default_llm_config
+
+            if get_default_llm_config().planner.provider == "codex":
+                from artemis.llm.codex_app_server import codex_client_status
+
+                available, detail = await asyncio.to_thread(codex_client_status)
+                if available:
+                    logger.info(
+                        "Codex client login is ready; App Server starts on first model call."
+                    )
+                    publish_startup_progress(
+                        "model_ready",
+                        "Codex client connection is ready",
+                        session_id=self._session_id,
+                    )
+                    return
+                logger.warning(f"Codex client is not ready: {detail}")
+        except Exception as exc:
+            logger.debug(f"Could not inspect the configured LLM provider: {exc}", exc_info=True)
         publish_startup_progress(
             "model_warmup", "Warming the model connection", session_id=self._session_id
         )

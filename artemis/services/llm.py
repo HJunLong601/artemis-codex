@@ -1061,8 +1061,12 @@ def _resolve_endpoint(
         val = getattr(obj, attr, None)
         return val if isinstance(val, expected_type) else None
 
-    provider_val = getattr(cfg, "provider", "google")
-    model_val = getattr(cfg, "model", "gemini-2.5-flash")
+    # Older integrations and lightweight tests often provide only ``model``
+    # on a mock node. Attribute-based mocks fabricate ``provider`` as another
+    # Mock, which must be treated as missing instead of parsed as a provider
+    # name. Fully materialized runtime config always supplies a string here.
+    provider_val = _get_val(cfg, "provider", str) or "google"
+    model_val = _get_val(cfg, "model", str) or "gemini-2.5-flash"
 
     return ModelEndpoint(
         provider=ModelProvider.from_string(provider_val),

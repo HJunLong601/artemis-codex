@@ -116,7 +116,8 @@ request_sudo() {
     return 1
 }
 
-# Helper to check if Node.js & npm meet Angular CLI 22 requirement (>= 22.22.0, >= 24.15.0, or >= 26.0.0)
+# Helper to check if Node.js & npm meet Angular CLI 22 requirement
+# (>= 22.22.3, >= 24.15.0, or >= 26.0.0).
 is_node_compatible() {
     if ! has_cmd node || ! has_cmd npm; then
         return 1
@@ -124,17 +125,60 @@ is_node_compatible() {
     local node_ver
     node_ver="$(node -v 2>/dev/null | tr -d 'v')"
     [ -z "${node_ver}" ] && return 1
-    local major minor
+    local major minor patch
     major="$(echo "${node_ver}" | cut -d. -f1)"
     minor="$(echo "${node_ver}" | cut -d. -f2)"
+    patch="$(echo "${node_ver}" | cut -d. -f3 | sed 's/[^0-9].*$//')"
+    patch="${patch:-0}"
     if [ "${major}" -ge 26 ] 2>/dev/null; then
         return 0
-    elif [ "${major}" -ge 24 ] 2>/dev/null; then
+    elif [ "${major}" -eq 24 ] 2>/dev/null; then
         [ "${minor}" -ge 15 ] 2>/dev/null && return 0
-    elif [ "${major}" -ge 22 ] 2>/dev/null; then
-        [ "${minor}" -ge 22 ] 2>/dev/null && return 0
+    elif [ "${major}" -eq 22 ] 2>/dev/null; then
+        if [ "${minor}" -gt 22 ] 2>/dev/null; then
+            return 0
+        fi
+        [ "${minor}" -eq 22 ] 2>/dev/null && [ "${patch}" -ge 3 ] 2>/dev/null && return 0
     fi
     return 1
+}
+
+ensure_homebrew() {
+    [ "${OS_TYPE}" = "Darwin" ] || return 0
+
+    if ! has_cmd brew; then
+        if [ -x "/opt/homebrew/bin/brew" ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -x "/usr/local/bin/brew" ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+    fi
+    has_cmd brew && return 0
+
+    echo -e "   ${YELLOW}Homebrew is required to install the macOS Android toolchain.${NC}"
+    local brew_installer
+    brew_installer="$(mktemp -t artemis-homebrew.XXXXXX)"
+    if ! curl -fsSL --connect-timeout 10 --max-time 120 \
+        "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" -o "${brew_installer}"; then
+        rm -f "${brew_installer}"
+        echo -e "   ${RED}✗ Could not download the Homebrew installer.${NC}"
+        return 1
+    fi
+
+    echo -e "   ${CYAN}Installing Homebrew (macOS may request your password)...${NC}"
+    if [ -t 0 ]; then
+        /bin/bash "${brew_installer}" || true
+    else
+        NONINTERACTIVE=1 /bin/bash "${brew_installer}" || true
+    fi
+    rm -f "${brew_installer}"
+
+    if [ -x "/opt/homebrew/bin/brew" ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -x "/usr/local/bin/brew" ]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+    has_cmd brew
 }
 
 echo -e "${BOLD}1. Detecting Operating System & Environment...${NC}"
@@ -190,15 +234,7 @@ install_system_packages() {
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         export HOMEBREW_NO_ENV_HINTS=1
 
-        if ! has_cmd brew; then
-            if [ -x "/opt/homebrew/bin/brew" ]; then
-                eval "$(/opt/homebrew/bin/brew shellenv)"
-            elif [ -x "/usr/local/bin/brew" ]; then
-                eval "$(/usr/local/bin/brew shellenv)"
-            fi
-        fi
-
-        if has_cmd brew; then
+        if ensure_homebrew; then
             echo -e "   ${CYAN}Detected Homebrew ($(brew --version | head -n1)). Installing missing components...${NC}"
             if [ "${need_adb}" = true ]; then
                 echo -e "   📦 Installing ${BOLD}android-platform-tools${NC}..."
@@ -213,7 +249,7 @@ install_system_packages() {
                 brew install scrcpy || true
             fi
         else
-            echo -e "   ${YELLOW}⚠ Homebrew not found. Please install Homebrew or install tools manually:${NC}"
+            echo -e "   ${YELLOW}⚠ Homebrew could not be installed. Install the tools manually:${NC}"
             echo -e "     /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
             echo -e "     brew install --cask android-platform-tools && brew install ffmpeg scrcpy"
         fi
@@ -352,9 +388,38 @@ ensure_uv() {
     fi
 }
 
+# Install the official Codex CLI used by the default, API-key-free provider.
+ensure_codex_cli() {
+    echo -e "\n${BOLD}4. Checking Codex CLI (default model provider)...${NC}"
+    if ! has_cmd codex; then
+        echo -e "   ${YELLOW}Codex CLI not found. Installing the official standalone client...${NC}"
+        local codex_installer
+        codex_installer="$(mktemp -t artemis-codex.XXXXXX)"
+        if curl -fsSL --connect-timeout 10 --max-time 120 \
+            "https://chatgpt.com/codex/install.sh" -o "${codex_installer}"; then
+            CODEX_NON_INTERACTIVE=1 sh "${codex_installer}" || true
+        fi
+        rm -f "${codex_installer}"
+        export PATH="${HOME}/.local/bin:${PATH}"
+        hash -r 2>/dev/null || true
+    fi
+
+    if has_cmd codex; then
+        echo -e "   ${GREEN}✓ Codex CLI is ready ($(codex --version 2>/dev/null || echo installed)).${NC}"
+        if ! codex login status >/dev/null 2>&1; then
+            echo -e "   ${YELLOW}⚠ Codex is installed but not signed in. Run: ${BOLD}codex login${NC}"
+            echo -e "     For a terminal without a browser, run: ${BOLD}codex login --device-auth${NC}"
+        fi
+    else
+        echo -e "   ${YELLOW}⚠ Codex CLI installation did not complete.${NC}"
+        echo -e "     Retry: curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+        echo -e "     You may still configure an API-key provider with: uv run artemis init"
+    fi
+}
+
 # Function to setup Python runtime and sync dependencies
 setup_python_env() {
-    echo -e "\n${BOLD}4. Configuring Python Runtime & Syncing Dependencies...${NC}"
+    echo -e "\n${BOLD}5. Configuring Python Runtime & Syncing Dependencies...${NC}"
     echo -e "   ${BLUE}📦 Running uv sync (auto-provisioning Python >=3.12 & dependencies)...${NC}"
     uv sync
     echo -e "   ${GREEN}✓ Python runtime and dependencies synced successfully.${NC}"
@@ -362,7 +427,7 @@ setup_python_env() {
 
 # Function to initialize .env configuration
 setup_env_file() {
-    echo -e "\n${BOLD}5. Checking Environment Configuration (.env)...${NC}"
+    echo -e "\n${BOLD}6. Checking Environment Configuration (.env)...${NC}"
     if [ ! -f ".env" ]; then
         if [ -f ".env.example" ]; then
             cp .env.example .env
@@ -378,7 +443,7 @@ setup_env_file() {
 
 # Function to check and build Showcase UI
 setup_showcase_ui() {
-    echo -e "\n${BOLD}6. Checking Showcase UI Build (Angular)...${NC}"
+    echo -e "\n${BOLD}7. Checking Showcase UI Build (Angular)...${NC}"
     local SHOWCASE_INDEX="${ROOT_DIR}/apps/showcase_ui/dist/frontend/browser/index.html"
     local SHOWCASE_INDEX_ALT1="${ROOT_DIR}/apps/showcase_ui/dist/browser/index.html"
     local SHOWCASE_INDEX_ALT2="${ROOT_DIR}/apps/showcase_ui/dist/index.html"
@@ -401,7 +466,7 @@ setup_showcase_ui() {
         if ! is_node_compatible; then
             if has_cmd node; then
                 local current_node="$(node -v 2>/dev/null)"
-                echo -e "   ${YELLOW}⚡ Detected Node.js ${current_node}, but Angular CLI requires Node.js >= v22.22.0. Upgrading Node.js...${NC}"
+                echo -e "   ${YELLOW}⚡ Detected Node.js ${current_node}, but Angular CLI requires Node.js >= v22.22.3. Upgrading Node.js...${NC}"
             else
                 echo -e "   ${YELLOW}⚡ Node.js/npm not found. Auto-installing Node.js 22 LTS for Showcase UI compilation...${NC}"
             fi
@@ -420,7 +485,7 @@ setup_showcase_ui() {
 
             # 3. Try Linux package managers with sudo / root
             if ! is_node_compatible && [ "${OS_TYPE}" = "Linux" ]; then
-                if request_sudo "install or upgrade Node.js to >= 22.22.0"; then
+                if request_sudo "install or upgrade Node.js to >= 22.22.3"; then
                     local SUDO_PREFIX=""
                     if [ "$(id -u)" -ne 0 ]; then SUDO_PREFIX="sudo"; fi
                     if has_cmd apt-get; then
@@ -469,19 +534,11 @@ setup_showcase_ui() {
             (
                 cd "${ROOT_DIR}/apps/showcase_ui"
                 npm install --silent
-                CLI_NODE_VERSION="${ROOT_DIR}/apps/showcase_ui/node_modules/@angular/cli/src/utilities/node-version.js"
-                if [ -f "${CLI_NODE_VERSION}" ]; then
-                    if [ "${OS_TYPE}" = "Darwin" ]; then
-                        sed -i '' 's/22\.22\.3/22.22.0/g' "${CLI_NODE_VERSION}" 2>/dev/null || true
-                    else
-                        sed -i 's/22\.22\.3/22.22.0/g' "${CLI_NODE_VERSION}" 2>/dev/null || true
-                    fi
-                fi
                 npm run build
             )
             echo -e "   ${GREEN}✓ Showcase UI compiled successfully.${NC}"
         else
-            echo -e "   ${YELLOW}⚠ Could not configure compatible Node.js (>= 22.22.0). Showcase UI will show fallback notice on launch.${NC}"
+            echo -e "   ${YELLOW}⚠ Could not configure compatible Node.js (>= 22.22.3). Showcase UI will show fallback notice on launch.${NC}"
         fi
     else
         echo -e "   ${GREEN}✓ Showcase UI build already exists.${NC}"
@@ -490,9 +547,9 @@ setup_showcase_ui() {
 
 # Function to display system readiness report
 verify_readiness() {
-    echo -e "\n${BOLD}7. Toolchain Readiness Summary:${NC}"
+    echo -e "\n${BOLD}8. Toolchain Readiness Summary:${NC}"
 
-    local tools=("adb" "ffmpeg" "scrcpy" "uv" "python3" "npm")
+    local tools=("adb" "ffmpeg" "scrcpy" "codex" "uv" "python3" "npm")
     for t in "${tools[@]}"; do
         if has_cmd "$t"; then
             local loc
@@ -513,6 +570,7 @@ verify_readiness() {
 # Run setup workflow
 install_system_packages
 ensure_uv
+ensure_codex_cli
 setup_python_env
 setup_env_file
 setup_showcase_ui

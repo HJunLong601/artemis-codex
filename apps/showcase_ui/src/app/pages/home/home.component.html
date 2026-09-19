@@ -298,14 +298,21 @@
       <div class="step-title-row">
         <h3 class="step-title">AI Model Setup</h3>
       </div>
-      <p class="step-desc">Google Gemini or custom LLM providers (OpenAI, Claude, Ollama)</p>
+      <p class="step-desc">Signed-in Codex client or API-key providers (Gemini, OpenAI, Claude)</p>
     </div>
   </div>
 
   <div class="guide-card-body">
+    @if (modelConfigEnv()?.default_model?.provider === 'codex') {
+    <div class="feedback-msg success">
+      <span class="material-symbols-outlined">verified_user</span>
+      <span><strong>Codex client active.</strong> Artemis is reusing the local ChatGPT login; no API key is required.</span>
+    </div>
+    }
+
     <!-- 2 Big Visual Choice Cards -->
     <div class="model-choice-cards-row">
-      <!-- Card 1: Gemini (Recommended) -->
+      <!-- Card 1: Gemini API-key option -->
       <div class="choice-card" [class.selected]="modelSetupMode() === 'gemini'" (click)="setModelSetupMode('gemini')">
         <div class="choice-card-top">
           <div class="choice-radio">
@@ -328,9 +335,9 @@
           <div class="choice-text">
             <div class="choice-title-row">
               <span class="choice-title">Google Gemini</span>
-              <span class="tag-badge tag-rec">Recommended</span>
+              <span class="tag-badge tag-rec">API-key option</span>
             </div>
-            <p class="choice-desc">Fast multimodal reasoning with free API key from Google AI Studio.</p>
+            <p class="choice-desc">Optional Gemini provider using a Google AI Studio API key.</p>
           </div>
         </div>
       </div>
@@ -348,8 +355,8 @@
             <div class="choice-title-row">
               <span class="choice-title">Custom Configuration</span>
             </div>
-            <p class="choice-desc">Define models in <code>config/artemis.jsonc</code> & keys in <code>.env</code>
-              (OpenAI, Claude, Ollama).</p>
+            <p class="choice-desc">Define models in <code>config/artemis.jsonc</code>; Codex uses client login,
+              while OpenAI and Claude use keys from <code>.env</code>.</p>
           </div>
         </div>
       </div>

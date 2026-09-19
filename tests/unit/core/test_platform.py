@@ -59,6 +59,8 @@ def test_darwin_platform_paths():
     # OS path separator used by str().
     assert darwin_p.paths.config_dir.parts[-3:] == ("Library", "Application Support", "artemis")
     assert darwin_p.process.path_separator == ":"
+    assert darwin_p.get_install_command("adb") == "brew install --cask android-platform-tools"
+    assert darwin_p.get_install_command("scrcpy") == "brew install scrcpy"
 
 
 def test_windows_platform_paths():

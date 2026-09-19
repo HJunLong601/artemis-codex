@@ -175,8 +175,9 @@ class DarwinPlatform(IPlatform):
         return None
 
     def get_install_command(self, tool_name: str) -> str:
+        if tool_name == "adb":
+            return "brew install --cask android-platform-tools"
         pkg_map = {
-            "adb": "android-platform-tools",
             "ffmpeg": "ffmpeg",
             "scrcpy": "scrcpy",
         }

@@ -54,9 +54,9 @@ app.command(name="restart", help="Restart running Artemis Web UI & server.")(res
 app.command(name="stop", help="Stop running Artemis Web UI & server.")(stop_command)
 app.command(name="status", help="Display Artemis Web UI & server status.")(status_command)
 app.command(name="run", help="Execute an autonomous task on a mobile device.")(run_command)
-app.command(name="init", help="Interactive quickstart wizard to configure API keys & device.")(
-    init_command
-)
+app.command(
+    name="init", help="Interactive quickstart wizard to configure a model provider & device."
+)(init_command)
 app.command(name="doctor", help="Check system prerequisites, device status, and configuration.")(
     doctor_command
 )

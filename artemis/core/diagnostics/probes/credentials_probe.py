@@ -14,6 +14,7 @@
 
 """LLM & Multimodal Vision Credentials Readiness Probe."""
 
+import asyncio
 from typing import Any
 from artemis.config import settings
 from artemis.core.diagnostics.probes.base import BaseProbe
@@ -60,6 +61,29 @@ class LLMCredentialsProbe(BaseProbe):
 
         configured_providers: list[dict[str, Any]] = []
         api_keys_map: dict[str, str] = {}
+
+        # Codex owns its ChatGPT authentication. Only ask the CLI for its
+        # public login status; never read or expose the underlying token.
+        from artemis.llm.codex_app_server import codex_client_status
+
+        try:
+            from artemis.config.llm import parse_llm_config
+
+            active_provider = str(parse_llm_config().planner.provider)
+        except Exception:
+            active_provider = ""
+        codex_available = False
+        if active_provider == "codex":
+            codex_available, _ = await asyncio.to_thread(codex_client_status)
+        if codex_available:
+            configured_providers.append(
+                {
+                    "provider": "codex",
+                    "label": "Codex client",
+                    "masked": "ChatGPT login",
+                    "credential_type": "client_session",
+                }
+            )
         if gemini_key and not is_placeholder_key(gemini_key):
             g_val = gemini_key.get_secret_value()
             configured_providers.append(
@@ -150,7 +174,7 @@ class LLMCredentialsProbe(BaseProbe):
         current_active_key = (
             gemini_key.get_secret_value()
             if gemini_key
-            else (configured_providers[0]["key"] if configured_providers else "")
+            else (configured_providers[0].get("key", "") if configured_providers else "")
         )
 
         metadata = {
@@ -186,6 +210,27 @@ class LLMCredentialsProbe(BaseProbe):
         # Case 2: Other LLM provider configured
         if configured_providers:
             first_p = configured_providers[0]
+            if first_p["provider"] == "codex":
+                return ProbeResult(
+                    id=self.probe_id,
+                    category=self.category,
+                    title="Multimodal LLM Credentials",
+                    status=ProbeStatus.PASS,
+                    is_blocker=self.is_blocker,
+                    summary="Active (Codex client)",
+                    description=(
+                        "The local Codex client is signed in with ChatGPT. Artemis can reuse "
+                        "that session through Codex App Server without an API key."
+                    ),
+                    metadata=metadata,
+                    actions=[
+                        ProbeAction(
+                            action_type="hint",
+                            label="Provider Active",
+                            payload="Codex App Server multimodal and reasoning access is enabled.",
+                        )
+                    ],
+                )
             return ProbeResult(
                 id=self.probe_id,
                 category=self.category,
