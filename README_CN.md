@@ -52,7 +52,7 @@ ARTEMIS_CODEX_IMAGE_MAX_BYTES=786432
 ARTEMIS_CODEX_IMAGE_JPEG_QUALITY=82
 ```
 
-选择 Codex 客户端时，核心自动化功能无需 API Key。只有显式启用云 OCR，或切换至 Gemini、OpenAI API、Anthropic、OpenRouter、xAI Provider 时，才需要配置对应的 Key。通用适配层已发布为 [codex-client-provider](https://pypi.org/project/codex-client-provider/)；协议、模型路由、配置项和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。
+选择 Codex 客户端时，核心自动化功能无需 API Key。只有显式启用云 OCR，或切换至 Gemini、OpenAI API、Anthropic、OpenRouter、xAI Provider 时，才需要配置对应的 Key。通用适配层已发布为 [codex-client-provider](https://github.com/HJunLong601/codex-client-provider/blob/main/README_CN.md)，Artemis 固定依赖其 PyPI `0.1.0` 版本；协议、模型路由、配置项和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。
 
 可以使用以下命令检查完整本地环境：
 

@@ -4,7 +4,7 @@
 > [Codex Provider 分层与独立仓库计划](./codex-provider-extraction-plan.md)。
 
 通用适配层已经独立发布：
-[GitHub](https://github.com/HJunLong601/codex-client-provider) ·
+[GitHub 中文说明](https://github.com/HJunLong601/codex-client-provider/blob/main/README_CN.md) ·
 [PyPI 0.1.0](https://pypi.org/project/codex-client-provider/0.1.0/)。Artemis 固定依赖
 `codex-client-provider==0.1.0`，仓库内只保留 Artemis 身份、路由和诊断接入层。
 
