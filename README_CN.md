@@ -10,6 +10,7 @@
   <a href="./README.md">English</a> •
   <a href="./README_CN.md"><b>中文文档</b></a> •
   <a href="#workflow-showcase">全流程演示</a> •
+  <a href="#codex-client-integration">Codex 客户端</a> •
   <a href="#quick-start">快速上手</a> •
   <a href="#mcp-setup">MCP 接入 IDE</a> •
   <a href="#benchmarks">基准评测</a> •
@@ -20,6 +21,7 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-3776AB.svg?logo=python&logoColor=white" alt="Python 3.12+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Native%20Server-8A2BE2.svg" alt="MCP Native"></a>
+  <a href="./docs/codex-client-provider.md"><img src="https://img.shields.io/badge/Default-Codex%20Client%20%7C%20No%20API%20Key-111827.svg" alt="无需 API Key 的 Codex 客户端"></a>
   <a href="https://ai.google.dev/"><img src="https://img.shields.io/badge/Multimodal-Gemini%20%7C%20Claude%20%7C%20GPT--4o%20%7C%20Qwen--VL-4285F4.svg" alt="Multi-Model"></a>
   <a href="https://github.com/google-research/android_world"><img src="https://img.shields.io/badge/AndroidWorld-99%25%2B%20SOTA-success.svg" alt="AndroidWorld SOTA"></a>
 </p>
@@ -39,6 +41,39 @@
 * **Flash 执行**：使用观察、执行循环和异步历史摘要，单步通常约 **3–5 秒**。
 * **Pro 探索**：单个动作执行前校验目标，被拦截的动作交回 Operator 处理。支持长时间探索和稳定性测试。
 * **AndroidWorld 结果**：在 Google Research **AndroidWorld** 基准评测（100+ 多步任务）中取得 **99%+ 任务完成率**。
+
+<a id="codex-client-integration"></a>
+## 本分支新增能力
+
+本分支可以把本机 **Codex CLI** 的 ChatGPT 登录态作为默认模型 Provider。Artemis 启动 `codex app-server`，通过 JSONL/stdio 调用当前账号可用的模型；不会读取或复制 `~/.codex/auth.json`，默认运行路径也不需要配置 `OPENAI_API_KEY`。
+
+| 新增内容 | 具体行为 |
+|---|---|
+| 免 API Key 的 Codex Provider | Planner、Operator、Checker、Explorer、Outputter、步骤摘要和历史压缩统一复用已登录的 Codex 客户端。 |
+| 多模态输入 | 截图通过 Codex App Server 的本地图片输入发送给模型。 |
+| 截图尺寸控制 | 超过尺寸或字节限制的图片会在模型调用前等比缩放并压缩成 JPEG。 |
+| 隔离执行 | 每次模型调用使用临时 Codex thread、只读沙箱和无审批模式；真机操作仍由 Artemis 执行。 |
+| 首次运行引导 | 启动脚本自动安装或定位 ADB、scrcpy、FFmpeg、Codex CLI、`uv`/Python、Node.js 和项目依赖。 |
+| 跨平台安装 | Windows、Apple Silicon macOS、Intel macOS 与 Linux 共用一致的依赖检查和就绪流程。 |
+| 集成诊断 | `artemis init`、`artemis doctor`、Web 控制台和 CLI 错误会展示 Codex 安装、登录状态及修复命令。 |
+
+可以在 `.env` 中调整默认截图限制：
+
+```dotenv
+ARTEMIS_CODEX_IMAGE_MAX_EDGE=1600
+ARTEMIS_CODEX_IMAGE_MAX_BYTES=786432
+ARTEMIS_CODEX_IMAGE_JPEG_QUALITY=82
+```
+
+选择 Codex 客户端时，核心自动化功能无需 API Key。只有显式启用云 OCR，或切换至 Gemini、OpenAI API、Anthropic、OpenRouter、xAI Provider 时，才需要配置对应的 Key。协议、模型路由、配置项和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。
+
+可以使用以下命令检查完整本地环境：
+
+```bash
+codex login status
+adb devices -l
+uv run artemis doctor
+```
 
 <a id="workflow-showcase"></a>
 <a id="全流程演示"></a>

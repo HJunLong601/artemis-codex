@@ -10,6 +10,7 @@
   <a href="./README.md"><b>English</b></a> •
   <a href="./README_CN.md">中文文档</a> •
   <a href="#workflow-showcase">Workflow Showcase</a> •
+  <a href="#codex-client-integration">Codex Client</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#mcp-setup">MCP for IDEs</a> •
   <a href="#benchmarks">Benchmarks</a> •
@@ -20,6 +21,7 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-3776AB.svg?logo=python&logoColor=white" alt="Python 3.12+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Native%20Server-8A2BE2.svg" alt="MCP Native"></a>
+  <a href="./docs/codex-client-provider.md"><img src="https://img.shields.io/badge/Default-Codex%20Client%20%7C%20No%20API%20Key-111827.svg" alt="Codex client without API key"></a>
   <a href="https://ai.google.dev/"><img src="https://img.shields.io/badge/Multimodal-Gemini%20%7C%20Claude%20%7C%20GPT--4o%20%7C%20Qwen--VL-4285F4.svg" alt="Multi-Model"></a>
   <a href="https://github.com/google-research/android_world"><img src="https://img.shields.io/badge/AndroidWorld-99%25%2B%20SOTA-success.svg" alt="AndroidWorld SOTA"></a>
 </p>
@@ -39,6 +41,39 @@
 * **Flash Execution**: A reactive observe-and-act loop with asynchronous history summaries, typically **3–5s per step**.
 * **Pro Exploration**: Checks targets before individual actions and returns blocked actions to the Operator for recovery. Supports long-running exploratory and stability tests.
 * **AndroidWorld Results**: **99%+ task completion** on Google Research's **AndroidWorld** benchmark (100+ multi-step tasks).
+
+<a id="codex-client-integration"></a>
+## What This Fork Adds
+
+This fork can use the ChatGPT session from the locally installed **Codex CLI** as its default model provider. Artemis starts `codex app-server`, communicates over JSONL/stdio, and routes model requests through the models available to the signed-in account. It does not read or copy `~/.codex/auth.json`, and the default path does not require `OPENAI_API_KEY`.
+
+| Addition | Behavior |
+|---|---|
+| Key-free Codex provider | Planner, Operator, Checker, Explorer, Outputter, summaries, and history compression use the signed-in Codex client. |
+| Multimodal input | Screenshots are sent as local image inputs through Codex App Server. |
+| Screenshot size control | Images larger than the configured dimensions or byte limit are proportionally resized and JPEG-compressed before model calls. |
+| Isolated execution | Every model call uses a temporary Codex thread with a read-only sandbox and no approval prompts; Artemis remains responsible for device actions. |
+| First-run bootstrap | Startup scripts install or locate ADB, scrcpy, FFmpeg, Codex CLI, `uv`/Python, Node.js, and project dependencies. |
+| Cross-platform setup | Windows, Apple Silicon macOS, Intel macOS, and Linux use the same dependency and readiness workflow. |
+| Integrated diagnostics | `artemis init`, `artemis doctor`, the Web console, and CLI errors report Codex installation and login state with recovery commands. |
+
+The default image limits can be changed in `.env`:
+
+```dotenv
+ARTEMIS_CODEX_IMAGE_MAX_EDGE=1600
+ARTEMIS_CODEX_IMAGE_MAX_BYTES=786432
+ARTEMIS_CODEX_IMAGE_JPEG_QUALITY=82
+```
+
+Core automation does not need an API key when the Codex client is selected. Cloud OCR and alternative Gemini, OpenAI API, Anthropic, OpenRouter, or xAI providers still require their corresponding keys when explicitly enabled. See [Codex client provider](./docs/codex-client-provider.md) for the protocol, model routing, configuration, and limitations.
+
+Verify the complete local environment with:
+
+```bash
+codex login status
+adb devices -l
+uv run artemis doctor
+```
 
 <a id="workflow-showcase"></a>
 ## Antigravity × ARTEMIS: Autonomous Testing Workflow
