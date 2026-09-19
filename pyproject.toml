@@ -26,6 +26,8 @@ requires-python = ">=3.12"
 dependencies = [
     # Remote Python SDK (kept as a zero-dependency workspace package)
     "artemis-client>=0.1.0",
+    # Reusable key-free Codex App Server provider
+    "codex-client-provider>=0.1.0",
     # Orchestration & Framework
     "langgraph>=1.0.2,<2.0.0",
     "langchain>=1.0.0",
@@ -99,10 +101,11 @@ requires = ["setuptools>=61.0", "Cython"]
 build-backend = "setuptools.build_meta"
 
 [tool.uv.workspace]
-members = ["packages/artemis-client"]
+members = ["packages/artemis-client", "packages/codex-client-provider"]
 
 [tool.uv.sources]
 artemis-client = { workspace = true }
+codex-client-provider = { workspace = true }
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
@@ -188,6 +191,7 @@ pythonpath = [
     ".",
     "apps",
     "apps/admin_console",
+    "packages/codex-client-provider/src",
 ]
 
 
@@ -196,6 +200,7 @@ testpaths = [
     "tests/unit",
     "tests/tools",
     "packages/artemis-client/tests",
+    "packages/codex-client-provider/tests",
 ]
 python_files = [
     "*.test.py",

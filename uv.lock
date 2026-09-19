@@ -13,6 +13,7 @@ resolution-markers = [
 members = [
     "artemis",
     "artemis-client",
+    "codex-client-provider",
 ]
 
 [[package]]
@@ -230,6 +231,7 @@ source = { editable = "." }
 dependencies = [
     { name = "adbutils" },
     { name = "artemis-client" },
+    { name = "codex-client-provider" },
     { name = "colorama" },
     { name = "fastapi" },
     { name = "google-genai" },
@@ -296,6 +298,7 @@ dev = [
 requires-dist = [
     { name = "adbutils", specifier = ">=2.12.0" },
     { name = "artemis-client", editable = "packages/artemis-client" },
+    { name = "codex-client-provider", editable = "packages/codex-client-provider" },
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "fastapi", specifier = ">=0.111.0" },
     { name = "google-genai", specifier = ">=2.22.0" },
@@ -690,6 +693,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/76/d4/81420972a676e8ffea40450d8c8c92943e7218a78fe9b64359836cc9876b/click-8.4.2.tar.gz", hash = "sha256:9a6cea6e60b17ebe0a44c5cc636d94f09bd66142c1cd7d8b4cd731c4917a15f6", size = 338000, upload-time = "2026-06-24T17:45:15.148Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fb/e2/79c688af8b210d232694e31e59da9f6ec747bae31c3f5946e4e9b98860d5/click-8.4.2-py3-none-any.whl", hash = "sha256:e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76", size = 119243, upload-time = "2026-06-24T17:45:13.73Z" },
+]
+
+[[package]]
+name = "codex-client-provider"
+version = "0.1.0"
+source = { editable = "packages/codex-client-provider" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "pillow" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "langchain-core", specifier = ">=1.0.0" },
+    { name = "pillow", specifier = ">=10.0.0" },
+    { name = "pydantic", specifier = ">=2.7.0" },
 ]
 
 [[package]]

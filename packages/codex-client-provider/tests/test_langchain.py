@@ -17,6 +17,7 @@
 import base64
 from io import BytesIO
 import json
+from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
@@ -24,9 +25,8 @@ from PIL import Image
 from pydantic import BaseModel
 import pytest
 
-import artemis.llm.codex_app_server as codex_module
-from artemis.llm.codex_app_server import CodexAppServerChatModel
-from artemis.llm.router import ModelEndpoint, ModelFactory, ModelProvider
+import codex_client_provider.langchain as codex_module
+from codex_client_provider import CodexAppServerChatModel
 
 
 class FakeClient:
@@ -39,7 +39,7 @@ class FakeClient:
         self.calls.append(kwargs)
         for item in kwargs.get("inputs", []):
             if item.get("type") == "localImage":
-                self.local_image_bytes.append(codex_module.Path(item["path"]).read_bytes())
+                self.local_image_bytes.append(Path(item["path"]).read_bytes())
         return {
             "text": self.text,
             "thread_id": "thread-test",
@@ -51,7 +51,7 @@ class FakeClient:
 @pytest.mark.asyncio
 async def test_plain_completion_uses_app_server_contract(monkeypatch):
     fake = FakeClient(json.dumps({"content": "ready"}))
-    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda: fake)
+    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda **_kwargs: fake)
     model = CodexAppServerChatModel(model_name="gpt-test", reasoning_effort="low")
 
     result = await model.ainvoke(
@@ -67,6 +67,7 @@ async def test_plain_completion_uses_app_server_contract(monkeypatch):
     }
     call = fake.calls[0]
     assert call["base_instructions"] == "Be exact."
+    assert call["service_name"] == "codex-client-provider"
     assert call["inputs"][0]["type"] == "text"
     assert "[USER]" in call["inputs"][0]["text"]
     assert call["output_schema"]["required"] == ["content"]
@@ -84,7 +85,7 @@ async def test_bound_tool_is_returned_as_langchain_tool_call(monkeypatch):
             }
         )
     )
-    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda: fake)
+    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda **_kwargs: fake)
 
     @tool
     def add_numbers(a: int, b: int) -> int:
@@ -106,7 +107,7 @@ async def test_bound_tool_is_returned_as_langchain_tool_call(monkeypatch):
 @pytest.mark.asyncio
 async def test_image_content_is_forwarded_to_app_server(monkeypatch):
     fake = FakeClient(json.dumps({"content": "seen"}))
-    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda: fake)
+    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda **_kwargs: fake)
     model = CodexAppServerChatModel(model_name="gpt-test")
 
     await model.ainvoke(
@@ -124,7 +125,7 @@ async def test_image_content_is_forwarded_to_app_server(monkeypatch):
     assert image_input["type"] == "localImage"
     assert image_input["path"].endswith(".png")
     assert fake.local_image_bytes == [b"\x00"]
-    assert not codex_module.Path(image_input["path"]).exists()
+    assert not Path(image_input["path"]).exists()
 
 
 @pytest.mark.asyncio
@@ -136,7 +137,7 @@ async def test_large_image_is_downscaled_and_compressed_for_app_server(monkeypat
     assert len(source_bytes) > codex_module.CODEX_IMAGE_MAX_BYTES
 
     fake = FakeClient(json.dumps({"content": "seen"}))
-    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda: fake)
+    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda **_kwargs: fake)
     model = CodexAppServerChatModel(model_name="gpt-test")
     data_url = "data:image/png;base64," + base64.b64encode(source_bytes).decode()
 
@@ -152,7 +153,7 @@ async def test_large_image_is_downscaled_and_compressed_for_app_server(monkeypat
     assert image_input["path"].endswith(".jpg")
     assert len(compressed) <= codex_module.CODEX_IMAGE_MAX_BYTES
     assert len(compressed) < len(source_bytes)
-    assert not codex_module.Path(image_input["path"]).exists()
+    assert not Path(image_input["path"]).exists()
 
 
 @pytest.mark.asyncio
@@ -163,7 +164,7 @@ async def test_small_image_passes_through_without_reencoding(monkeypatch):
     source_bytes = source_buffer.getvalue()
 
     fake = FakeClient(json.dumps({"content": "seen"}))
-    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda: fake)
+    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda **_kwargs: fake)
     model = CodexAppServerChatModel(model_name="gpt-test")
     data_url = "data:image/png;base64," + base64.b64encode(source_bytes).decode()
 
@@ -174,7 +175,7 @@ async def test_small_image_passes_through_without_reencoding(monkeypatch):
     image_input = fake.calls[0]["inputs"][1]
     assert image_input["path"].endswith(".png")
     assert fake.local_image_bytes == [source_bytes]
-    assert not codex_module.Path(image_input["path"]).exists()
+    assert not Path(image_input["path"]).exists()
 
 
 @pytest.mark.asyncio
@@ -193,20 +194,9 @@ async def test_with_structured_output_uses_tool_call_parser(monkeypatch):
             }
         )
     )
-    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda: fake)
+    monkeypatch.setattr(codex_module, "_client_for_running_loop", lambda **_kwargs: fake)
     model = CodexAppServerChatModel(model_name="gpt-test").with_structured_output(Verdict)
 
     result = await model.ainvoke("Return the verdict.")
 
     assert result == Verdict(ok=True, label="ready")
-
-
-def test_router_builds_codex_model_without_api_key():
-    endpoint = ModelEndpoint(
-        provider=ModelProvider.CODEX,
-        model_name="gpt-test",
-        reasoning_effort="medium",
-    )
-    model = ModelFactory.create_model(endpoint)
-    assert isinstance(model, CodexAppServerChatModel)
-    assert model.model_name == "gpt-test"
