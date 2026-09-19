@@ -52,7 +52,7 @@ ARTEMIS_CODEX_IMAGE_MAX_BYTES=786432
 ARTEMIS_CODEX_IMAGE_JPEG_QUALITY=82
 ```
 
-Core automation does not need an API key when the Codex client is selected. Cloud OCR and alternative Gemini, OpenAI API, Anthropic, OpenRouter, or xAI providers still require their corresponding keys when explicitly enabled. See [Codex client provider](./docs/codex-client-provider.md) for the protocol, model routing, configuration, and limitations.
+Core automation does not need an API key when the Codex client is selected. Cloud OCR and alternative Gemini, OpenAI API, Anthropic, OpenRouter, or xAI providers still require their corresponding keys when explicitly enabled. The reusable adapter is published as [codex-client-provider](https://pypi.org/project/codex-client-provider/); see [Codex client provider](./docs/codex-client-provider.md) for the protocol, model routing, configuration, and limitations.
 
 Verify the complete local environment with:
 

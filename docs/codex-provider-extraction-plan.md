@@ -5,7 +5,9 @@ Codex，同时让协议实现能够在不依赖 Artemis 的情况下单独测试
 
 ## 一、通用适配层
 
-目录：`packages/codex-client-provider`
+独立仓库：<https://github.com/HJunLong601/codex-client-provider>
+
+PyPI：<https://pypi.org/project/codex-client-provider/0.1.0/>
 
 职责：
 
@@ -62,25 +64,26 @@ Artemis 层不得重新实现 App Server JSON-RPC、图片压缩或 LangChain �
 
 ## 三、本次执行内容
 
-- [x] 建立独立 workspace package 和发布元数据。
+- [x] 建立独立 package 和发布元数据。
 - [x] 将 App Server 与 LangChain 逻辑移出 `artemis` 包。
 - [x] 使用标准 Python 日志，移除通用包对 Artemis 的导入。
 - [x] 将工具约束提示词改为宿主无关表述。
 - [x] 增加通用客户端身份字段，Artemis 通过薄封装注入自身身份。
-- [x] 将通用测试移入 package，并保留 Artemis 路由集成测试。
+- [x] 将通用测试移入独立仓库，并保留 Artemis 路由集成测试。
 - [x] 保留旧环境变量和旧 Python 导入路径兼容性。
-- [ ] 发布前确定 PyPI 包名和版本策略。
-- [ ] 发布前建立独立 CI 矩阵和协议兼容性测试。
+- [x] 确定 PyPI 包名 `codex-client-provider`，首个版本为 `0.1.0`。
+- [x] 建立 Windows、macOS、Linux 和 Python 3.10-3.13 CI 矩阵。
+- [x] 使用 PyPI Trusted Publisher 发布首个版本，不保存长期 API Token。
+- [x] 将 Artemis 切换为固定的 PyPI 版本依赖。
 
-## 四、抽成独立仓库的后续步骤
+## 四、独立发布状态与后续步骤
 
-1. 将 `packages/codex-client-provider` 原样迁入新仓库根目录。
-2. 配置 Windows、macOS、Linux，Python 3.10-3.13 测试矩阵。
-3. 使用当前 Codex CLI 生成的 JSON Schema 增加协议契约测试。
-4. 增加可选的真实 App Server smoke test，覆盖登录状态、文本、图片、工具调用和超时。
-5. 发布首个版本，并将 Artemis workspace 依赖切换为固定版本依赖。
-6. 保留一个发布周期的 workspace 回退方式，确认安装脚本和锁文件稳定。
-7. 独立仓库稳定后，再评估 OpenAI Chat/Responses 兼容本地网关。
+1. 已迁移到独立公开仓库，并发布 `v0.1.0` GitHub Release 和 PyPI 包。
+2. 已配置跨平台 CI、离线单测、构建校验和可选真实 App Server smoke test。
+3. 已通过 PyPI 安装包执行真实登录、文本调用和实际模型元数据验证。
+4. 后续使用当前 Codex CLI 生成的 JSON Schema 增加协议契约测试。
+5. 后续扩展真实 smoke test，覆盖图片、工具调用和超时。
+6. 独立仓库稳定后，再评估 OpenAI Chat/Responses 兼容本地网关。
 
 ## 五、验收标准
 
@@ -90,6 +93,7 @@ Artemis 层不得重新实现 App Server JSON-RPC、图片压缩或 LangChain �
 - 原有 `artemis.llm.codex_app_server` 导入保持兼容。
 - 文本、工具调用、结构化输出、小图透传、大图压缩和临时文件清理测试全部通过。
 - `uv lock --check`、相关单元测试和 Ruff 检查通过。
+- PyPI 安装后的包能够通过现有 Codex 登录完成真实模型调用。
 
 ## 六、本次验证结果
 
@@ -100,6 +104,9 @@ Artemis 层不得重新实现 App Server JSON-RPC、图片压缩或 LangChain �
   `codex_client_provider-0.1.0-py3-none-any.whl`。
 - 真实登录检测：通用层和 Artemis 层均返回 `Logged in using ChatGPT`。
 - 真实 App Server 调用：返回 `READY`，响应元数据包含 provider、实际模型和 thread id。
+- 独立仓库首轮 CI：13 个 job 全部通过，覆盖三种操作系统和 Python 3.10-3.13。
+- PyPI Trusted Publisher：成功发布 `codex-client-provider==0.1.0`，wheel 和 sdist 均可用。
+- PyPI 隔离安装实测：返回 `PYPI_READY`，实际模型为 `gpt-5.6-sol`。
 - 全量测试运行结果：`2184 passed, 4 skipped`；另有 16 项环境相关失败，其中 12 项旧测试
   实例化 Gemini 但当前环境没有 Google Key，4 项旧测试断言端口 8000 而当前运行端口为
   8001。失败路径未经过新 Provider 包。

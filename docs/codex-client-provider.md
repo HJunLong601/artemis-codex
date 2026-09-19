@@ -3,6 +3,11 @@
 > 架构分层、已执行的拆分内容和独立仓库路线见
 > [Codex Provider 分层与独立仓库计划](./codex-provider-extraction-plan.md)。
 
+通用适配层已经独立发布：
+[GitHub](https://github.com/HJunLong601/codex-client-provider) ·
+[PyPI 0.1.0](https://pypi.org/project/codex-client-provider/0.1.0/)。Artemis 固定依赖
+`codex-client-provider==0.1.0`，仓库内只保留 Artemis 身份、路由和诊断接入层。
+
 Artemis 可以复用本机 Codex 客户端的 ChatGPT 登录态。该模式不读取
 `~/.codex/auth.json`，不复制 access token，也不要求 `OPENAI_API_KEY`；它启动
 官方 `codex app-server` 子进程，通过 JSONL/stdio 调用当前账号可用的模型。

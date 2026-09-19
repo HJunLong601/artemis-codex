@@ -14,9 +14,9 @@
 
 """Artemis integration for the reusable Codex client provider.
 
-Protocol, process, multimodal, and LangChain behavior lives in the standalone-ready
-``codex_client_provider`` workspace package. This module keeps the original import
-path stable and supplies Artemis-specific client identity and compatibility exports.
+Protocol, process, multimodal, and LangChain behavior lives in the independently
+published ``codex_client_provider`` package. This module keeps the original import path
+stable and supplies Artemis-specific client identity and compatibility exports.
 """
 
 from __future__ import annotations
