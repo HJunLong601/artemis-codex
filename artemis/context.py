@@ -70,6 +70,7 @@ class DevicePlatform(StrEnum):
     """Mobile device platform enumeration."""
 
     ANDROID = "android"
+    IOS = "ios"
 
 
 class DeviceContext(BaseModel):
@@ -81,6 +82,8 @@ class DeviceContext(BaseModel):
     host_platform: Literal["WINDOWS", "LINUX", "DARWIN", "MACOS"] | str = "DARWIN"
     mobile_platform: DevicePlatform = DevicePlatform.ANDROID
     device_id: str = "default-device"
+    device_kind: str | None = None
+    device_name: str | None = None
 
     device_width: int = 1080
     device_height: int = 2400

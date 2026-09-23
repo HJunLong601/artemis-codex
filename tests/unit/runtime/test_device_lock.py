@@ -19,6 +19,30 @@ import time
 import pytest
 
 from artemis.runtime.device_lock import DeviceBusyError, DeviceExecutionLock
+from artemis.context import DevicePlatform
+from artemis.runtime.device_provider import DeviceDescriptor, DeviceKind, DeviceState
+
+
+def test_lock_from_descriptor_namespaces_platform_without_changing_legacy_ids(monkeypatch):
+    monkeypatch.delenv(DeviceExecutionLock.LOCK_SCOPE_ENV, raising=False)
+    ios_device = DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id="shared-id",
+        state=DeviceState.READY,
+        kind=DeviceKind.SIMULATOR,
+        provider="simctl",
+    )
+    android_device = DeviceDescriptor(
+        platform=DevicePlatform.ANDROID,
+        device_id="shared-id",
+        state=DeviceState.READY,
+        kind=DeviceKind.EMULATOR,
+        provider="adb",
+    )
+
+    assert DeviceExecutionLock.for_device(ios_device).clean_device_id == "ios_shared-id"
+    assert DeviceExecutionLock.for_device(android_device).clean_device_id == "android_shared-id"
+    assert DeviceExecutionLock("shared-id").clean_device_id == "shared-id"
 
 
 @pytest.fixture(autouse=True)

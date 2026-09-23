@@ -52,6 +52,21 @@ def test_init_and_read_status(temp_trace_env):
     assert status_data["conversation_id"] == conv_id
 
 
+def test_init_trace_records_device_platform(temp_trace_env):
+    trace_id = str(uuid.uuid4())
+
+    status = trace_store.init_trace(
+        trace_id,
+        "Inspect iOS Settings",
+        "Flash",
+        device_serial="SIM-UDID",
+        device_platform="ios",
+    )
+
+    assert status["device_serial"] == "SIM-UDID"
+    assert status["device_platform"] == "ios"
+
+
 def test_update_trace_status(temp_trace_env):
     trace_id = str(uuid.uuid4())
     trace_store.init_trace(trace_id, "Test task", "Pro", "conv-456")

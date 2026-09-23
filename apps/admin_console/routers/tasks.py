@@ -19,7 +19,14 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from artemis.core.diagnostics import readiness_engine
-from artemis.runtime import DeviceExecutionLock, device_pool
+from artemis.context import DevicePlatform
+from artemis.runtime import (
+    DeviceExecutionLock,
+    DeviceRegistryError,
+    device_pool,
+    device_registry,
+    normalize_device_request,
+)
 
 try:
     from admin_console.core.state import state
@@ -80,6 +87,11 @@ async def run_task(request: RunRequest):
             detail="Either 'goal' or 'goals' list must be provided.",
         )
 
+    platform, requested_device = normalize_device_request(
+        request.device_platform, request.device_serial
+    )
+    platform = platform or DevicePlatform.ANDROID
+
     # Idempotent SDK retries must never re-run device readiness checks. A task
     # can hold the device while its admission response is lost in transit; in
     # that state, probing the same device again may fail or block even though
@@ -104,7 +116,8 @@ async def run_task(request: RunRequest):
             task_payload.setdefault("session_id", requested_sid)
             task_payload.setdefault("goal", incoming_goals[0])
             task_payload.setdefault("profile", request.profile or "flash")
-            task_payload.setdefault("device_serial", request.device_serial)
+            task_payload.setdefault("device_serial", requested_device)
+            task_payload.setdefault("device_platform", platform.value)
             task_payload.setdefault("status", "running" if is_active else "queued")
             return {
                 "status": task_payload["status"],
@@ -119,9 +132,9 @@ async def run_task(request: RunRequest):
     # never be selected. Only a successful, non-empty enumeration may reject:
     # an indeterminate one (adb blip, startup) lets the submission queue and
     # fail downstream with a clear error instead.
-    if request.device_serial:
+    if platform == DevicePlatform.ANDROID and requested_device:
         try:
-            rejection = await device_pool.validate_explicit_serial_async(request.device_serial)
+            rejection = await device_pool.validate_explicit_serial_async(requested_device)
         except Exception:
             rejection = None
         if rejection:
@@ -140,30 +153,43 @@ async def run_task(request: RunRequest):
     # With no explicit serial the probe itself resolves a live target (it
     # prefers the diagnostics target preference, then any unlocked ready
     # device); the verified serial is bound below.
-    target_serial = request.device_serial
-    device_probe = await readiness_engine.run_device_submission_probe(target_serial=target_serial)
-    if device_probe and device_probe.summary in {"Device Locked", "Lock State Unknown"}:
-        locked_serial = (
-            device_probe.metadata.get("active_device", {}).get("serial") or target_serial or ""
+    target_serial = requested_device
+    if platform == DevicePlatform.IOS:
+        try:
+            descriptor = await device_registry.select_device_async(platform, target_serial)
+        except DeviceRegistryError as exc:
+            return {
+                "status": "rejected",
+                "error": str(exc),
+                "tasks": [],
+                "enqueued_count": 0,
+                "total_queued": len(state.queue_tasks),
+            }
+        target_serial = descriptor.device_id
+    else:
+        device_probe = await readiness_engine.run_device_submission_probe(
+            target_serial=target_serial
         )
-        detail = (
-            f"Android device {locked_serial} is locked. Unlock it and enter the home screen before running a task.".replace(
-                "  ", " "
-            ).strip()
-            if device_probe.summary == "Device Locked"
-            else f"Android device {locked_serial} lock state could not be verified. Keep it unlocked on the home screen and try again.".replace(
-                "  ", " "
-            ).strip()
-        )
-        raise HTTPException(status_code=409, detail=detail)
+        if device_probe and device_probe.summary in {"Device Locked", "Lock State Unknown"}:
+            locked_serial = (
+                device_probe.metadata.get("active_device", {}).get("serial") or target_serial or ""
+            )
+            detail = (
+                f"Android device {locked_serial} is locked. Unlock it and enter the home screen before running a task.".replace(
+                    "  ", " "
+                ).strip()
+                if device_probe.summary == "Device Locked"
+                else f"Android device {locked_serial} lock state could not be verified. Keep it unlocked on the home screen and try again.".replace(
+                    "  ", " "
+                ).strip()
+            )
+            raise HTTPException(status_code=409, detail=detail)
 
-    if device_probe and device_probe.metadata.get("active_device"):
-        verified_serial = device_probe.metadata["active_device"].get("serial")
-        # Only auto-selected targets may be re-bound to the probed device. An
-        # explicitly requested serial is never silently replaced -- if it is
-        # invalid, enqueue_tasks rejects the submission with a clear error.
-        if verified_serial and not request.device_serial:
-            target_serial = verified_serial
+        if device_probe and device_probe.metadata.get("active_device"):
+            verified_serial = device_probe.metadata["active_device"].get("serial")
+            # Only auto-selected targets may be re-bound to the probed device.
+            if verified_serial and not requested_device:
+                target_serial = verified_serial
 
     return await task_queue_service.enqueue_tasks(
         incoming_goals,
@@ -175,6 +201,7 @@ async def run_task(request: RunRequest):
         locked_app_package=request.locked_app_package,
         app_path=request.app_path,
         device_serial=target_serial,
+        device_platform=platform.value,
         ingress=request.ingress or "frontend",
         session_id=request.session_id,
         conversation_id=request.conversation_id,
@@ -199,9 +226,31 @@ async def get_run_defaults():
 
 @router.get("/api/devices")
 async def list_devices():
-    """List all connected Android devices with their busy / idle status."""
-    devices = await device_pool.list_devices_async()
-    return {"devices": [d.to_dict() for d in devices]}
+    """List connected Android and iOS devices with canonical identities."""
+    devices = await device_registry.list_devices_async()
+    return {
+        "devices": [
+            {
+                "platform": device.platform.value,
+                "serial": device.device_id,
+                "device_id": device.device_id,
+                "canonical_id": device.canonical_id,
+                "name": device.name,
+                "model": device.model,
+                "product": device.product,
+                "os_version": device.os_version,
+                "state": device.state.value,
+                "kind": device.kind.value,
+                "is_emulator": device.kind.value in {"emulator", "simulator"},
+                "is_busy": device.is_busy,
+                "active_pid": device.active_pid,
+                "active_task_desc": device.active_task_desc,
+                "active_session_id": device.active_session_id,
+                "acquired_at": device.acquired_at,
+            }
+            for device in devices
+        ]
+    }
 
 
 @router.post("/api/stop")

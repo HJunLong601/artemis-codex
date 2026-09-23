@@ -117,6 +117,9 @@ class AdbActuator:
     def extensions(self) -> list[ExtensionTool]:
         return []
 
+    def constraints(self) -> dict[str, dict[str, frozenset[str]]]:
+        return {}
+
     # --- Coordinate helpers ----------------------------------------------------------
 
     def _dims(self) -> tuple[int, int]:

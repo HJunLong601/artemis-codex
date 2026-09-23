@@ -11,7 +11,9 @@
   <a href="./README_CN.md"><b>中文文档</b></a> •
   <a href="#workflow-showcase">全流程演示</a> •
   <a href="#codex-client-integration">Codex 客户端</a> •
+  <a href="#model-configuration">模型配置</a> •
   <a href="#quick-start">快速上手</a> •
+  <a href="#ios-simulator">iOS 模拟器</a> •
   <a href="#mcp-setup">MCP 接入 IDE</a> •
   <a href="#benchmarks">基准评测</a> •
   <a href="https://discord.gg/wF2FN4WHGY">Discord 社区</a>
@@ -40,8 +42,9 @@
 | 多模态输入 | 截图通过 Codex App Server 的本地图片输入发送给模型。 |
 | 截图尺寸控制 | 超过尺寸或字节限制的图片会在模型调用前等比缩放并压缩成 JPEG。 |
 | 隔离执行 | 每次模型调用使用临时 Codex thread、只读沙箱和无审批模式；真机操作仍由 Artemis 执行。 |
-| 首次运行引导 | 启动脚本自动安装或定位 ADB、scrcpy、FFmpeg、Codex CLI、`uv`/Python、Node.js 和项目依赖。 |
+| 首次运行引导 | 启动脚本自动安装或定位 ADB、scrcpy、FFmpeg、Codex CLI、`uv`/Python、Node.js 和项目依赖；macOS 可用 `--with-ios` 显式准备 Appium/XCUITest。 |
 | 跨平台安装 | Windows、Apple Silicon macOS、Intel macOS 与 Linux 共用一致的依赖检查和就绪流程。 |
+| iOS 控制 | 模拟器使用 Appium/XCUITest；iPhone 真机默认使用 Xcode Device Hub + CoreDevice 完成可视点击、滑动、截图、应用启动与录屏。Appium 是真机的显式备选。 |
 | 集成诊断 | `artemis init`、`artemis doctor`、Web 控制台和 CLI 错误会展示 Codex 安装、登录状态及修复命令。 |
 
 可以在 `.env` 中调整默认截图限制：
@@ -53,6 +56,20 @@ ARTEMIS_CODEX_IMAGE_JPEG_QUALITY=82
 ```
 
 选择 Codex 客户端时，核心自动化功能无需 API Key。只有显式启用云 OCR，或切换至 Gemini、OpenAI API、Anthropic、OpenRouter、xAI Provider 时，才需要配置对应的 Key。通用适配层已发布为 [codex-client-provider](https://github.com/HJunLong601/codex-client-provider/blob/main/README_CN.md)，Artemis 固定依赖其 PyPI `0.1.0` 版本；协议、模型路由、配置项和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。
+
+<a id="model-configuration"></a>
+### 配置模型
+
+在源码仓库中编辑 [`config/artemis.jsonc`](./config/artemis.jsonc)。这是纳入版本控制的 JSONC 文件，只放模型名称与路由，不放密钥：
+
+| 配置项 | 用途 |
+|---|---|
+| `default` | Agent 节点继承的 Provider、模型、推理强度和回退模型。仓库当前默认使用 Codex 客户端的 `gpt-6-sol`，回退到 `gpt-6-luna`。 |
+| `nodes` | 分别覆盖 `planner`、`operator`、`explorer`、`checker` 等角色；未指定的字段继承 `default`。 |
+| `presets` | 预设的 Provider/模型组合，用于切换模型路由。 |
+| `agent.flash` / `agent.pro` | Flash、Pro 的运行行为，包括 Explorer 档位和 Flash 步骤摘要模型。 |
+
+例如，修改 `default.model` 可调整主模型，设置 `nodes.operator.model` 则只调整 Operator；同时检查回退模型及角色专属模型是否与所选 Provider 兼容。源码运行优先读取 `config/artemis.jsonc`，打包默认模板位于 [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc)；也可以用 `ARTEMIS_ARTEMIS_JSONC` 指向另一份已存在的模型配置。非 Codex Provider 的 API Key 应放进已被 Git 忽略的 `.env`，不要写入受版本控制的 JSONC。修改配置后需重启正在运行的 ARTEMIS 进程。
 
 可以使用以下命令检查完整本地环境：
 
@@ -177,6 +194,50 @@ cd artemis-codex
 > PowerShell 默认不会从当前目录查找可执行脚本，因此必须使用 `.\start.bat`，且命令末尾不要添加 `\`。如果使用传统命令提示符（CMD），则运行 `start.bat`。
 
 > **提示**：启动后将自动在默认浏览器中打开 Web 控制台（`http://localhost:8000`），提供设备连接向导、实时投屏、任务演练与状态回放面板。你也可以通过命令行直接运行：`uv run artemis run "打开系统设置，找到电池选项并告诉我当前电量" --profile flash`。
+
+<a id="ios-simulator"></a>
+## iOS 模拟器支持（macOS）
+
+目前通过 ARTEMIS 完整验收的 iOS 目标是 **iOS 模拟器**。需要 macOS、完整 Xcode、已安装的 iOS Simulator Runtime、Node.js/npm、Appium 3 及兼容的 XCUITest Driver。Android 默认启动流程不变；显式运行 `./start.sh --with-ios` 或 `bash scripts/install_deps.sh --with-ios`，才会安装缺失的 Node.js/Appium/XCUITest 组件。Xcode 与 iOS Runtime 仍需自行安装。只读检查可运行 `bash scripts/setup_ios.sh --check`。请按目标 iOS Runtime 选择兼容组合，参见 [XCUITest Driver 兼容要求](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/system-requirements/)。
+
+```bash
+xcodebuild -version
+xcrun simctl list runtimes
+npm install -g appium@3
+appium driver install xcuitest
+appium driver doctor xcuitest
+xcrun simctl list devices available
+
+# 将 YOUR_SIMULATOR_UDID 替换为上方列表中的模拟器 ID。
+# 仅在模拟器尚未启动时执行 boot。
+xcrun simctl boot YOUR_SIMULATOR_UDID
+xcrun simctl bootstatus YOUR_SIMULATOR_UDID -b
+uv run artemis run "打开设置 > 通用 > 关于本机，报告 iOS 版本" --profile flash --platform ios --device-serial ios:YOUR_SIMULATOR_UDID
+```
+
+指定 `--platform ios` 后，CLI 也接受不带 `ios:` 前缀的模拟器 ID。MCP 调用 `mobile_run_task`、`mobile_get_device_state` 或 `mobile_diagnose` 时，可传 `device_platform="ios"` 与 `device_serial="ios:YOUR_SIMULATOR_UDID"`；其中 `mobile_diagnose` 设置 `probe_device=true` 可实际检查 XCUITest 截图和 UI 层级。ARTEMIS 会为会话管理本机 Appium 服务。未指定平台时仍默认 Android；下文的 ADB 与 Accessibility Helper 安装说明不适用于 iOS。更新旧版 MCP 服务后应重新安装或重载，否则旧进程可能仍只暴露 Android 参数。
+
+### iPhone 真机：优先 Device Hub
+
+ARTEMIS 通过 `devicectl` 发现已配对的 iPhone，在 CLI/MCP 使用 `ios:YOUR_PHYSICAL_UDID` 选中。Xcode 27 及以上的真机默认使用 **Device Hub** 驱动：CoreDevice 负责截图、启动应用和录屏；仓库内的 Swift 桥接程序将实时真机截图与可见的 Device Hub 画面匹配，再执行鼠标手势。**不需要**在手机安装 WebDriverAgent，也不需要 Apple Developer Team 或签名证书。手机须信任并配对 Mac、开启开发者模式；[打开 Device Hub](https://developer.apple.com/documentation/xcode/interacting-with-your-app-in-the-ios-or-ipados-simulator)，选中真机并点 **View Screen**。还须在 macOS 系统设置中为运行 ARTEMIS 的终端/IDE 授予 **辅助功能**和**屏幕录制**权限；脚本不会自行修改这些权限。
+
+运行 `bash scripts/setup_ios.sh --device-hub` 只读检查真机依赖，再用 `mobile_diagnose(device_platform="ios", device_serial="ios:YOUR_PHYSICAL_UDID", probe_device=true)` 做实时截图/窗口校准探测。找不到指定窗口或画面匹配不可靠时，驱动会安全失败。Device Hub 路线支持视觉和坐标动作，**不提供 iOS 控件层级**，目前不支持控件定位、文本输入及部分系统动作，也不能无界面运行。Swift 桥接程序在首次使用时由本机 Xcode 编译，无需用户编译或安装 iPhone 项目。
+
+```bash
+uv run artemis run "打开设置并报告 iOS 版本" --profile flash --platform ios --device-serial ios:YOUR_PHYSICAL_UDID
+```
+
+仅当需要控件层级、文本输入或无界面运行时，才显式切换真机的 Appium/XCUITest 备选方案。它仍需要 WDA 签名、Apple Developer Team、有效的 **Apple Development** 身份和匹配的 Provisioning Profile。仅在有权使用对应 Team/Profile 时，把下列值写入被 Git 忽略的 `.env`（WDA Bundle ID 须由 Profile 覆盖）：
+
+```dotenv
+ARTEMIS_IOS_PHYSICAL_DRIVER=appium
+ARTEMIS_IOS_XCODE_ORG_ID=YOUR_TEAM_ID
+ARTEMIS_IOS_XCODE_SIGNING_ID=Apple Development
+ARTEMIS_IOS_WDA_BUNDLE_ID=com.example.WebDriverAgentRunner
+# ARTEMIS_IOS_SHOW_XCODE_LOG=true  # 仅供本地排错
+```
+
+默认值也可显式设为 `ARTEMIS_IOS_PHYSICAL_DRIVER=device-hub`。`--with-ios` 安装器和 `setup_ios.sh --check` 仍用于模拟器/Appium 路线；Device Hub 不需要 WDA。Appium 备选方案可参考官方[真机准备](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/device-setup/)和 [Provisioning 配置](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/provisioning-profile/)。此前已在真机上验证 Device Hub 手动交互；Appium/WDA 路线在缺少有效签名身份的主机上失败。新的 Device Hub 自动化桥接已有单元与编译检查，但自动点击尚未经过真机验收。个人截图请放在 Git 忽略的 `artifacts/ios/`，不要提交到开源仓库。
 
 <a id="mcp-setup"></a>
 <a id="mcp"></a>
@@ -309,6 +370,8 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+使用 iOS 模拟器时，把 SDK 客户端的 `device_serial` 设为 `"ios:YOUR_SIMULATOR_UDID"`；设备主机仍需满足[上述 iOS 环境要求](#ios-simulator)。
+
 </details>
 
 ## 使用方式
@@ -370,7 +433,8 @@ ARTEMIS 提供两种运行模式以适应不同的自动化需求：
 ## 路线图
 
 - [ ] **Android Studio 深度集成**：推出官方 IDE 插件与协同工作流，支持在 Android Studio 内直接进行自动化测试、设备交互与断点调试。
-- [ ] **iOS 跨平台支持**：将视觉感知与自动化执行引擎拓展至 iOS 真机与模拟器。
+- [x] **iOS 模拟器支持**：已实现并在本机验证模拟器发现与 Appium/XCUITest 控制。
+- [ ] **iOS 真机支持**：Device Hub 已作为默认实现，具备可视手势、CoreDevice 截图/启动/录屏和安全校准；自动点击的真机验收仍待完成。Appium/WDA 为需签名的显式备选。
 - [ ] **端侧轻量化模型**：支持离线运行的轻量级 Edge VLM，实现低延迟与隐私安全的本地自动化。
 - [ ] **实时语音双工交互**：支持自然语音下发任务与实时打断（Barge-in）控制。
 

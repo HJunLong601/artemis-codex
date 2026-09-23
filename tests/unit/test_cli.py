@@ -48,6 +48,58 @@ def test_cli_run_help():
     assert "--traces-path" in result.output
     assert "--verification-level" in result.output
     assert "--explorer-pro-mode" in result.output
+    assert "--platform" in result.output
+
+
+def test_execute_task_configures_ios_device_without_adb(monkeypatch):
+    """The standalone CLI binds iOS through DeviceRegistry and AgentConfig."""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    from artemis.context import DevicePlatform
+    from artemis.runtime import DeviceDescriptor, DeviceKind, DeviceState
+    import artemis.interfaces.cli.commands.run as run_module
+
+    descriptor = DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id="SIM-UDID",
+        name="iPhone Simulator",
+        state=DeviceState.READY,
+        kind=DeviceKind.SIMULATOR,
+        provider="simctl",
+    )
+    fake_builder = MagicMock()
+    fake_builders = MagicMock()
+    fake_builders.AgentConfig.with_default_profile.return_value = fake_builder
+    fake_task = MagicMock()
+    fake_task.build.return_value = MagicMock()
+    fake_agent = MagicMock()
+    fake_agent.init = AsyncMock()
+    fake_agent.new_task.return_value = fake_task
+    fake_agent.run_task = AsyncMock()
+    fake_agent.clean = AsyncMock()
+
+    monkeypatch.setattr(run_module, "initialize_llm_config", MagicMock())
+    monkeypatch.setattr(run_module, "AgentProfile", MagicMock())
+    monkeypatch.setattr(run_module, "Builders", fake_builders)
+    monkeypatch.setattr(run_module, "Agent", MagicMock(return_value=fake_agent))
+    monkeypatch.setattr(
+        run_module.device_registry, "select_device", MagicMock(return_value=descriptor)
+    )
+
+    asyncio.run(
+        run_module.execute_task(
+            "Open iOS Settings",
+            device_serial="SIM-UDID",
+            device_platform="ios",
+        )
+    )
+
+    fake_builder.for_device.assert_called_once_with(DevicePlatform.IOS, "SIM-UDID")
+    fake_builder.with_adb_server.assert_not_called()
+    fake_agent.init.assert_awaited_once()
+    fake_agent.run_task.assert_awaited_once()
+    fake_agent.clean.assert_awaited_once()
 
 
 def test_cli_batch_help():

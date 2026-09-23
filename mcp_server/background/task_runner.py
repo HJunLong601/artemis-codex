@@ -41,7 +41,8 @@ try:
 except Exception:
     load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
-from artemis.runtime import trace_store
+from artemis.context import DevicePlatform
+from artemis.runtime import device_registry, normalize_device_request, trace_store
 from mcp_server.notifiers import notify
 from mcp_server.utils import device_utils
 
@@ -119,6 +120,7 @@ async def run_task(
     app_path: str | None = None,
     expected_output_desc: str | None = None,
     device_serial: str | None = None,
+    device_platform: str | None = None,
     verification_level: str | None = None,
     explorer_pro_mode: str | None = None,
 ):
@@ -154,8 +156,9 @@ async def run_task(
     print("--------------------------------------------------")
 
     agent = None
-    adb_path = device_utils.resolve_adb_path()
-    target_serial = device_serial
+    platform, target_serial = normalize_device_request(device_platform, device_serial)
+    platform = platform or DevicePlatform.ANDROID
+    trace_store.update_trace_fields(trace_id, device_platform=platform.value)
 
     try:
         # Deliberate lazy imports: the SDK pulls in the full agent stack
@@ -168,41 +171,55 @@ async def run_task(
         from artemis.sdk.builders import Builders
         from artemis.sdk.types import AgentProfile
 
-        connected_devices = device_utils.get_connected_devices(adb_path)
-
-        if device_serial:
-            target_serial = device_serial
-            if connected_devices and device_serial not in connected_devices:
-                print(
-                    f"⚠️ Warning: Specified device serial '{device_serial}' was not detected in active ADB devices: {connected_devices}. "
-                    "Proceeding with target serial (will attempt direct ADB connection)..."
-                )
+        if platform == DevicePlatform.IOS:
+            if target_serial:
+                print(f"✅ Using specified iOS target device: '{target_serial}'.")
             else:
-                print(f"✅ Using specified target device: '{device_serial}'.")
+                descriptor = device_registry.select_device(DevicePlatform.IOS)
+                target_serial = descriptor.device_id
+                print(f"✅ Auto-selected iOS device: '{target_serial}'.")
         else:
-            if connected_devices:
-                target_serial = settings.ADB_DEVICE_SERIAL or os.environ.get("ADB_DEVICE_SERIAL")
-                if not target_serial:
-                    try:
-                        # Optional path: pool-based selection falls back to the
-                        # first connected device on any import or query failure.
-                        from artemis.runtime import device_pool
+            adb_path = device_utils.resolve_adb_path()
+            connected_devices = device_utils.get_connected_devices(adb_path)
 
-                        target_serial = device_pool.select_device()
-                    except Exception:
-                        target_serial = connected_devices[0]
-                print(
-                    f"✅ Detected active connected device(s): {connected_devices}. "
-                    f"Auto-selected device: '{target_serial}'."
-                )
+            if target_serial:
+                if connected_devices and target_serial not in connected_devices:
+                    print(
+                        f"⚠️ Warning: Specified device serial '{target_serial}' was not detected in active ADB devices: {connected_devices}. "
+                        "Proceeding with target serial (will attempt direct ADB connection)..."
+                    )
+                else:
+                    print(f"✅ Using specified target device: '{target_serial}'.")
             else:
-                print("❌ No active connected devices detected. Booting emulator...")
-                if not device_utils.ensure_emulator(adb_path=adb_path):
-                    raise RuntimeError("Failed to start or connect to the Android emulator.")
-                target_serial = "emulator-5554"
+                if connected_devices:
+                    target_serial = settings.ADB_DEVICE_SERIAL or os.environ.get(
+                        "ADB_DEVICE_SERIAL"
+                    )
+                    if not target_serial:
+                        try:
+                            # Optional path: pool-based selection falls back to the
+                            # first connected device on any import or query failure.
+                            from artemis.runtime import device_pool
+
+                            target_serial = device_pool.select_device()
+                        except Exception:
+                            target_serial = connected_devices[0]
+                    print(
+                        f"✅ Detected active connected device(s): {connected_devices}. "
+                        f"Auto-selected device: '{target_serial}'."
+                    )
+                else:
+                    print("❌ No active connected devices detected. Booting emulator...")
+                    if not device_utils.ensure_emulator(adb_path=adb_path):
+                        raise RuntimeError("Failed to start or connect to the Android emulator.")
+                    target_serial = "emulator-5554"
 
         if target_serial:
-            trace_store.update_trace_device_serial(trace_id, target_serial)
+            trace_store.update_trace_fields(
+                trace_id,
+                device_serial=target_serial,
+                device_platform=platform.value,
+            )
 
         print("Initializing Artemis Agent...")
         from artemis.config import initialize_llm_config, settings
@@ -218,13 +235,11 @@ async def run_task(
             config_builder.with_verification_level(verification_level)
         if explorer_pro_mode:
             config_builder.with_explorer(pro_mode=explorer_pro_mode)
-        if settings.ADB_HOST:
+        if platform == DevicePlatform.ANDROID and settings.ADB_HOST:
             config_builder.with_adb_server(host=settings.ADB_HOST, port=settings.ADB_PORT)
 
         if target_serial:
-            from artemis.context import DevicePlatform
-
-            config_builder.for_device(DevicePlatform.ANDROID, target_serial)
+            config_builder.for_device(platform, target_serial)
 
         config = config_builder.build()
 
@@ -241,7 +256,11 @@ async def run_task(
         )
         if actual_serial:
             target_serial = actual_serial
-            trace_store.update_trace_device_serial(trace_id, actual_serial)
+            trace_store.update_trace_fields(
+                trace_id,
+                device_serial=actual_serial,
+                device_platform=platform.value,
+            )
             print(f"📱 Bound to device serial: '{actual_serial}'")
 
         print("Running task on agent...")
@@ -427,6 +446,12 @@ if __name__ == "__main__":
     parser.add_argument("--expected-output-desc", help="Expected output description")
     parser.add_argument("--device-serial", help="Target specific device serial")
     parser.add_argument(
+        "--device-platform",
+        choices=[item.value for item in DevicePlatform],
+        default=DevicePlatform.ANDROID.value,
+        help="Target mobile platform (default: android)",
+    )
+    parser.add_argument(
         "--verification-level",
         help="Pro-profile Checker preset: 'off', 'final', 'checkpoints' or 'strict'",
     )
@@ -447,6 +472,7 @@ if __name__ == "__main__":
             app_path=args.app_path,
             expected_output_desc=args.expected_output_desc,
             device_serial=args.device_serial,
+            device_platform=args.device_platform,
             verification_level=args.verification_level,
             explorer_pro_mode=args.explorer_pro_mode,
         )

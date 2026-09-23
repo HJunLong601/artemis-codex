@@ -29,6 +29,7 @@ class RunRequest(BaseModel):
     locked_app_package: str | None = None
     app_path: str | None = None
     device_serial: str | None = None
+    device_platform: str | None = None
     ingress: str | None = "frontend"
     session_id: str | None = None
     conversation_id: str | None = None

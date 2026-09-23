@@ -23,6 +23,8 @@ from typing import Annotated
 from adbutils import AdbClient
 from langchain_core.callbacks.base import Callbacks
 from artemis.config import checker_overrides_for_level, initialize_llm_config, settings
+from artemis.context import DevicePlatform
+from artemis.runtime import device_registry, normalize_device_request
 from artemis.utils.startup_progress import publish_startup_progress
 from artemis import Agent, Builders
 from artemis.sdk.types.task import AgentProfile
@@ -40,6 +42,7 @@ logger = get_logger(__name__)
 async def execute_task(
     goal: str,
     device_serial: str | None = None,
+    device_platform: str | None = None,
     session_id: str | None = None,
     locked_app_package: str | None = None,
     test_name: str | None = None,
@@ -64,6 +67,8 @@ async def execute_task(
 
     Args:
         goal: Target objective to achieve on the mobile device.
+        device_serial: Optional Android serial or iOS device identifier.
+        device_platform: Target platform, ``android`` (default) or ``ios``.
         locked_app_package: Optional package name to constrain actions to.
         test_name: Optional test identifier for trace directory naming.
         traces_output_path_str: Destination path for recording traces.
@@ -132,24 +137,31 @@ async def execute_task(
             pro_mode=explorer_pro_mode,
         )
 
-    if settings.ADB_HOST:
-        config.with_adb_server(host=settings.ADB_HOST, port=settings.ADB_PORT)
+    platform, target_serial = normalize_device_request(device_platform, device_serial)
+    platform = platform or DevicePlatform.ANDROID
+    os.environ["ARTEMIS_DEVICE_PLATFORM"] = platform.value
 
-    target_serial = (
-        device_serial or settings.ADB_DEVICE_SERIAL or os.environ.get("ADB_DEVICE_SERIAL")
-    )
-    if not target_serial:
-        try:
-            from artemis.runtime import device_pool
+    if platform == DevicePlatform.IOS:
+        descriptor = device_registry.select_device(platform, target_serial)
+        target_serial = descriptor.device_id
+        os.environ.pop("ADB_DEVICE_SERIAL", None)
+    else:
+        if settings.ADB_HOST:
+            config.with_adb_server(host=settings.ADB_HOST, port=settings.ADB_PORT)
+        target_serial = (
+            target_serial or settings.ADB_DEVICE_SERIAL or os.environ.get("ADB_DEVICE_SERIAL")
+        )
+        if not target_serial:
+            try:
+                from artemis.runtime import device_pool
 
-            target_serial = device_pool.select_device()
-        except Exception:
-            target_serial = None
+                target_serial = device_pool.select_device()
+            except Exception:
+                target_serial = None
 
     if target_serial:
-        from artemis.context import DevicePlatform
-
-        config.for_device(DevicePlatform.ANDROID, target_serial)
+        os.environ["ARTEMIS_DEVICE_ID"] = target_serial
+        config.for_device(platform, target_serial)
 
     if graph_config_callbacks:
         config.with_graph_config_callbacks(graph_config_callbacks)
@@ -327,7 +339,17 @@ def run_command(
         typer.Option(
             "--device-serial",
             "-s",
-            help="Target specific Android device by serial number (e.g. emulator-5554).",
+            help=(
+                "Target an Android serial or iOS device identifier. Canonical "
+                "values such as ios:<device-id> are also accepted."
+            ),
+        ),
+    ] = None,
+    device_platform: Annotated[
+        str | None,
+        typer.Option(
+            "--platform",
+            help="Target mobile platform: android (default) or ios.",
         ),
     ] = None,
     session_id: Annotated[
@@ -345,11 +367,13 @@ def run_command(
         ),
     ] = False,
 ) -> None:
-    """Run an autonomous UI automation task on the connected Android device."""
+    """Run an autonomous UI automation task on a connected mobile device."""
     if with_video_recording_tools:
         check_ffmpeg_available()
 
     console = Console()
+    platform, device_serial = normalize_device_request(device_platform, device_serial)
+    platform = platform or DevicePlatform.ANDROID
 
     is_worker = (
         os.environ.get("ARTEMIS_TASK_WORKER") == "1"
@@ -357,8 +381,9 @@ def run_command(
     )
     is_standalone = standalone or os.environ.get("ARTEMIS_STANDALONE") == "1"
 
-    # All platforms route through unified Artemis Daemon unless specifically configured as standalone
-    if not is_worker and not is_standalone:
+    # The daemon queue is still Android/ADB-specific. iOS uses the local
+    # platform-neutral Agent path until the admin scheduler carries platform.
+    if platform == DevicePlatform.ANDROID and not is_worker and not is_standalone:
         try:
             import uuid
             from artemis.runtime import (
@@ -440,18 +465,19 @@ def run_command(
                 f"[yellow]Daemon routing notice: {exc}. Falling back to local execution...[/yellow]"
             )
 
-    adb_client = None
-    try:
-        if which("adb"):
-            adb_client = AdbClient(
-                host=settings.ADB_HOST or "localhost",
-                port=settings.ADB_PORT or 5037,
-            )
-    except Exception as exc:
-        # Optional cosmetic device-status display; run continues without it.
-        logger.debug(f"Could not create ADB client for device status display: {exc}")
+    if platform == DevicePlatform.ANDROID:
+        adb_client = None
+        try:
+            if which("adb"):
+                adb_client = AdbClient(
+                    host=settings.ADB_HOST or "localhost",
+                    port=settings.ADB_PORT or 5037,
+                )
+        except Exception as exc:
+            # Optional cosmetic device-status display; run continues without it.
+            logger.debug(f"Could not create ADB client for device status display: {exc}")
 
-    display_device_status(console, adb_client=adb_client)
+        display_device_status(console, adb_client=adb_client)
 
     cancelled = False
     original_sigterm = None
@@ -470,6 +496,7 @@ def run_command(
             execute_task(
                 goal=goal,
                 device_serial=device_serial,
+                device_platform=platform.value,
                 session_id=session_id,
                 locked_app_package=locked_app_package,
                 test_name=test_name,

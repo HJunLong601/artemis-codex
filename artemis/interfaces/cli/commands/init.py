@@ -160,9 +160,7 @@ def init_command() -> None:
             "",
             "# Execution Defaults",
             "ARTEMIS_DEFAULT_PROFILE=pro",
-            "ARTEMIS_DEFAULT_MODEL=gpt-5.6-terra"
-            if env_key is None
-            else "ARTEMIS_DEFAULT_MODEL=auto",
+            "ARTEMIS_DEFAULT_MODEL=gpt-6-sol" if env_key is None else "ARTEMIS_DEFAULT_MODEL=auto",
             "ARTEMIS_TRACES_DIR=./traces",
             "",
         ]

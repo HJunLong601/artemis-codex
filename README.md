@@ -11,7 +11,9 @@
   <a href="./README_CN.md">中文文档</a> •
   <a href="#workflow-showcase">Workflow Showcase</a> •
   <a href="#codex-client-integration">Codex Client</a> •
+  <a href="#model-configuration">Model Configuration</a> •
   <a href="#quick-start">Quick Start</a> •
+  <a href="#ios-simulator">iOS Simulator</a> •
   <a href="#mcp-setup">MCP for IDEs</a> •
   <a href="#benchmarks">Benchmarks</a> •
   <a href="https://discord.gg/wF2FN4WHGY">Discord Community</a>
@@ -40,8 +42,9 @@ This fork can use the ChatGPT session from the locally installed **Codex CLI** a
 | Multimodal input | Screenshots are sent as local image inputs through Codex App Server. |
 | Screenshot size control | Images larger than the configured dimensions or byte limit are proportionally resized and JPEG-compressed before model calls. |
 | Isolated execution | Every model call uses a temporary Codex thread with a read-only sandbox and no approval prompts; Artemis remains responsible for device actions. |
-| First-run bootstrap | Startup scripts install or locate ADB, scrcpy, FFmpeg, Codex CLI, `uv`/Python, Node.js, and project dependencies. |
+| First-run bootstrap | Startup scripts install or locate ADB, scrcpy, FFmpeg, Codex CLI, `uv`/Python, Node.js, and project dependencies; `--with-ios` opts in to Appium/XCUITest setup on macOS. |
 | Cross-platform setup | Windows, Apple Silicon macOS, Intel macOS, and Linux use the same dependency and readiness workflow. |
+| iOS control | Simulator uses Appium/XCUITest; physical iPhone defaults to Xcode Device Hub plus CoreDevice for visual taps, swipes, screenshots, app launch, and recording. Appium is an opt-in fallback for physical devices. |
 | Integrated diagnostics | `artemis init`, `artemis doctor`, the Web console, and CLI errors report Codex installation and login state with recovery commands. |
 
 The default image limits can be changed in `.env`:
@@ -53,6 +56,20 @@ ARTEMIS_CODEX_IMAGE_JPEG_QUALITY=82
 ```
 
 Core automation does not need an API key when the Codex client is selected. Cloud OCR and alternative Gemini, OpenAI API, Anthropic, OpenRouter, or xAI providers still require their corresponding keys when explicitly enabled. The reusable adapter is published as [codex-client-provider](https://pypi.org/project/codex-client-provider/); see [Codex client provider](./docs/codex-client-provider.md) for the protocol, model routing, configuration, and limitations.
+
+<a id="model-configuration"></a>
+### Configure Models
+
+In a source checkout, edit [`config/artemis.jsonc`](./config/artemis.jsonc). This tracked JSONC file contains model names and routing, not credentials:
+
+| Key | Purpose |
+|---|---|
+| `default` | Provider, model, reasoning effort, and fallback inherited by agent nodes. The checked-in default is the Codex client with `gpt-6-sol` and a `gpt-6-luna` fallback. |
+| `nodes` | Override individual roles such as `planner`, `operator`, `explorer`, and `checker`; unspecified fields inherit from `default`. |
+| `presets` | Named provider/model combinations for selecting a different model route. |
+| `agent.flash` / `agent.pro` | Profile behavior, including Explorer mode and the Flash step summarizer's model. |
+
+For example, change `default.model` to change the main model, or set `nodes.operator.model` to change only the Operator. Keep fallback and role-specific model settings compatible with the selected provider. The source checkout resolves `config/artemis.jsonc` before the bundled template at [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc); `ARTEMIS_ARTEMIS_JSONC` can point model loading to another existing file. Put API keys for non-Codex providers in the ignored `.env`, never in a tracked JSONC file. Restart a running ARTEMIS process after changing its configuration.
 
 Verify the complete local environment with:
 
@@ -177,6 +194,50 @@ cd artemis-codex
 > PowerShell does not search the current directory for executable scripts by default, so use `.\start.bat` without a trailing `\`. In Command Prompt (CMD), use `start.bat` instead.
 
 > **Tip**: Opens `http://localhost:8000` in your default browser with a device connection wizard, live screen mirroring, prompt sandbox, and execution replays. You can also run directly from CLI: `uv run artemis run "Open Settings, find Battery and tell me current level" --profile flash`.
+
+<a id="ios-simulator"></a>
+## iOS Simulator Support (macOS)
+
+The fully validated ARTEMIS iOS target is an **iOS Simulator**. This path requires a Mac with full Xcode, an installed iOS Simulator runtime, Node.js/npm, Appium 3, and a compatible XCUITest driver. The default Android startup path is unchanged. Opt in with `./start.sh --with-ios` or `bash scripts/install_deps.sh --with-ios` to install missing Node.js/Appium/XCUITest components; Xcode and the iOS runtime still require manual installation. Run `bash scripts/setup_ios.sh --check` for a read-only prerequisite check. See the [XCUITest driver compatibility requirements](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/system-requirements/).
+
+```bash
+xcodebuild -version
+xcrun simctl list runtimes
+npm install -g appium@3
+appium driver install xcuitest
+appium driver doctor xcuitest
+xcrun simctl list devices available
+
+# Replace YOUR_SIMULATOR_UDID with a simulator ID from the list above.
+# Boot it only if it is not already booted.
+xcrun simctl boot YOUR_SIMULATOR_UDID
+xcrun simctl bootstatus YOUR_SIMULATOR_UDID -b
+uv run artemis run "Open Settings > General > About and report the iOS version" --profile flash --platform ios --device-serial ios:YOUR_SIMULATOR_UDID
+```
+
+The CLI also accepts an unprefixed simulator ID with `--platform ios`. MCP callers can select the same device with `device_platform="ios"` and `device_serial="ios:YOUR_SIMULATOR_UDID"` in `mobile_run_task`, `mobile_get_device_state`, or `mobile_diagnose`; use `mobile_diagnose` with `probe_device=true` to check a real XCUITest screenshot and UI hierarchy. ARTEMIS manages a local Appium service for the session. Android remains the default platform when none is specified, and the Android Accessibility Helper/ADB setup below does not apply to iOS. After updating a previously installed MCP server, reinstall/reload it so the `device_platform` parameter is available; an older server can still expose Android-only tools.
+
+### Physical iPhone: Device Hub first
+
+ARTEMIS discovers paired physical iPhones through `devicectl` and accepts `ios:YOUR_PHYSICAL_UDID` in CLI/MCP. On Xcode 27 or newer, physical iPhones now default to the **Device Hub** driver: CoreDevice captures the device screen, launches apps, and records video; a bundled Swift bridge matches the live screenshot to the visible Device Hub canvas and sends pointer gestures. This path does **not** install WebDriverAgent, require an Apple Developer Team, or require a signing certificate. The iPhone must trust/pair with the Mac and have Developer Mode enabled. [Open Device Hub](https://developer.apple.com/documentation/xcode/interacting-with-your-app-in-the-ios-or-ipados-simulator), select that iPhone, then click **View Screen**. Grant the ARTEMIS host process (Terminal/IDE) macOS **Accessibility** and **Screen Recording** permissions; these are user-managed system permissions, not modified by setup scripts.
+
+Run `bash scripts/setup_ios.sh --device-hub` for a read-only physical-device prerequisite check, then `mobile_diagnose(device_platform="ios", device_serial="ios:YOUR_PHYSICAL_UDID", probe_device=true)` for a live screenshot/window-calibration probe. The driver fails closed if the selected window or screenshot cannot be matched. Device Hub offers visual/coordinate actions, not an iOS accessibility hierarchy; element locators, text entry, and some system actions remain unavailable in this path. It also requires a visible, unlocked Device Hub window and is not headless. The Swift bridge is built locally on first use from repository source; the user does **not** compile or install an iPhone app.
+
+```bash
+uv run artemis run "Open Settings and report the iOS version" --profile flash --platform ios --device-serial ios:YOUR_PHYSICAL_UDID
+```
+
+For a physical iPhone only, opt in to the Appium/XCUITest fallback when UI hierarchy, text entry, or headless operation is required. This path still requires WDA signing, an Apple Developer Team, a valid **Apple Development** identity, and a matching WDA provisioning profile. Set these values only in the Git-ignored `.env` when authorized (the WDA bundle ID must be covered by the profile):
+
+```dotenv
+ARTEMIS_IOS_PHYSICAL_DRIVER=appium
+ARTEMIS_IOS_XCODE_ORG_ID=YOUR_TEAM_ID
+ARTEMIS_IOS_XCODE_SIGNING_ID=Apple Development
+ARTEMIS_IOS_WDA_BUNDLE_ID=com.example.WebDriverAgentRunner
+# ARTEMIS_IOS_SHOW_XCODE_LOG=true  # local troubleshooting only
+```
+
+The default driver can also be made explicit with `ARTEMIS_IOS_PHYSICAL_DRIVER=device-hub`. The `--with-ios` installer and `setup_ios.sh --check` still prepare the Simulator/Appium path; neither is needed to install WDA for Device Hub. See Appium's [real-device preparation](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/device-setup/) and [provisioning setup](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/provisioning-profile/) only for the fallback. Manual interaction through Device Hub was previously verified on a physical iPhone; the Appium/WDA path failed on a host without a valid signing identity. The new automated Device Hub bridge has unit and compile checks, but a live automated tap has not yet been accepted. Keep personal screenshots in Git-ignored `artifacts/ios/`, not in the open-source repository.
 
 <a id="mcp-setup"></a>
 <a id="mcp"></a>
@@ -310,6 +371,8 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+For an iOS Simulator, set `device_serial="ios:YOUR_SIMULATOR_UDID"` in the SDK client. The host must have the iOS prerequisites described [above](#ios-simulator).
+
 </details>
 
 ## Usage Modes
@@ -374,7 +437,8 @@ ARTEMIS supports two execution profiles tailored for different automation requir
 ## Roadmap
 
 - [ ] **Android Studio Integration**: Native IDE plugin and workflow integration to enable in-editor debugging, test recording, and automated device control directly within Android Studio.
-- [ ] **iOS Platform Expansion**: Extending multimodal perception and mobile automation to iOS devices and simulators.
+- [x] **iOS Simulator Support**: Simulator discovery and Appium/XCUITest-based control are implemented and locally validated.
+- [ ] **Physical iOS Device Support**: Device Hub is the default implementation with visual gestures, CoreDevice capture/launch/recording, and safety calibration; live automated tap acceptance is pending. Appium/WDA is an opt-in fallback requiring signing.
 - [ ] **On-Device Lightweight VLMs**: Local execution with lightweight edge vision models for low-latency, privacy-first automation.
 - [ ] **Real-time Duplex Voice Interaction**: Voice-driven task dispatch with real-time conversational control and interruption handling.
 

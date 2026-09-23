@@ -20,8 +20,11 @@ from typing import TYPE_CHECKING
 from adbutils import AdbClient
 
 from artemis.config import settings
+from artemis.context import DevicePlatform
 from artemis.drivers.android.adb_driver import AndroidAdbDriver
 from artemis.drivers.base import BaseDeviceDriver
+from artemis.drivers.ios.device_hub_driver import IosDeviceHubDriver
+from artemis.drivers.ios.xcuitest_driver import IosXcuiTestDriver
 from artemis.drivers.mock.mock_driver import MockDeviceDriver
 from artemis.utils.logger import get_logger
 
@@ -29,6 +32,10 @@ if TYPE_CHECKING:
     from artemis.context import ArtemisContext
 
 logger = get_logger(__name__)
+
+
+class UnsupportedPlatformDriverError(RuntimeError):
+    """Raised when a platform is recognized but its dedicated driver is unavailable."""
 
 
 def create_driver(ctx: "ArtemisContext") -> BaseDeviceDriver:
@@ -57,7 +64,56 @@ def create_driver(ctx: "ArtemisContext") -> BaseDeviceDriver:
             height=ctx.device.device_height if ctx.device else 2400,
         )
 
-    # 3. Default Android ADB driver
+    # 3. A recognized platform must never silently fall back to another driver.
+    if getattr(ctx.device, "mobile_platform", None) == DevicePlatform.IOS:
+        from artemis.runtime import DeviceKind, device_registry
+
+        kind = getattr(ctx.device, "device_kind", None)
+        name = getattr(ctx.device, "device_name", None)
+        if kind is None or (kind == DeviceKind.PHYSICAL and not name):
+            descriptor = device_registry.select_device(DevicePlatform.IOS, ctx.device.device_id)
+            kind = descriptor.kind
+            name = descriptor.name
+        physical_backend = os.environ.get("ARTEMIS_IOS_PHYSICAL_DRIVER", "device-hub").strip().lower()
+        if kind == DeviceKind.PHYSICAL and physical_backend == "device-hub":
+            if not name:
+                raise UnsupportedPlatformDriverError("Device Hub requires the selected device name")
+            return IosDeviceHubDriver(
+                device_id=ctx.device.device_id,
+                device_name=name,
+                width=ctx.device.device_width,
+                height=ctx.device.device_height,
+            )
+        if kind == DeviceKind.PHYSICAL and physical_backend != "appium":
+            raise UnsupportedPlatformDriverError(
+                "ARTEMIS_IOS_PHYSICAL_DRIVER must be 'device-hub' or 'appium'"
+            )
+        from artemis.runtime.appium_service import AppiumServiceConfig
+
+        capabilities: dict[str, str | bool] = {}
+        team_id = os.environ.get("ARTEMIS_IOS_XCODE_ORG_ID", "").strip()
+        if team_id:
+            capabilities["appium:xcodeOrgId"] = team_id
+            capabilities["appium:xcodeSigningId"] = (
+                os.environ.get("ARTEMIS_IOS_XCODE_SIGNING_ID", "").strip() or "Apple Development"
+            )
+        wda_bundle_id = os.environ.get("ARTEMIS_IOS_WDA_BUNDLE_ID", "").strip()
+        if wda_bundle_id:
+            capabilities["appium:updatedWDABundleId"] = wda_bundle_id
+        if os.environ.get("ARTEMIS_IOS_SHOW_XCODE_LOG", "").lower() in {"1", "true", "yes"}:
+            capabilities["appium:showXcodeLog"] = True
+
+        return IosXcuiTestDriver(
+            device_id=ctx.device.device_id,
+            width=ctx.device.device_width,
+            height=ctx.device.device_height,
+            capabilities=capabilities,
+            service_config=AppiumServiceConfig(
+                server_url=os.environ.get("ARTEMIS_APPIUM_SERVER_URL") or None
+            ),
+        )
+
+    # 4. Default Android ADB driver
     if ctx.adb_client is None:
         ctx.adb_client = AdbClient(
             host=settings.ADB_HOST or "localhost", port=settings.ADB_PORT or 5037

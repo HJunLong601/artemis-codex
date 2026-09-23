@@ -224,6 +224,7 @@ def init_trace(
     model: str,
     conversation_id: str | None = None,
     device_serial: str | None = None,
+    device_platform: str | None = None,
 ) -> dict[str, Any]:
     """Initializes the trace directory and creates the initial status.json file."""
     trace_dir = get_trace_dir(trace_id)
@@ -236,6 +237,7 @@ def init_trace(
         "conversation_id": conversation_id,
         "status": "running",
         "device_serial": device_serial,
+        "device_platform": device_platform,
         "start_time": time.time(),
         "end_time": None,
         "error": None,

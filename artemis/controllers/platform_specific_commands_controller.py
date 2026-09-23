@@ -147,4 +147,8 @@ def get_current_foreground_package(ctx: ArtemisContext) -> str | None:
 
 
 async def get_current_foreground_package_async(ctx: ArtemisContext) -> str | None:
+    if ctx.device.mobile_platform == DevicePlatform.IOS:
+        from artemis.controllers.controller_factory import get_controller
+
+        return await get_controller(ctx).driver.get_current_package()
     return get_current_foreground_package(ctx)

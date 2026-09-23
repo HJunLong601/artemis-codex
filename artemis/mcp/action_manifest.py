@@ -38,6 +38,7 @@ sources, so adding a tool name to a prompt without classifying it here fails CI.
 """
 
 from collections.abc import Awaitable, Callable
+import copy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -287,7 +288,7 @@ def filter_declarations(
     available = available_device_actions(actuator)
 
     kept = [
-        decl
+        _constrain_declaration(decl, actuator)
         for decl in declarations
         # Only device actions are gated. Backend-independent tools and anything the
         # manifest does not classify (e.g. an agent's own bespoke tool) pass through.
@@ -299,6 +300,28 @@ def filter_declarations(
             kept.append(_extension_declaration(ext))
 
     return kept
+
+
+def _constrain_declaration(declaration: Any, actuator: Any) -> Any:
+    """Narrow an enum schema to the vocabulary supported by this backend."""
+    constraints_fn = getattr(actuator, "constraints", None)
+    constraints = constraints_fn() if callable(constraints_fn) else {}
+    action_constraints = constraints.get(_declaration_name(declaration), {})
+    if not action_constraints or not isinstance(declaration, dict):
+        return declaration
+
+    constrained = copy.deepcopy(declaration)
+    function = constrained.get("function", constrained)
+    properties = function.get("parameters", {}).get("properties", {})
+    for parameter, supported in action_constraints.items():
+        schema = properties.get(parameter)
+        if not isinstance(schema, dict) or "enum" not in schema:
+            continue
+        supported_lower = {str(value).lower() for value in supported}
+        schema["enum"] = [
+            value for value in schema["enum"] if str(value).lower() in supported_lower
+        ]
+    return constrained
 
 
 def _declaration_name(declaration: Any) -> str:

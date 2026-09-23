@@ -765,6 +765,32 @@ async def test_enqueue_tasks_unified_ingress():
         assert task["goal"] == "Test unified goal"
 
 
+def test_ios_worker_invocation_carries_platform_without_adb_serial(monkeypatch):
+    monkeypatch.setenv("ADB_DEVICE_SERIAL", "stale-android-device")
+    item = {
+        "device_platform": "ios",
+        "device_serial": "SIM-UDID",
+        "ingress": "frontend",
+    }
+    target = TaskQueueService._task_target(item)
+
+    cmd, env = TaskQueueService._build_worker_invocation(
+        item,
+        "run-key",
+        "session-id",
+        "Open iOS Settings",
+        "flash",
+        target,
+    )
+
+    assert cmd[cmd.index("--platform") + 1] == "ios"
+    assert cmd[cmd.index("--device-serial") + 1] == "SIM-UDID"
+    assert env["ARTEMIS_DEVICE_PLATFORM"] == "ios"
+    assert env["ARTEMIS_DEVICE_ID"] == "SIM-UDID"
+    assert "ADB_DEVICE_SERIAL" not in env
+    assert target.serial == "ios:SIM-UDID"
+
+
 @pytest.mark.asyncio
 async def test_queue_worker_notifies_conversation():
     """Verify queue_worker calls notify() when conversation_id is attached to task."""

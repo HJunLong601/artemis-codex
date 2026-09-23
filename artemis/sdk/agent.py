@@ -213,9 +213,6 @@ class Agent:
         retry_wait_seconds: int = 5,
     ):
 
-        if os.environ.get("ARTEMIS_CLOUD_MODE") != "1" and not which("adb"):
-            raise ExecutableNotFoundError("adb")
-
         if self._initialized:
             logger.warning("Agent is already initialized. Skipping...")
             return True
@@ -237,9 +234,17 @@ class Agent:
             logger.error(error_msg)
             raise DeviceNotFoundError(error_msg)
 
+        if (
+            platform == DevicePlatform.ANDROID
+            and os.environ.get("ARTEMIS_CLOUD_MODE") != "1"
+            and not which("adb")
+        ):
+            raise ExecutableNotFoundError("adb")
+
         # Initialize clients
+        platform_label = "iOS" if platform == DevicePlatform.IOS else "Android"
         publish_startup_progress(
-            "device_check", "Checking the Android device", session_id=self._session_id
+            "device_check", f"Checking the {platform_label} device", session_id=self._session_id
         )
         if os.environ.get("ARTEMIS_CLOUD_MODE") != "1":
             self._init_clients(
@@ -262,7 +267,7 @@ class Agent:
         )
         logger.info(self._device_context.to_str())
         publish_startup_progress(
-            "device_ready", "Android device connected", session_id=self._session_id
+            "device_ready", f"{platform_label} device connected", session_id=self._session_id
         )
 
         # Asynchronously pre-warm LLM connection pools in the background
@@ -407,6 +412,13 @@ class Agent:
 
         if not self._initialized:
             raise AgentNotInitializedError()
+
+        if self._device_context.mobile_platform != DevicePlatform.ANDROID:
+            raise AgentError(
+                "Installing an iOS app bundle is not supported yet. Install the app "
+                "on the Simulator first and pass its bundle identifier with "
+                "locked_app_package."
+            )
 
         await self._install_apk_internal(app_path)
         return None
@@ -611,20 +623,23 @@ class Agent:
                 or getattr(task, "id", None)
                 or getattr(getattr(task, "request", None), "task_name", None)
             )
-            active_owner = DeviceExecutionLock.get_active_owner(self._device_context.device_id)
+            lock_device_id = (
+                f"{self._device_context.mobile_platform.value}:{self._device_context.device_id}"
+            )
+            active_owner = DeviceExecutionLock.get_active_owner(lock_device_id)
             already_held = (
                 active_owner is not None
                 and active_owner.pid == os.getpid()
                 and (
                     (sess_id and str(active_owner.session_id) == str(sess_id))
-                    or active_owner.token == self._device_context.device_id
+                    or active_owner.token in {self._device_context.device_id, lock_device_id}
                 )
             )
             device_lock = (
                 None
                 if already_held
                 else DeviceExecutionLock(
-                    self._device_context.device_id,
+                    lock_device_id,
                     description=f"{request.goal[:120]}",
                     concurrency_mode=effective_mode,
                     max_concurrency=effective_max,
@@ -632,6 +647,7 @@ class Agent:
                     ingress=os.getenv("ARTEMIS_TASK_INGRESS") or "agent",
                 )
             )
+            driver_controller = None
             try:
                 if device_lock is not None and os.environ.get("ARTEMIS_CLOUD_MODE") != "1":
                     queue_cancel_event = threading.Event()
@@ -660,6 +676,10 @@ class Agent:
                 # DataEngine uses a shared database, so a queued task must not
                 # publish a new active session while the current task is still
                 # finishing.
+                driver_controller = await self._connect_device_driver(
+                    context,
+                    str(sess_id) if sess_id else None,
+                )
                 self._prepare_tracing(task=task, context=context)
                 self._prepare_output_files(task=task)
                 if os.environ.get("ARTEMIS_CLOUD_MODE") != "1":
@@ -901,12 +921,17 @@ class Agent:
                     await asyncio.wait_for(shutdown_adb_background_tasks(context), timeout=15.0)
                 except Exception as e:
                     logger.warning(f"[{task_name}] Failed to stop background ADB tasks: {e}")
+                if driver_controller is not None:
+                    try:
+                        await driver_controller.cleanup()
+                    except Exception as e:
+                        logger.warning(f"[{task_name}] Failed to disconnect device driver: {e}")
                 try:
                     await self._finalize_tracing_safely(task=task, context=context)
                 finally:
                     if os.environ.get("ARTEMIS_CLOUD_MODE") != "1":
                         try:
-                            if self._ui_adb_client is not None:
+                            if driver_controller is None and self._ui_adb_client is not None:
                                 await asyncio.to_thread(self._ui_adb_client.disconnect)
                         finally:
                             if device_lock is not None:
@@ -1010,6 +1035,8 @@ class Agent:
 
     async def _ensure_device_unlocked(self) -> None:
         """Reject secure keyguard instead of allowing an agent to guess credentials."""
+        if self._device_context.mobile_platform == DevicePlatform.IOS:
+            return
         if self._adb_client is None:
             raise AgentError("ADB client is not initialized.")
 
@@ -1050,6 +1077,8 @@ class Agent:
 
     async def _prepare_device_environment(self, context: ArtemisContext):
         """Prepare device environment flags (like forcing Web Accessibility) before the task runs."""
+        if self._device_context.mobile_platform == DevicePlatform.IOS:
+            return
         if not self._config.force_web_accessibility:
             logger.info(
                 "Forcing web accessibility is disabled in AgentConfig. Skipping"
@@ -1443,11 +1472,38 @@ class Agent:
         device_id: str,
         platform: DevicePlatform,
     ):
+        if platform == DevicePlatform.IOS:
+            self._adb_client = None
+            self._ui_adb_client = None
+            return
         self._adb_client = AdbClient(
             host=self._config.servers.adb_host,
             port=self._config.servers.adb_port,
         )
         self._ui_adb_client = create_screen_client(device_id)
+
+    async def _connect_device_driver(
+        self,
+        context: ArtemisContext,
+        session_id: str | None,
+    ):
+        """Connect the selected platform driver inside the device-lock boundary."""
+        controller = get_controller(context)
+        publish_startup_progress(
+            "driver_connect",
+            f"Connecting {context.device.mobile_platform.value} device driver",
+            session_id=session_id,
+        )
+        await controller.driver.connect()
+        width, height = controller.driver.screen_size
+        if width > 0 and height > 0:
+            context.device.device_width = int(width)
+            context.device.device_height = int(height)
+            device_context = getattr(self, "_device_context", None)
+            if device_context is not None and device_context is not context.device:
+                device_context.device_width = int(width)
+                device_context.device_height = int(height)
+        return controller
 
     async def _get_device_context(
         self,
@@ -1474,6 +1530,22 @@ class Agent:
                 device_id=device_id,
                 device_width=width,
                 device_height=height,
+            )
+
+        if platform == DevicePlatform.IOS:
+            from artemis.platform import platform as pal_platform
+            from artemis.runtime import device_registry
+
+            descriptor = await device_registry.select_device_async(platform, device_id)
+
+            return DeviceContext(
+                host_platform=pal_platform.os_type.name,
+                mobile_platform=platform,
+                device_id=device_id,
+                device_kind=descriptor.kind.value,
+                device_name=descriptor.name,
+                device_width=1179,
+                device_height=2556,
             )
 
         # Query dimensions without starting UIAutomator or acquiring an awake

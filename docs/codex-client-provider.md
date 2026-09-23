@@ -45,11 +45,11 @@ codex login status
 {
   "default": {
     "provider": "codex",
-    "model": "gpt-5.6-terra",
+    "model": "gpt-6-sol",
     "reasoning_effort": "medium",
     "fallback": {
       "provider": "codex",
-      "model": "gpt-5.6-luna",
+      "model": "gpt-6-luna",
       "reasoning_effort": "low"
     }
   }
@@ -78,7 +78,7 @@ $env:ARTEMIS_CODEX_IMAGE_JPEG_QUALITY = "82"
 |---|---:|---|
 | Planner、Operator、Checker、Explorer、Outputter | 否 | 使用 Codex 客户端登录态 |
 | 截图理解、通用视频关键帧分析 | 否 | 图片发送给 Codex；视频走关键帧通用引擎 |
-| 步骤摘要、历史压缩、轻量校验 | 否 | 使用 `gpt-5.6-luna` |
+| 步骤摘要、历史压缩、轻量校验 | 否 | 使用 `gpt-6-luna` |
 | Google Cloud Vision OCR | 可选 | 只有启用云 OCR 时需要 `OCR_API_KEY` |
 | Gemini 原生 Files API 视频流 | 可选 | 仅切换到 Google provider 时需要 Google Key |
 | OpenAI/Anthropic/OpenRouter/xAI provider | 可选 | 只有主动切换对应 provider 时需要其 API Key |

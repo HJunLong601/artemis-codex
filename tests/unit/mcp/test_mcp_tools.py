@@ -53,6 +53,7 @@ def test_tool_signatures():
     assert "app_path" in sig_run.parameters
     assert "expected_output_desc" in sig_run.parameters
     assert "device_serial" in sig_run.parameters
+    assert "device_platform" in sig_run.parameters
     assert "verification_level" in sig_run.parameters
     assert "explorer_mode" in sig_run.parameters
     assert sig_run.parameters["verification_level"].default is None
@@ -71,6 +72,7 @@ def test_tool_signatures():
     sig_device = inspect.signature(mobile_get_device_state)
     assert "view_type" in sig_device.parameters
     assert "device_serial" in sig_device.parameters
+    assert "device_platform" in sig_device.parameters
 
     # mobile_inspect_trace signature check
     sig_inspect = inspect.signature(mobile_inspect_trace)
@@ -167,6 +169,65 @@ def test_mobile_run_task_with_device_serial(temp_trace_env):
 
     status = trace_store.read_status(result["trace_id"])
     assert status["device_serial"] == "pixel-11-pro-001"
+
+
+def test_mobile_run_task_with_ios_device_uses_canonical_lock_and_platform_flag(temp_trace_env):
+    from artemis.context import DevicePlatform
+    from artemis.runtime import DeviceDescriptor, DeviceKind, DeviceState
+
+    process = MagicMock(pid=54322)
+    descriptor = DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id="SIM-UDID",
+        name="iPhone Simulator",
+        state=DeviceState.READY,
+        kind=DeviceKind.SIMULATOR,
+        provider="simctl",
+    )
+    with (
+        patch(
+            "mcp_server.tools.task_runner.device_registry.select_device",
+            return_value=descriptor,
+        ),
+        patch(
+            "mcp_server.tools.task_runner.DeviceExecutionLock.reserve",
+            return_value="queue-ticket-ios",
+        ) as reserve,
+        patch("mcp_server.tools.task_runner.DeviceExecutionLock.transfer_reservation") as transfer,
+        patch("mcp_server.tools.task_runner.subprocess.Popen", return_value=process) as popen,
+    ):
+        result = mobile_run_task(
+            task_desc="Open iOS Settings",
+            model="Flash",
+            device_platform="ios",
+            device_serial="SIM-UDID",
+        )
+
+    reserve.assert_called_once_with(
+        description="MCP task: Open iOS Settings",
+        session_id=result["trace_id"],
+        ingress="mcp",
+        device_id="ios:SIM-UDID",
+    )
+    transfer.assert_called_once_with(
+        "queue-ticket-ios",
+        54322,
+        description="MCP task: Open iOS Settings",
+        session_id=result["trace_id"],
+        ingress="mcp",
+        device_id="ios:SIM-UDID",
+    )
+    cmd = popen.call_args.args[0]
+    assert cmd[cmd.index("--device-platform") + 1] == "ios"
+    assert cmd[cmd.index("--device-serial") + 1] == "SIM-UDID"
+    env = popen.call_args.kwargs["env"]
+    assert env["ARTEMIS_DEVICE_PLATFORM"] == "ios"
+    assert env["ARTEMIS_DEVICE_ID"] == "SIM-UDID"
+    assert "ADB_DEVICE_SERIAL" not in env
+    assert result["device_platform"] == "ios"
+    assert result["canonical_device_id"] == "ios:SIM-UDID"
+    status = trace_store.read_status(result["trace_id"])
+    assert status["device_platform"] == "ios"
 
 
 def test_mobile_run_task_dispatched_to_daemon(temp_trace_env, monkeypatch):
@@ -400,6 +461,54 @@ async def test_mobile_get_device_state_passes_device_serial():
         await mobile_get_device_state(view_type="hierarchy", device_serial="device-serial-abc")
 
     get_ctrl_mock.assert_called_once_with(device_serial="device-serial-abc")
+
+
+@pytest.mark.asyncio
+async def test_mobile_get_device_state_uses_ios_driver():
+    from artemis.context import DevicePlatform
+    from artemis.runtime import DeviceDescriptor, DeviceKind, DeviceState
+
+    descriptor = DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id="SIM-UDID",
+        name="iPhone Simulator",
+        state=DeviceState.READY,
+        kind=DeviceKind.SIMULATOR,
+        provider="simctl",
+    )
+    controller = MagicMock()
+    controller.ctx.device.device_width = 1206
+    controller.ctx.device.device_height = 2622
+    controller.driver.connect = AsyncMock()
+    controller.cleanup = AsyncMock()
+    controller.get_screen_data = AsyncMock(
+        return_value=SimpleNamespace(
+            base64="ZHVtbXk=",
+            elements=[],
+            width=1206,
+            height=2622,
+        )
+    )
+
+    with (
+        patch(
+            "mcp_server.tools.device_state.device_registry.select_device_async",
+            new=AsyncMock(return_value=descriptor),
+        ),
+        patch("mcp_server.tools.device_state.get_controller", return_value=controller),
+        patch("mcp_server.tools.device_state._get_controller") as android_controller,
+        patch("mcp_server.tools.device_state.is_ocr_configured", return_value=False),
+    ):
+        result = await mobile_get_device_state(
+            view_type="hierarchy",
+            device_platform="ios",
+            device_serial="SIM-UDID",
+        )
+
+    assert isinstance(result, str)
+    android_controller.assert_not_called()
+    controller.driver.connect.assert_awaited_once_with()
+    controller.cleanup.assert_awaited_once_with()
 
 
 @pytest.mark.asyncio

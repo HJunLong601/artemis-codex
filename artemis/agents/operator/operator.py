@@ -173,6 +173,16 @@ class OperatorNode:
         )
 
         actuator = getattr(self.ctx, "actuator", None)
+        if actuator is None:
+            from artemis.context import DevicePlatform
+
+            if (
+                getattr(getattr(self.ctx, "device", None), "mobile_platform", None)
+                == DevicePlatform.IOS
+            ):
+                from artemis.mcp.actuators.factory import create_actuator
+
+                actuator = create_actuator(self.ctx)
         if actuator is not None and callable(getattr(actuator, "capabilities", None)):
             try:
                 extension_names = frozenset(
@@ -915,8 +925,16 @@ class OperatorNode:
         # is simply never declared (and the prompt assembly drops its teaching
         # segments in lockstep).
         available_actions = self._available_device_actions()
+        actuator = getattr(self.ctx, "actuator", None)
+        actuator_constraints = (
+            actuator.constraints()
+            if actuator is not None and callable(getattr(actuator, "constraints", None))
+            else {}
+        )
         all_tools = [
-            operator_shell_tool(name) for name in OPERATOR_SHELL_ORDER if name in available_actions
+            operator_shell_tool(name, actuator_constraints.get(name))
+            for name in OPERATOR_SHELL_ORDER
+            if name in available_actions
         ] + self.tools
 
         # 5. Mount the task-output analyzer and collect background ADB task state.

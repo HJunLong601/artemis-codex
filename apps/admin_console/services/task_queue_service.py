@@ -41,12 +41,16 @@ from artemis.config import (
     TEST_OUTPUTS_DIR,
     WORKSPACE_ROOT,
 )
+from artemis.context import DevicePlatform
 from artemis.runtime import (
     AdbEndpoint,
     AdbTarget,
     DeviceExecutionLock,
+    DeviceRegistryError,
     clear_cancel_request,
     current_adb_endpoint,
+    device_registry,
+    normalize_device_request,
     pid_is_alive,
     process_supervisor,
     request_cancel,
@@ -224,7 +228,16 @@ class TaskQueueService:
             else current_adb_endpoint()
         )
         serial = task_item.get("device_serial")
-        return AdbTarget(endpoint=endpoint, serial=str(serial) if serial else None)
+        platform, normalized_serial = normalize_device_request(
+            task_item.get("device_platform"), str(serial) if serial else None
+        )
+        platform = platform or DevicePlatform.ANDROID
+        lock_serial = (
+            f"{platform.value}:{normalized_serial}"
+            if platform == DevicePlatform.IOS and normalized_serial
+            else normalized_serial
+        )
+        return AdbTarget(endpoint=endpoint, serial=lock_serial)
 
     @classmethod
     def _broadcast_event(cls, event_type: str, data: Any):
@@ -487,6 +500,7 @@ class TaskQueueService:
                 "initial_goal": goal,
                 "profile": profile,
                 "device_serial": task_item.get("device_serial"),
+                "device_platform": task_item.get("device_platform", "android"),
             },
         )
 
@@ -525,8 +539,14 @@ class TaskQueueService:
             env["ARTEMIS_SESSION_ID"] = str(sess_id)
         env["ARTEMIS_TASK_INGRESS"] = str(task_item.get("ingress", "frontend"))
         env["ARTEMIS_TASK_WORKER"] = "1"
-        target.endpoint.apply_to_environment(env)
+        platform, device_serial = normalize_device_request(
+            task_item.get("device_platform"), task_item.get("device_serial")
+        )
+        platform = platform or DevicePlatform.ANDROID
+        if platform == DevicePlatform.ANDROID:
+            target.endpoint.apply_to_environment(env)
         env[DeviceExecutionLock.LOCK_SCOPE_ENV] = target.lock_scope
+        env["ARTEMIS_DEVICE_PLATFORM"] = platform.value
         queue_ticket = task_item.get("queue_ticket")
         if queue_ticket:
             env[DeviceExecutionLock.QUEUE_TICKET_ENV] = str(queue_ticket)
@@ -555,10 +575,14 @@ class TaskQueueService:
             cmd.extend(["--locked-app", str(locked_app)])
         if app_path:
             cmd.extend(["--app-path", str(app_path)])
-        device_serial = task_item.get("device_serial")
         if device_serial:
             cmd.extend(["--device-serial", str(device_serial)])
-            env["ADB_DEVICE_SERIAL"] = str(device_serial)
+            env["ARTEMIS_DEVICE_ID"] = str(device_serial)
+            if platform == DevicePlatform.ANDROID:
+                env["ADB_DEVICE_SERIAL"] = str(device_serial)
+            else:
+                env.pop("ADB_DEVICE_SERIAL", None)
+        cmd.extend(["--platform", platform.value])
         return cmd, env
 
     @classmethod
@@ -574,11 +598,18 @@ class TaskQueueService:
     ) -> None:
         """Record the spawned worker in shared state and hand it the device reservation."""
         device_serial = task_item.get("device_serial")
+        device_platform = str(task_item.get("device_platform") or DevicePlatform.ANDROID.value)
+        lock_device_id = (
+            f"{device_platform}:{device_serial}"
+            if device_platform == DevicePlatform.IOS.value and device_serial
+            else device_serial
+        )
         state.current_process = proc
         task_item["pid"] = proc.pid
         state.active_runs[run_key] = {
             "process": proc,
             "device_id": str(device_serial) if device_serial else None,
+            "device_platform": device_platform,
             "lock_key": target.lock_key if device_serial else None,
             "adb_endpoint": target.endpoint.to_dict(),
             "goal": goal,
@@ -601,7 +632,7 @@ class TaskQueueService:
                 str(queue_ticket),
                 proc.pid,
                 description=f"{ingress_type} task: {goal[:120]}",
-                device_id=device_serial or "pending",
+                device_id=lock_device_id or "pending",
                 session_id=str(sess_id) if sess_id else None,
                 ingress=ingress_type,
                 lock_scope=target.lock_scope,
@@ -907,6 +938,7 @@ class TaskQueueService:
         goals: list[str],
         session_id: str | None,
         device_serial: str | None,
+        device_platform: str,
         endpoint: AdbEndpoint,
         now: float,
     ) -> dict[str, Any] | None:
@@ -948,6 +980,7 @@ class TaskQueueService:
                     and item.get("status") == "pending"
                     and item.get("goal") == first_goal
                     and (not device_serial or item.get("device_serial") == device_serial)
+                    and item.get("device_platform", "android") == device_platform
                     and item.get("adb_endpoint", {}).get("identity") == endpoint.identity
                     and (now - float(item.get("created_at", 0))) < 1.0
                 ),
@@ -963,19 +996,31 @@ class TaskQueueService:
         return None
 
     @classmethod
-    async def _reject_unavailable_device(cls, device_serial: str | None) -> dict[str, Any] | None:
+    async def _reject_unavailable_device(
+        cls,
+        device_platform: DevicePlatform,
+        device_serial: str | None,
+    ) -> dict[str, Any] | None:
         """Return the rejection response for an unattached explicit serial, if any."""
         # Strict device binding: reject an explicitly requested serial that is not
         # attached and authorized, instead of silently running on another device.
         # The shared validator fails open on an indeterminate/empty enumeration so
         # the task can proceed and fail downstream with a clear no-device error.
         if device_serial:
-            try:
-                from artemis.runtime import device_pool
+            if device_platform == DevicePlatform.IOS:
+                try:
+                    await device_registry.select_device_async(device_platform, device_serial)
+                except DeviceRegistryError as exc:
+                    rejection = str(exc)
+                else:
+                    rejection = None
+            else:
+                try:
+                    from artemis.runtime import device_pool
 
-                rejection = await device_pool.validate_explicit_serial_async(device_serial)
-            except Exception:
-                rejection = None
+                    rejection = await device_pool.validate_explicit_serial_async(device_serial)
+                except Exception:
+                    rejection = None
             if rejection:
                 return {
                     "status": "rejected",
@@ -1000,6 +1045,7 @@ class TaskQueueService:
         locked_app_package: str | None,
         app_path: str | None,
         device_serial: str | None,
+        device_platform: str,
         ingress: str,
         conversation_id: str | None,
         verification_level: str | None = None,
@@ -1009,10 +1055,15 @@ class TaskQueueService:
         sess_id = single_session_id if single_session_id else str(uuid.uuid4())
         # enqueue_tasks resolves the device before creating queue items.
         assigned_serial = device_serial
+        lock_device_id = (
+            f"{device_platform}:{assigned_serial}"
+            if device_platform == DevicePlatform.IOS.value and assigned_serial
+            else assigned_serial
+        )
 
         queue_ticket = DeviceExecutionLock.reserve(
             description=f"{ingress} task: {goal[:120]}",
-            device_id=assigned_serial or "pending",
+            device_id=lock_device_id or "pending",
             session_id=sess_id,
             ingress=ingress,
             lock_scope=endpoint.identity,
@@ -1028,6 +1079,7 @@ class TaskQueueService:
             "locked_app_package": locked_app_package,
             "app_path": app_path,
             "device_serial": assigned_serial,
+            "device_platform": device_platform,
             "adb_endpoint": endpoint.to_dict(),
             "ingress": ingress,
             "conversation_id": conversation_id,
@@ -1047,6 +1099,7 @@ class TaskQueueService:
         locked_app_package: str | None = None,
         app_path: str | None = None,
         device_serial: str | None = None,
+        device_platform: str | None = None,
         ingress: str = "frontend",
         session_id: str | None = None,
         conversation_id: str | None = None,
@@ -1063,6 +1116,8 @@ class TaskQueueService:
             str(verification_level).strip().lower() or None if verification_level else None
         )
         explorer_mode = str(explorer_mode).strip().lower() or None if explorer_mode else None
+        platform, device_serial = normalize_device_request(device_platform, device_serial)
+        platform = platform or DevicePlatform.ANDROID
         cls.ensure_worker_running()
 
         enqueued_tasks = []
@@ -1070,22 +1125,26 @@ class TaskQueueService:
         endpoint = current_adb_endpoint()
 
         duplicate_response = cls._find_duplicate_submission(
-            goals, session_id, device_serial, endpoint, now
+            goals, session_id, device_serial, platform.value, endpoint, now
         )
         if duplicate_response is not None:
             return duplicate_response
 
-        rejection_response = await cls._reject_unavailable_device(device_serial)
+        rejection_response = await cls._reject_unavailable_device(platform, device_serial)
         if rejection_response is not None:
             return rejection_response
 
         single_session_id = session_id if (session_id and len(goals) == 1) else None
         if not device_serial:
-            # Device enumeration may block on ADB.
-            from artemis.runtime import device_pool
-
             try:
-                device_serial = await device_pool.select_device_async()
+                if platform == DevicePlatform.IOS:
+                    descriptor = await device_registry.select_device_async(platform)
+                    device_serial = descriptor.device_id
+                else:
+                    # Device enumeration may block on ADB.
+                    from artemis.runtime import device_pool
+
+                    device_serial = await device_pool.select_device_async()
             except Exception:
                 device_serial = None
         for i, goal in enumerate(goals):
@@ -1101,6 +1160,7 @@ class TaskQueueService:
                 locked_app_package,
                 app_path,
                 device_serial,
+                platform.value,
                 ingress,
                 conversation_id,
                 verification_level=verification_level,

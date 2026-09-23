@@ -26,10 +26,14 @@ DIM='\033[2m'
 NC='\033[0m'
 
 AUTO_LAUNCH=false
+WITH_IOS=false
 for arg in "$@"; do
     case "${arg}" in
         --launch|-l|--open)
             AUTO_LAUNCH=true
+            ;;
+        --with-ios)
+            WITH_IOS=true
             ;;
     esac
 done
@@ -575,6 +579,10 @@ setup_python_env
 setup_env_file
 setup_showcase_ui
 verify_readiness
+if [ "${WITH_IOS}" = true ]; then
+    echo -e "\n${BOLD}9. Preparing optional iOS toolchain...${NC}"
+    bash "${SCRIPT_DIR}/setup_ios.sh" --install
+fi
 
 echo -e "\n${BOLD}${CYAN}======================================================${NC}"
 echo -e "${BOLD}${GREEN}   ✨ Artemis Environment Ready!                      ${NC}"

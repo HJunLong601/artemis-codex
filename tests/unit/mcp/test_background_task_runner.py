@@ -102,3 +102,59 @@ async def test_run_task_applies_pro_tuning_to_agent_config(
         fake_builder.with_explorer.assert_called_once_with(pro_mode=expect_mode)
     fake_agent.run_task.assert_awaited_once()
     assert trace_store.read_status(trace_id)["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_run_task_configures_ios_without_adb_discovery(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from artemis.context import DevicePlatform
+    from artemis.runtime import trace_store
+    from mcp_server.background import task_runner as bg
+
+    monkeypatch.setattr(trace_store, "TRACES_DIR", str(tmp_path))
+    trace_store.init_trace(
+        "trace-ios",
+        "Open iOS Settings",
+        "Flash",
+        device_serial="SIM-UDID",
+        device_platform="ios",
+    )
+
+    fake_builder = MagicMock()
+    fake_builders = MagicMock()
+    fake_builders.AgentConfig.with_default_profile.return_value = fake_builder
+    fake_agent = MagicMock()
+    fake_agent._device_context = SimpleNamespace(
+        device_id="SIM-UDID", mobile_platform=DevicePlatform.IOS
+    )
+    fake_agent.run_task = AsyncMock(return_value="done")
+    fake_agent.clean = AsyncMock()
+
+    get_devices = MagicMock(side_effect=AssertionError("ADB discovery must not run for iOS"))
+    monkeypatch.setattr(bg.device_utils, "get_connected_devices", get_devices)
+    monkeypatch.setattr(bg, "resolve_profile_file", lambda: None)
+    monkeypatch.setattr(bg, "_initialize_agent", AsyncMock())
+    monkeypatch.setattr(bg, "notify", MagicMock())
+
+    with (
+        patch("artemis.sdk.builders.Builders", fake_builders),
+        patch("artemis.sdk.Agent", return_value=fake_agent),
+        patch("artemis.sdk.types.AgentProfile", MagicMock()),
+        patch("artemis.config.initialize_llm_config", return_value=MagicMock()),
+    ):
+        await bg.run_task(
+            trace_id="trace-ios",
+            task_desc="Open iOS Settings",
+            model="Flash",
+            conversation_id="",
+            device_serial="SIM-UDID",
+            device_platform="ios",
+        )
+
+    get_devices.assert_not_called()
+    fake_builder.for_device.assert_called_once_with(DevicePlatform.IOS, "SIM-UDID")
+    status = trace_store.read_status("trace-ios")
+    assert status["status"] == "completed"
+    assert status["device_platform"] == "ios"

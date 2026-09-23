@@ -26,7 +26,7 @@ from typing import Any
 from uuid import uuid4
 
 from artemis.config.paths import get_temp_dir
-from artemis.context import ArtemisContext
+from artemis.context import ArtemisContext, DevicePlatform
 from artemis.drivers.factory import get_driver
 from artemis.drivers.base import BaseDeviceDriver
 from artemis.controllers.device_controller import ScreenDataResponse
@@ -603,7 +603,7 @@ class UnifiedMobileController:
         output_dir: Path | None = None,
         max_duration_seconds: int = DEFAULT_MAX_DURATION_SECONDS,
     ) -> VideoRecordingResult:
-        """Start screen recording on Android device using scrcpy."""
+        """Start screen recording using the active platform's native backend."""
         self._segment_cache.clear()
         device_id = self._get_device_id()
 
@@ -615,6 +615,12 @@ class UnifiedMobileController:
         ):
             await self._driver.start_video_recording(output_dir)
             return VideoRecordingResult(success=True, message="Mock recording started")
+
+        if (
+            getattr(getattr(self.ctx, "device", None), "mobile_platform", None)
+            == DevicePlatform.IOS
+        ):
+            return await self._start_ios_video_recording(output_dir)
 
         if has_active_session(device_id):
             return VideoRecordingResult(
@@ -730,7 +736,7 @@ class UnifiedMobileController:
             )
 
     async def stop_video_recording(self) -> VideoRecordingResult:
-        """Stop scrcpy recording and return the converted MP4 video file."""
+        """Stop the active platform recording and return a browser-safe MP4."""
         self._segment_cache.clear()
         device_id = self._get_device_id()
 
@@ -746,6 +752,12 @@ class UnifiedMobileController:
                 video_path=Path(p) if p else None,
                 message="Mock recording stopped",
             )
+
+        if (
+            getattr(getattr(self.ctx, "device", None), "mobile_platform", None)
+            == DevicePlatform.IOS
+        ):
+            return await self._stop_ios_video_recording()
 
         session = get_active_session(device_id)
         if not session:
@@ -864,6 +876,108 @@ class UnifiedMobileController:
                 success=False,
                 message=f"Failed to stop recording: {e}",
             )
+
+    async def _start_ios_video_recording(self, output_dir: Path | None) -> VideoRecordingResult:
+        device_id = self._get_device_id()
+        if has_active_session(device_id):
+            return VideoRecordingResult(
+                success=False,
+                message=f"Recording already in progress for device {device_id}",
+            )
+        directory = (
+            Path(output_dir)
+            if output_dir is not None
+            else Path(tempfile.mkdtemp(prefix="ios_", dir=get_temp_dir("recordings")))
+        )
+        directory.mkdir(parents=True, exist_ok=True)
+        started_at = time.time()
+        session = RecordingSession(
+            video_id=uuid4(),
+            device_id=device_id,
+            start_time=started_at,
+            data_engine_start_time=(
+                self.ctx.data_engine.session_start_time
+                if self.ctx and self.ctx.data_engine
+                else started_at
+            ),
+            local_video_path=directory / f"ios-{device_id}-recording.mp4",
+            capture_width=getattr(getattr(self.ctx, "device", None), "device_width", None),
+            capture_height=getattr(getattr(self.ctx, "device", None), "device_height", None),
+        )
+        try:
+            await self._driver.start_video_recording(directory)
+            set_active_session(device_id, session)
+            if self.ctx and self.ctx.data_engine:
+                self.ctx.data_engine.record_video_start(
+                    video_id=session.video_id,
+                    device_id=device_id,
+                    local_video_path=session.local_video_path,
+                    start_time=session.start_time,
+                )
+            return VideoRecordingResult(
+                success=True,
+                message=f"Recording started on {device_id}",
+                video_id=session.video_id,
+                generation=session.generation,
+                sealed_until=session.sealed_until,
+                source_revision=f"{session.video_id}:{session.generation}:active",
+            )
+        except Exception as exc:
+            remove_active_session(device_id)
+            logger.error(f"Failed to start iOS recording: {exc}")
+            return VideoRecordingResult(
+                success=False,
+                message=f"Failed to start recording: {exc}",
+            )
+
+    async def _stop_ios_video_recording(self) -> VideoRecordingResult:
+        device_id = self._get_device_id()
+        session = get_active_session(device_id)
+        if session is None:
+            return VideoRecordingResult(
+                success=False,
+                message=f"No active recording for device {device_id}",
+            )
+        try:
+            raw_path = await self._driver.stop_video_recording()
+            path = Path(raw_path) if raw_path else None
+            if path is None or not path.exists() or path.stat().st_size == 0:
+                return VideoRecordingResult(
+                    success=False,
+                    message="Recording file not found on disk",
+                )
+            stopped_at = time.time()
+            session.is_active = False
+            session.local_video_path = path
+            session.sealed_until = max(0.0, stopped_at - session.start_time)
+            await write_recording_manifest(path.parent, [path], {path: 0.0})
+            if self.ctx and self.ctx.data_engine:
+                self.ctx.data_engine.record_video_stop(
+                    video_id=session.video_id,
+                    device_id=device_id,
+                    local_video_path=path,
+                    start_time=session.start_time,
+                    end_time=stopped_at,
+                )
+            return VideoRecordingResult(
+                success=True,
+                message="Recording stopped, saved 1 video segment",
+                video_path=path,
+                file_size_mb=path.stat().st_size / (1024 * 1024),
+                duration_seconds=session.sealed_until,
+                video_id=session.video_id,
+                generation=session.generation,
+                sealed_until=session.sealed_until,
+                source_revision=f"{session.video_id}:{session.generation}:ready",
+            )
+        except Exception as exc:
+            logger.error(f"Failed to stop iOS recording: {exc}")
+            return VideoRecordingResult(
+                success=False,
+                message=f"Failed to stop recording: {exc}",
+            )
+        finally:
+            remove_active_session(device_id)
 
     async def _convert_mkv_to_mp4(self, mkv_path: Path, mp4_path: Path) -> bool:
         """Normalize MKV into a fixed-size, browser-safe MP4.

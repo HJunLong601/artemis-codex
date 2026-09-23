@@ -18,6 +18,8 @@ import pytest
 
 from artemis.sdk.agent import Agent
 from artemis.context import DeviceContext, DevicePlatform
+import artemis.runtime as runtime
+from artemis.runtime.device_provider import DeviceDescriptor, DeviceKind, DeviceState
 from artemis.runtime.device_lock import DeviceBusyError
 from artemis.sdk.types.exceptions import AgentError
 
@@ -61,6 +63,92 @@ async def test_device_context_uses_adb_size_without_starting_ui_client():
     assert context.device_width == 1080
     assert context.device_height == 2424
     agent._ui_adb_client.get_screen_data.assert_not_called()
+
+
+def test_ios_client_initialization_does_not_create_adb_clients():
+    agent = object.__new__(Agent)
+
+    with (
+        patch("artemis.sdk.agent.AdbClient") as adb_client,
+        patch("artemis.sdk.agent.create_screen_client") as screen_client,
+    ):
+        agent._init_clients("SIM-UDID", DevicePlatform.IOS)
+
+    adb_client.assert_not_called()
+    screen_client.assert_not_called()
+    assert agent._adb_client is None
+    assert agent._ui_adb_client is None
+
+
+@pytest.mark.asyncio
+async def test_ios_device_context_does_not_query_adb():
+    agent = object.__new__(Agent)
+    agent._adb_client = None
+    agent._ui_adb_client = None
+
+    descriptor = DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id="SIM-UDID",
+        state=DeviceState.READY,
+        kind=DeviceKind.SIMULATOR,
+        provider="simctl",
+        name="Test Simulator",
+    )
+    with patch.object(runtime.device_registry, "select_device_async", AsyncMock(return_value=descriptor)):
+        context = await agent._get_device_context("SIM-UDID", DevicePlatform.IOS)
+
+    assert context.mobile_platform == DevicePlatform.IOS
+    assert context.device_id == "SIM-UDID"
+    assert context.device_kind == "simulator"
+    assert (context.device_width, context.device_height) == (1179, 2556)
+
+
+@pytest.mark.asyncio
+async def test_ios_skips_android_unlock_check():
+    agent = object.__new__(Agent)
+    agent._device_context = DeviceContext(
+        mobile_platform=DevicePlatform.IOS,
+        device_id="SIM-UDID",
+    )
+    agent._adb_client = None
+
+    await agent._ensure_device_unlocked()
+
+
+@pytest.mark.asyncio
+async def test_ios_app_installation_fails_with_supported_workflow(tmp_path):
+    app_path = tmp_path / "Example.app"
+    app_path.mkdir()
+    agent = object.__new__(Agent)
+    agent._initialized = True
+    agent._device_context = DeviceContext(
+        mobile_platform=DevicePlatform.IOS,
+        device_id="SIM-UDID",
+    )
+
+    with pytest.raises(AgentError, match="Install the app on the Simulator first"):
+        await agent._install_app_internal(app_path)
+
+
+@pytest.mark.asyncio
+async def test_device_driver_connection_updates_context_dimensions():
+    agent = object.__new__(Agent)
+    context = MagicMock()
+    context.device = DeviceContext(
+        mobile_platform=DevicePlatform.IOS,
+        device_id="SIM-UDID",
+    )
+    controller = MagicMock()
+    controller.driver.connect = AsyncMock()
+    controller.driver.screen_size = (1206, 2622)
+
+    with patch("artemis.sdk.agent.get_controller", return_value=controller):
+        connected = await agent._connect_device_driver(context, "session-1")
+
+    controller.driver.connect.assert_awaited_once_with()
+    assert connected is controller
+    assert context.device.device_width == 1206
+    assert context.device.device_height == 2622
 
 
 @pytest.mark.asyncio

@@ -101,6 +101,9 @@ data_engine.db-journal
 live_screenshot*.jpg
 live_screenshot*.png
 
+# Local device verification artifacts
+artifacts/ios/
+
 # Environment & Secrets
 .env
 .env.*

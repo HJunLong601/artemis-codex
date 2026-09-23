@@ -20,6 +20,9 @@ import os
 from mcp_server.base import mcp
 from artemis.mcp.adb_server import _get_controller
 from mcp_server.utils import env_utils
+from artemis.context import ArtemisContext, DeviceContext, DevicePlatform
+from artemis.controllers.controller_factory import get_controller
+from artemis.runtime import device_registry, normalize_device_request
 from artemis.utils.ocr_xml_fusion import (
     fuse_ocr_with_xml,
     _detect_status_bar_height,
@@ -31,7 +34,11 @@ from artemis.utils.visualization import format_minimal_list_with_elements
 
 
 @mcp.tool()
-async def mobile_get_device_state(view_type: str, device_serial: str | None = None) -> str:
+async def mobile_get_device_state(
+    view_type: str,
+    device_serial: str | None = None,
+    device_platform: str | None = None,
+) -> str:
     """Real-time mobile device state observer (for debugging and validation).
 
     Retrieves a real-time screenshot or a simplified UI element tree from the
@@ -47,14 +54,37 @@ async def mobile_get_device_state(view_type: str, device_serial: str | None = No
         device_serial: Optional device serial (e.g. "emulator-5554") to inspect
           a specific device; omitted → the default connected device. With
           several devices attached, confirm the target with the user
-          (`adb devices -l` lists serials).
+          (`adb devices -l` lists Android devices). Canonical IDs such as
+          `ios:<device-id>` are accepted.
+        device_platform: Optional target platform, `"android"` (default) or
+          `"ios"`; may be omitted for canonical device IDs.
     """
+    created_controller = False
     try:
-        controller = _get_controller(device_serial=device_serial)
+        platform, target_device = normalize_device_request(device_platform, device_serial)
+        platform = platform or DevicePlatform.ANDROID
+        if platform == DevicePlatform.IOS:
+            descriptor = await device_registry.select_device_async(platform, target_device)
+            controller = get_controller(
+                ArtemisContext(
+                    device=DeviceContext(
+                        mobile_platform=platform,
+                        device_id=descriptor.device_id,
+                        device_kind=descriptor.kind.value,
+                        device_name=descriptor.name,
+                        device_width=1179,
+                        device_height=2556,
+                    )
+                )
+            )
+            await controller.driver.connect()
+            created_controller = True
+        else:
+            controller = _get_controller(device_serial=target_device)
         device_width = controller.ctx.device.device_width
         device_height = controller.ctx.device.device_height
     except Exception as e:
-        return f"Error: Failed to initialize/lock Android device controller: {e}"
+        return f"Error: Failed to initialize mobile device controller: {e}"
 
     try:
         device_data = await controller.get_screen_data()
@@ -105,3 +135,9 @@ async def mobile_get_device_state(view_type: str, device_serial: str | None = No
 
     except Exception as e:
         return f"Error: An unexpected error occurred while communicating with the device: {e}"
+    finally:
+        if created_controller:
+            try:
+                await controller.cleanup()
+            except Exception:
+                pass

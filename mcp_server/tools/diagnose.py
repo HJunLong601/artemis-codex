@@ -30,6 +30,9 @@ import asyncio
 import os
 from pathlib import Path
 import re
+import shutil
+import sys
+import time
 from typing import Any
 
 from mcp_server.base import mcp
@@ -43,7 +46,16 @@ from artemis.core.diagnostics.readiness import (
     sort_by_fix_order,
 )
 from artemis.core.diagnostics.schema import ProbeResult, ProbeStatus, SystemReadinessReport
-from artemis.runtime import DeviceExecutionLock, trace_store
+from artemis.context import ArtemisContext, DeviceContext, DevicePlatform
+from artemis.core.diagnostics.schema import ProbeAction, ProbeCategory
+from artemis.runtime import (
+    DeviceDescriptor,
+    DeviceKind,
+    DeviceExecutionLock,
+    device_registry,
+    normalize_device_request,
+    trace_store,
+)
 from artemis.runtime.helper_manager import helper_manager
 from artemis.utils.credentials_validator import validate_api_key
 from artemis.utils.logger import get_logger
@@ -55,6 +67,11 @@ logger = get_logger(__name__)
 #: tool. The optional extras (credential verification, device smoke test) run
 #: concurrently under a second budget of the same size.
 DIAGNOSIS_TIMEOUT_SECONDS = 40.0
+
+# A first XCUITest connection may compile WebDriverAgent. Keep the ordinary
+# readiness scan bounded while allowing an explicitly requested iOS smoke
+# probe enough time to finish that one-time setup.
+IOS_DEVICE_PROBE_TIMEOUT_SECONDS = 240.0
 
 #: Per-provider budget for a live API key verification request.
 CREDENTIAL_CHECK_TIMEOUT_SECONDS = 12.0
@@ -160,7 +177,10 @@ def _compact_device(report: SystemReadinessReport) -> dict[str, Any] | None:
     if device is None:
         return None
     return {
+        "platform": DevicePlatform.ANDROID.value,
         "serial": device.serial,
+        "device_id": device.serial,
+        "canonical_id": f"android:{device.serial}",
         "state": device.state,
         "model": device.model,
         "android_version": device.android_version,
@@ -1089,10 +1109,429 @@ def _timeout_response(fixes_applied: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+# --------------------------------------------------------------------------- #
+# iOS diagnostics
+# --------------------------------------------------------------------------- #
+
+
+def _ios_toolchain_status() -> dict[str, Any]:
+    """Inspect the host-side iOS tools without exposing local executable paths."""
+    xcrun = shutil.which("xcrun")
+    appium = shutil.which("appium")
+    status: dict[str, Any] = {
+        "host_supported": sys.platform == "darwin",
+        "xcrun_installed": bool(xcrun),
+        "device_hub_supported": False,
+        "appium_installed": bool(appium),
+        "xcuitest_driver_installed": False,
+        "driver_check_error": None,
+        "apple_development_identity_available": None,
+    }
+    if sys.platform == "darwin" and shutil.which("xcodebuild"):
+        try:
+            version = subprocess.run(
+                ["xcodebuild", "-version"],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=8.0,
+                check=False,
+            )
+            match = re.search(r"^Xcode (\d+)", version.stdout, flags=re.MULTILINE)
+            status["device_hub_supported"] = (
+                version.returncode == 0 and match is not None and int(match.group(1)) >= 27
+            )
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if sys.platform == "darwin" and shutil.which("security"):
+        try:
+            identities = subprocess.run(
+                ["security", "find-identity", "-v", "-p", "codesigning"],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+                check=False,
+            )
+            if identities.returncode == 0:
+                status["apple_development_identity_available"] = bool(
+                    re.search(r"Apple Development:|iPhone Developer:", identities.stdout)
+                )
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if not appium:
+        return status
+    try:
+        result = subprocess.run(
+            [appium, "driver", "list", "--installed", "--json"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=20.0,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        status["driver_check_error"] = f"{exc.__class__.__name__}: {exc}"
+        return status
+    status["xcuitest_driver_installed"] = (
+        result.returncode == 0 and "xcuitest" in (result.stdout or "").lower()
+    )
+    if result.returncode != 0:
+        status["driver_check_error"] = (
+            result.stderr.strip() or result.stdout.strip() or "Appium driver query failed"
+        )[:500]
+    return status
+
+
+def _public_ios_device(device: DeviceDescriptor) -> dict[str, Any]:
+    return {
+        "platform": device.platform.value,
+        "device_id": device.device_id,
+        "canonical_id": device.canonical_id,
+        "name": device.name,
+        "state": device.state.value,
+        "kind": device.kind.value,
+        "os_version": device.os_version,
+        "model": device.model,
+        "is_busy": device.is_busy,
+    }
+
+
+async def _collect_ios_probe(
+    requested_device: str | None,
+) -> tuple[ProbeResult, list[DeviceDescriptor]]:
+    toolchain = await asyncio.to_thread(_ios_toolchain_status)
+    actions: list[ProbeAction] = []
+    missing: list[str] = []
+    if not toolchain["host_supported"]:
+        missing.append("iOS control requires macOS")
+        actions.append(
+            ProbeAction(
+                action_type="hint",
+                label="Use a macOS host",
+                payload="Run iOS Simulator automation on a Mac with full Xcode installed.",
+            )
+        )
+    if not toolchain["xcrun_installed"]:
+        missing.append("xcrun/Xcode is unavailable")
+        actions.append(
+            ProbeAction(
+                action_type="hint",
+                label="Install Xcode",
+                payload="Install stable Xcode and select its Developer directory.",
+            )
+        )
+    devices: list[DeviceDescriptor] = []
+    discovery_error: str | None = None
+    if not missing:
+        try:
+            devices = await device_registry.list_devices_async(DevicePlatform.IOS)
+        except Exception as exc:
+            discovery_error = f"{exc.__class__.__name__}: {exc}"
+
+    selected: DeviceDescriptor | None = None
+    if requested_device:
+        selected = next(
+            (
+                device
+                for device in devices
+                if requested_device in {device.device_id, device.canonical_id}
+            ),
+            None,
+        )
+    ready = [device for device in devices if device.is_available]
+    target = selected or (ready[0] if len(ready) == 1 else None)
+    physical_backend = os.environ.get("ARTEMIS_IOS_PHYSICAL_DRIVER", "device-hub").strip().lower()
+    backend = (
+        physical_backend if target and target.kind == DeviceKind.PHYSICAL else "appium"
+    )
+    if backend not in {"device-hub", "appium"}:
+        missing.append("ARTEMIS_IOS_PHYSICAL_DRIVER is invalid")
+        actions.append(
+            ProbeAction(
+                action_type="hint",
+                label="Choose an iOS physical driver",
+                payload="Set ARTEMIS_IOS_PHYSICAL_DRIVER=device-hub or appium in .env.",
+            )
+        )
+    if backend == "device-hub" and not toolchain.get("device_hub_supported", True):
+        missing.append("Xcode 27 Device Hub is unavailable")
+        actions.append(
+            ProbeAction(
+                action_type="hint",
+                label="Install Xcode 27 or newer",
+                payload="Install full Xcode 27 or newer and select it with xcode-select.",
+            )
+        )
+    if backend == "appium" and not toolchain["appium_installed"]:
+        missing.append("Appium is unavailable")
+        actions.append(
+            ProbeAction(
+                action_type="command", label="Install Appium", payload="npm install -g appium"
+            )
+        )
+    elif backend == "appium" and not toolchain["xcuitest_driver_installed"]:
+        missing.append("Appium XCUITest driver is unavailable")
+        actions.append(
+            ProbeAction(
+                action_type="command",
+                label="Install XCUITest driver",
+                payload="appium driver install xcuitest",
+            )
+        )
+    if missing:
+        status = ProbeStatus.FAIL
+        summary = "Toolchain missing"
+        description = "; ".join(missing) + "."
+    elif discovery_error:
+        status = ProbeStatus.FAIL
+        summary = "Discovery failed"
+        description = f"iOS device discovery failed: {discovery_error}"
+    elif requested_device and selected is None:
+        status = ProbeStatus.FAIL
+        summary = "Requested device missing"
+        description = f"Requested iOS device '{requested_device}' was not discovered."
+    elif selected is not None and not selected.is_available:
+        status = ProbeStatus.FAIL
+        summary = "Requested device unavailable"
+        description = (
+            f"Requested iOS device '{selected.canonical_id}' is not available "
+            f"(state={selected.state.value}, busy={selected.is_busy})."
+        )
+    elif not ready:
+        status = ProbeStatus.FAIL
+        summary = "No ready iOS device"
+        description = "No ready physical iOS device or booted Simulator was discovered."
+        actions.append(
+            ProbeAction(
+                action_type="hint",
+                label="Connect an iPhone or boot a Simulator",
+                payload=(
+                    "For a Simulator, boot it with xcrun simctl. For a physical iPhone, "
+                    "pair it with this Mac and enable Developer Mode, then retry."
+                ),
+            )
+        )
+    elif (
+        selected is not None
+        and selected.kind == DeviceKind.PHYSICAL
+        and backend == "appium"
+        and toolchain.get("apple_development_identity_available") is False
+    ):
+        status = ProbeStatus.FAIL
+        summary = "WebDriverAgent signing unavailable"
+        description = (
+            "The physical iPhone is connected, but this Mac has no valid Apple Development "
+            "code-signing identity for WebDriverAgent."
+        )
+        actions.append(
+            ProbeAction(
+                action_type="hint",
+                label="Configure WDA signing",
+                payload=(
+                    "Add an Apple Developer Team and Apple Development certificate in Xcode, "
+                    "prepare a matching WebDriverAgent provisioning profile, then set "
+                    "ARTEMIS_IOS_XCODE_ORG_ID and optionally ARTEMIS_IOS_WDA_BUNDLE_ID "
+                    "in the local .env. Do not share credentials in chat or commit them."
+                ),
+            )
+        )
+    elif not requested_device and len(ready) > 1:
+        status = ProbeStatus.FAIL
+        summary = "Device choice required"
+        choices = ", ".join(device.canonical_id for device in ready)
+        description = f"Multiple iOS devices are available; choose one explicitly: {choices}."
+    else:
+        status = ProbeStatus.PASS
+        summary = "Ready"
+        description = (
+            f"iOS {target.kind.value} '{target.canonical_id}' is available for {backend}; "
+            "a live screenshot probe is still required to verify control."
+        )
+
+    return (
+        ProbeResult(
+            id="ios_device_driver",
+            category=ProbeCategory.DEVICE,
+            title="iOS Device Driver",
+            status=status,
+            is_blocker=True,
+            summary=summary,
+            description=description,
+            metadata={
+                "platform": DevicePlatform.IOS.value,
+                "backend": backend,
+                "toolchain": toolchain,
+                "devices": [_public_ios_device(device) for device in devices],
+            },
+            actions=actions,
+        ),
+        devices,
+    )
+
+
+async def _ios_device_smoke_test(device_id: str) -> dict[str, Any]:
+    """Connect the selected iOS driver and prove its available observation path."""
+    from artemis.controllers.controller_factory import get_controller
+
+    started = time.monotonic()
+    descriptor = await device_registry.select_device_async(DevicePlatform.IOS, device_id)
+    context = ArtemisContext(
+        device=DeviceContext(
+            mobile_platform=DevicePlatform.IOS,
+            device_id=device_id,
+            device_kind=descriptor.kind.value,
+            device_name=descriptor.name,
+            device_width=1179,
+            device_height=2556,
+        )
+    )
+    controller = get_controller(context)
+    try:
+        await controller.driver.connect()
+        screen = await controller.driver.get_screen_data(skip_settling=True)
+        return {
+            "ok": bool(screen.screenshot_bytes) and (
+                descriptor.kind == DeviceKind.PHYSICAL
+                and os.environ.get("ARTEMIS_IOS_PHYSICAL_DRIVER", "device-hub").strip().lower()
+                == "device-hub"
+                or bool(screen.ui_hierarchy_xml)
+            ),
+            "platform": DevicePlatform.IOS.value,
+            "serial": device_id,
+            "elapsed_seconds": round(time.monotonic() - started, 2),
+            "screenshot_bytes": len(screen.screenshot_bytes),
+            "element_count": len(screen.ui_elements),
+            "error": None,
+            "fix": [],
+        }
+    except Exception as exc:
+        return _probe_unavailable(
+            device_id,
+            f"iOS device smoke test raised {exc.__class__.__name__}: {exc}",
+        )
+    finally:
+        try:
+            await controller.cleanup()
+        except Exception as exc:
+            logger.debug(f"iOS diagnostic cleanup failed: {exc}")
+
+
+async def _diagnose_ios(
+    *,
+    attempt_fix: bool,
+    requested_device: str | None,
+    verify_credentials: bool,
+    probe_device: bool,
+) -> dict[str, Any]:
+    fixes_applied: list[dict[str, Any]] = []
+    try:
+        report, host = await asyncio.wait_for(
+            collect_readiness(), timeout=DIAGNOSIS_TIMEOUT_SECONDS
+        )
+        if attempt_fix:
+            cleanup = _cleanup_stale_locks()
+            if cleanup is not None:
+                fixes_applied.append(cleanup)
+        ios_probe, devices = await asyncio.wait_for(
+            _collect_ios_probe(requested_device), timeout=DIAGNOSIS_TIMEOUT_SECONDS
+        )
+    except TimeoutError:
+        response = _timeout_response(fixes_applied)
+        response["platform"] = DevicePlatform.IOS.value
+        return response
+
+    results = [probe for probe in report.probes if probe.id != "android_adb"]
+    results.extend([ios_probe, host])
+    credentials = (
+        await _verify_credentials(_find(results, "gemini_api_key")) if verify_credentials else None
+    )
+    ready = [device for device in devices if device.is_available]
+    selected = (
+        next(
+            (
+                device
+                for device in devices
+                if requested_device in {device.device_id, device.canonical_id}
+            ),
+            None,
+        )
+        if requested_device
+        else (ready[0] if len(ready) == 1 else None)
+    )
+    device_probe = None
+    if probe_device:
+        if selected is None:
+            device_probe = _probe_unavailable(
+                requested_device,
+                "no single ready iOS device is selected; nothing to probe",
+            )
+        elif (
+            selected.kind == DeviceKind.PHYSICAL
+            and ios_probe.metadata.get("backend") == "appium"
+            and ios_probe.metadata.get("toolchain", {}).get("apple_development_identity_available")
+            is False
+        ):
+            device_probe = _probe_unavailable(
+                selected.device_id,
+                "WebDriverAgent signing is unavailable on this Mac",
+            )
+        else:
+            device_probe = await asyncio.wait_for(
+                _ios_device_smoke_test(selected.device_id),
+                timeout=IOS_DEVICE_PROBE_TIMEOUT_SECONDS,
+            )
+
+    verdict = base_verdict(results)
+    primary = _primary_credential(credentials)
+    if primary is not None and not primary.get("valid"):
+        verdict = "blocked"
+    elif device_probe is not None and not device_probe.get("ok"):
+        verdict = "blocked"
+    elif verdict != "blocked" and any(not item.get("valid") for item in credentials or []):
+        verdict = "degraded"
+
+    tasks = _task_state()
+    return {
+        "verdict": verdict,
+        "platform": DevicePlatform.IOS.value,
+        "summary": _summary(
+            results,
+            verdict,
+            credentials=credentials,
+            device_probe=device_probe,
+        ),
+        "next_steps": _next_steps(
+            results,
+            attempt_fix=attempt_fix,
+            fixes_applied=fixes_applied,
+            requested_device=requested_device,
+            env_file=host.metadata.get("env_file"),
+            emulator=None,
+            launch_steps=[],
+            credentials=credentials,
+            tasks=tasks,
+            device_probe=device_probe,
+            accessibility_helper=None,
+        ),
+        "checks": [_render_check(result) for result in sort_by_fix_order(results)],
+        "host": _compact_host(host.metadata),
+        "device": _public_ios_device(selected) if selected else None,
+        "devices": [_public_ios_device(device) for device in devices],
+        "emulator": None,
+        "tasks": tasks,
+        "credentials": credentials,
+        "device_probe": device_probe,
+        "fixes_applied": fixes_applied,
+        "logs": _collect_logs(host.metadata),
+    }
+
+
 @mcp.tool()
 async def mobile_diagnose(
     attempt_fix: bool = False,
     device_serial: str | None = None,
+    device_platform: str | None = None,
     launch_avd: str | None = None,
     verify_credentials: bool = False,
     probe_device: bool = False,
@@ -1156,9 +1595,11 @@ async def mobile_diagnose(
           upgrade or enable the Artemis accessibility helper APK on the idle
           target device when it is missing, outdated or disabled. Then
           re-runs the checks. Nothing else is changed.
-        device_serial: Optional serial the user wants to use; the report
+        device_serial: Optional device identifier the user wants to use; the report
           then states explicitly whether that device is attached, authorized
-          and idle.
+          and idle. Canonical IDs such as ``ios:<device-id>`` are accepted.
+        device_platform: Optional target platform, ``android`` (default) or
+          ``ios``. It may be omitted when ``device_serial`` is canonical.
         launch_avd: Name of an installed Android Virtual Device to boot in
           the background (pick it from the `next_steps` guidance or the
           android_adb facts `installed_avds`). Returns immediately; boot
@@ -1178,8 +1619,19 @@ async def mobile_diagnose(
           the device, or the screen stays black. A failed probe makes the
           verdict "blocked" and lists the fix.
     """
+    platform, requested_device = normalize_device_request(device_platform, device_serial)
+    platform = platform or DevicePlatform.ANDROID
+    if platform == DevicePlatform.IOS:
+        if launch_avd and launch_avd.strip():
+            raise ValueError("launch_avd is Android-only; boot the iOS Simulator first.")
+        return await _diagnose_ios(
+            attempt_fix=attempt_fix,
+            requested_device=requested_device,
+            verify_credentials=verify_credentials,
+            probe_device=probe_device,
+        )
+
     fixes_applied: list[dict[str, Any]] = []
-    requested_device = device_serial.strip() if device_serial and device_serial.strip() else None
     avd_name = launch_avd.strip() if launch_avd and launch_avd.strip() else None
     try:
         report, host = await asyncio.wait_for(
@@ -1223,6 +1675,7 @@ async def mobile_diagnose(
     env_file = host.metadata.get("env_file")
     return {
         "verdict": verdict,
+        "platform": DevicePlatform.ANDROID.value,
         "summary": _summary(results, verdict, credentials=credentials, device_probe=device_probe),
         "next_steps": _next_steps(
             results,

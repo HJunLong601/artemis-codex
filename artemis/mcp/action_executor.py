@@ -40,11 +40,12 @@ from artemis.core.tool_failure import ToolFailure, is_tool_failure
 from artemis.context import ArtemisContext
 from artemis.controllers.unified_controller import UnifiedMobileController
 from artemis.data_engine.trace import TraceSpan
-from artemis.mcp.action_manifest import OPTIONAL_ACTIONS, REQUIRED_ACTIONS
+from artemis.mcp.action_manifest import OPTIONAL_ACTIONS, REQUIRED_ACTIONS, available_device_actions
 from artemis.mcp.action_specs import exception_prefix
 from artemis.mcp.action_session import ActionSession, get_action_session
 from artemis.mcp.action_types import ActionCode, ActionResult
-from artemis.mcp.actuators.adb import AdbActuator
+from artemis.mcp.actuators.base import Actuator
+from artemis.mcp.actuators.factory import create_actuator
 from artemis.agents.validator.tool_declarations import (
     ToolExecutionResult,
     normalize_coordinate_target,
@@ -89,11 +90,11 @@ class McpActionExecutor:
         self,
         ctx: ArtemisContext,
         controller: UnifiedMobileController | None = None,
-        actuator: AdbActuator | None = None,
+        actuator: Actuator | None = None,
         agent_name: str = "validator",
     ):
         self.ctx = ctx
-        self.actuator = actuator or getattr(ctx, "actuator", None) or AdbActuator(ctx, controller)
+        self.actuator = actuator or create_actuator(ctx, controller)
         self.controller = self.actuator.controller
         # Identifies the calling agent / profile to the Explorer tier resolver
         # (``explorer.flash_mode`` vs ``explorer.pro_mode``); the agent itself
@@ -104,7 +105,13 @@ class McpActionExecutor:
     @property
     def action_tool_names(self) -> frozenset[str]:
         """Device actions plus backend extension names -- the dynamic dispatch set."""
-        return (REQUIRED_ACTIONS | OPTIONAL_ACTIONS) | {e.name for e in self.actuator.extensions()}
+        try:
+            actions = available_device_actions(self.actuator)
+        except TypeError:
+            # Compatibility with loose test doubles and legacy integrations that
+            # expose ``capabilities`` as an unconfigured Mock.
+            actions = REQUIRED_ACTIONS | OPTIONAL_ACTIONS
+        return actions | {e.name for e in self.actuator.extensions()}
 
     async def _session_or_start(self) -> ActionSession:
         if self._session is None or not self._session.started:

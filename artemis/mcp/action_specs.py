@@ -715,24 +715,35 @@ def exception_prefix(action: str) -> str:
 
 
 @cache
-def _operator_args_model(name: str):
+def _operator_args_model(name: str, constraints: tuple[tuple[str, tuple[str, ...]], ...] = ()):
     """Builds (once) the pydantic argument model for an operator shell."""
     dialect = ACTION_SPECS[name].operator
     if dialect is None:
         raise ValueError(f"Action '{name}' has no operator dialect.")
+    constraint_map = dict(constraints)
     fields: dict[str, Any] = {}
     for p in dialect.params:
+        annotation = p.annotation
+        supported = constraint_map.get(p.name)
+        if supported and get_origin(annotation) is Literal:
+            supported_lower = {value.lower() for value in supported}
+            allowed = tuple(
+                value for value in get_args(annotation) if str(value).lower() in supported_lower
+            )
+            annotation = Literal.__getitem__(allowed)
         if p.required:
-            fields[p.name] = (p.annotation, Field(description=p.description))
+            fields[p.name] = (annotation, Field(description=p.description))
         else:
             fields[p.name] = (
-                p.annotation,
+                annotation,
                 Field(default=p.default, description=p.description),
             )
     return create_model(name, **fields)
 
 
-def operator_shell_tool(name: str) -> StructuredTool:
+def operator_shell_tool(
+    name: str, constraints: dict[str, frozenset[str]] | None = None
+) -> StructuredTool:
     """Builds the Operator's declaration-only shell for one action.
 
     The body is never executed by the Operator loop -- action calls are translated
@@ -742,10 +753,14 @@ def operator_shell_tool(name: str) -> StructuredTool:
     dialect = ACTION_SPECS[name].operator
     if dialect is None:
         raise ValueError(f"Action '{name}' has no operator dialect.")
+    constraints_key = tuple(
+        (parameter, tuple(sorted(values)))
+        for parameter, values in sorted((constraints or {}).items())
+    )
     return StructuredTool(
         name=name,
         description=dialect.description,
-        args_schema=_operator_args_model(name),
+        args_schema=_operator_args_model(name, constraints_key),
         func=lambda **kwargs: "Action Recorded",
     )
 

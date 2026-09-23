@@ -16,6 +16,8 @@
 
 from artemis.mcp.actuators.base import Actuator
 from artemis.mcp.actuators.adb import AdbActuator
+from artemis.mcp.actuators.factory import create_actuator
+from artemis.mcp.actuators.ios import IosActuator
 from artemis.mcp.actuators.mock import MockActuator
 
-__all__ = ["Actuator", "AdbActuator", "MockActuator"]
+__all__ = ["Actuator", "AdbActuator", "IosActuator", "MockActuator", "create_actuator"]

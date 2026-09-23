@@ -20,11 +20,13 @@ import pytest
 
 from apps.admin_console.routers import tasks
 from apps.admin_console.schemas.task_schema import RunRequest
+from artemis.context import DevicePlatform
 from artemis.core.diagnostics.schema import (
     ProbeCategory,
     ProbeResult,
     ProbeStatus,
 )
+from artemis.runtime import DeviceDescriptor, DeviceKind, DeviceState
 
 
 @pytest.mark.asyncio
@@ -71,6 +73,81 @@ async def test_run_task_enqueues_when_device_is_unlocked(monkeypatch):
 
     assert result["status"] == "started"
     enqueue_tasks.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_task_ios_uses_registry_without_android_probe(monkeypatch):
+    descriptor = DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id="SIM-UDID",
+        name="iPhone Simulator",
+        state=DeviceState.READY,
+        kind=DeviceKind.SIMULATOR,
+        provider="simctl",
+    )
+    run_probe = AsyncMock()
+    enqueue_tasks = AsyncMock(return_value={"status": "started", "tasks": []})
+    monkeypatch.setattr(tasks.readiness_engine, "run_device_submission_probe", run_probe)
+    monkeypatch.setattr(
+        tasks.device_registry,
+        "select_device_async",
+        AsyncMock(return_value=descriptor),
+    )
+    monkeypatch.setattr(tasks.task_queue_service, "enqueue_tasks", enqueue_tasks)
+
+    result = await tasks.run_task(
+        RunRequest(
+            goal="Open iOS Settings",
+            device_platform="ios",
+            device_serial="SIM-UDID",
+        )
+    )
+
+    assert result["status"] == "started"
+    run_probe.assert_not_awaited()
+    _, kwargs = enqueue_tasks.call_args
+    assert kwargs["device_platform"] == "ios"
+    assert kwargs["device_serial"] == "SIM-UDID"
+
+
+@pytest.mark.asyncio
+async def test_device_inventory_exposes_platform_and_canonical_id(monkeypatch):
+    descriptor = DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id="SIM-UDID",
+        name="iPhone Simulator",
+        state=DeviceState.READY,
+        kind=DeviceKind.SIMULATOR,
+        provider="simctl",
+    )
+    monkeypatch.setattr(
+        tasks.device_registry,
+        "list_devices_async",
+        AsyncMock(return_value=[descriptor]),
+    )
+
+    result = await tasks.list_devices()
+
+    assert result["devices"] == [
+        {
+            "platform": "ios",
+            "serial": "SIM-UDID",
+            "device_id": "SIM-UDID",
+            "canonical_id": "ios:SIM-UDID",
+            "name": "iPhone Simulator",
+            "model": None,
+            "product": None,
+            "os_version": None,
+            "state": "ready",
+            "kind": "simulator",
+            "is_emulator": True,
+            "is_busy": False,
+            "active_pid": None,
+            "active_task_desc": None,
+            "active_session_id": None,
+            "acquired_at": None,
+        }
+    ]
 
 
 @pytest.mark.asyncio

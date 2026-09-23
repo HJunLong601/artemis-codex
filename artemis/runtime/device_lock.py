@@ -23,11 +23,14 @@ import os
 from pathlib import Path
 import re
 import time
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import uuid
 
 from artemis.config.paths import get_temp_dir
 from artemis.runtime.process_probe import pid_is_alive
+
+if TYPE_CHECKING:
+    from artemis.runtime.device_provider import DeviceDescriptor
 
 
 class DeviceBusyError(RuntimeError):
@@ -140,6 +143,22 @@ class DeviceExecutionLock:
         self.ingress = ingress or os.getenv("ARTEMIS_TASK_INGRESS") or "sdk"
         self._queue_path: Path | None = None
         self._acquired = False
+
+    @classmethod
+    def for_device(
+        cls,
+        device: DeviceDescriptor,
+        description: str = "Artemis task",
+        **kwargs: Any,
+    ) -> DeviceExecutionLock:
+        """Create a lock using the descriptor's platform-namespaced identity.
+
+        Legacy Android callers continue passing a raw serial to ``__init__``;
+        new cross-platform paths use this constructor so equal identifiers on
+        different platforms can never share a lock file.
+        """
+
+        return cls(device.canonical_id, description, **kwargs)
 
     @classmethod
     def _device_lock_path(

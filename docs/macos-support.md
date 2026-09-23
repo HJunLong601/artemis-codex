@@ -5,6 +5,12 @@ Python 服务、Codex App Server、ADB 和 scrcpy 都没有依赖 Windows 专属
 不需要完整的 Xcode 或 Android Studio。Homebrew 首次安装时可能会触发 Apple Command
 Line Tools 的系统安装提示。
 
+iOS 是例外：模拟器和真机 XCUITest 自动化需要完整 Xcode、匹配的 iOS Runtime、
+Appium 3 与 XCUITest Driver。可显式运行 `./start.sh --with-ios` 安装缺失的
+Node.js/Appium/XCUITest，或运行 `bash scripts/setup_ios.sh --check` 只读检查；
+Xcode/Runtime 和真机签名仍需用户自行配置。详细步骤与真机验收边界见
+[README 中文版的 iOS 章节](../README_CN.md#ios-simulator)。
+
 ## 首次运行
 
 ```bash

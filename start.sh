@@ -13,6 +13,16 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
+INSTALL_ARGS=()
+UI_ARGS=()
+for arg in "$@"; do
+    if [ "${arg}" = "--with-ios" ]; then
+        INSTALL_ARGS+=("${arg}")
+    else
+        UI_ARGS+=("${arg}")
+    fi
+done
+
 echo -e "${BOLD}${CYAN}======================================================${NC}"
 echo -e "${BOLD}${CYAN}      Artemis Autonomous Mobile Agent UI             ${NC}"
 echo -e "${BOLD}${CYAN}======================================================${NC}"
@@ -20,7 +30,7 @@ echo ""
 
 # Keep first-run setup in one implementation so start.sh and the standalone
 # installer install exactly the same supported dependency set.
-bash "${SCRIPT_DIR}/scripts/install_deps.sh"
+bash "${SCRIPT_DIR}/scripts/install_deps.sh" "${INSTALL_ARGS[@]}"
 
 echo ""
 echo -e "   ${CYAN}Would you like to configure ARTEMIS MCP and testing rules for your AI IDEs?${NC}"
@@ -43,7 +53,7 @@ OPEN_FLAG="--open"
 if [ -n "${SSH_CONNECTION:-}" ] || [ -n "${SSH_CLIENT:-}" ] || [ -n "${SSH_TTY:-}" ] || [ -z "${DISPLAY:-}" ]; then
     OPEN_FLAG="--no-open"
 fi
-for arg in "$@"; do
+for arg in "${UI_ARGS[@]}"; do
     case "${arg}" in
         --open|--no-open) OPEN_FLAG="" ;;
     esac
@@ -51,7 +61,7 @@ done
 
 echo -e "   ${GREEN}Launching Artemis Showcase UI and Admin Console...${NC}"
 if [ -n "${OPEN_FLAG}" ]; then
-    exec uv run python -m artemis ui "${OPEN_FLAG}" "$@"
+    exec uv run python -m artemis ui "${OPEN_FLAG}" "${UI_ARGS[@]}"
 else
-    exec uv run python -m artemis ui "$@"
+    exec uv run python -m artemis ui "${UI_ARGS[@]}"
 fi

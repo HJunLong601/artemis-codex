@@ -16,6 +16,7 @@ import traceback
 from fastapi import APIRouter, HTTPException
 
 from artemis.config import WORKSPACE_ROOT
+from artemis.runtime import device_registry
 
 try:
     from admin_console.schemas.task_schema import ReplayRequest
@@ -32,8 +33,27 @@ router = APIRouter(tags=["replay"])
 
 @router.get("/api/devices")
 async def list_devices():
-    """Dynamically queries the ADB server for connected Android devices."""
-    return replay_manager.list_devices()
+    """Return the cross-platform device inventory used by the Admin console."""
+    devices = await device_registry.list_devices_async()
+    return {
+        "devices": [
+            {
+                "platform": device.platform.value,
+                "serial": device.device_id,
+                "device_id": device.device_id,
+                "canonical_id": device.canonical_id,
+                "name": device.name,
+                "model": device.model,
+                "product": device.product,
+                "os_version": device.os_version,
+                "state": device.state.value,
+                "kind": device.kind.value,
+                "is_emulator": device.kind.value in {"emulator", "simulator"},
+                "is_busy": device.is_busy,
+            }
+            for device in devices
+        ]
+    }
 
 
 @router.get("/api/replay/tools")

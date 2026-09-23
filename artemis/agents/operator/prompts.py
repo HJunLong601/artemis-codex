@@ -217,6 +217,13 @@ def resolve_operator_prompt_tools(ctx: ArtemisContext) -> frozenset[str]:
     # Device actions the installed actuator backend does not implement disappear
     # from the prompt in lockstep with their tool declarations.
     actuator = getattr(ctx, "actuator", None)
+    if actuator is None:
+        from artemis.context import DevicePlatform
+
+        if getattr(getattr(ctx, "device", None), "mobile_platform", None) == DevicePlatform.IOS:
+            from artemis.mcp.actuators.factory import create_actuator
+
+            actuator = create_actuator(ctx)
     if actuator is not None and callable(getattr(actuator, "capabilities", None)):
         try:
             from artemis.mcp.action_manifest import (

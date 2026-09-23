@@ -54,6 +54,10 @@ class Actuator(Protocol):
         """Backend-specific tools unknown to the manifest."""
         ...
 
+    def constraints(self) -> dict[str, dict[str, frozenset[str]]]:
+        """Backend-specific closed vocabularies for action parameters."""
+        ...
+
     # --- Required action -------------------------------------------------------------
 
     async def click_sequence(

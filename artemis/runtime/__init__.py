@@ -28,6 +28,31 @@ from artemis.runtime.adb_endpoint import (
     current_adb_endpoint,
 )
 from artemis.runtime.device_pool import DevicePool, DeviceStatus, device_pool
+from artemis.runtime.device_provider import (
+    DeviceDescriptor,
+    DeviceKind,
+    DeviceProvider,
+    DeviceState,
+)
+from artemis.runtime.device_registry import (
+    AmbiguousDeviceError,
+    DeviceDiscoveryError,
+    DeviceNotFoundError,
+    DeviceNotReadyError,
+    DeviceRegistry,
+    DeviceRegistryError,
+    create_default_device_registry,
+    device_registry,
+    normalize_device_request,
+)
+from artemis.runtime.appium_service import (
+    AppiumServiceConfig,
+    AppiumServiceError,
+    AppiumServiceHandle,
+    AppiumServiceManager,
+    AppiumServiceStartError,
+)
+from artemis.runtime.port_lease import PortLease, PortLeaseError, PortLeaseManager
 from artemis.runtime.process_probe import pid_is_alive
 from artemis.runtime.daemon_client import (
     ensure_daemon_running,
@@ -66,19 +91,37 @@ from artemis.runtime.cancel_requests import (
 
 __all__ = [
     "ADB_ENDPOINT_ID_ENV",
+    "AppiumServiceConfig",
+    "AppiumServiceError",
+    "AppiumServiceHandle",
+    "AppiumServiceManager",
+    "AppiumServiceStartError",
     "AdbEndpoint",
     "AdbSession",
     "AdbTarget",
     "ConcurrencyMode",
     "DeviceBusyError",
+    "DeviceDescriptor",
+    "DeviceDiscoveryError",
     "DeviceExecutionLock",
+    "DeviceKind",
+    "DeviceNotFoundError",
+    "DeviceNotReadyError",
     "DevicePool",
+    "DeviceProvider",
+    "DeviceRegistry",
+    "DeviceRegistryError",
+    "DeviceState",
     "DeviceStatus",
+    "AmbiguousDeviceError",
     "InvalidAdbEndpoint",
     "clear_cancel_request",
     "clear_server_info",
     "current_adb_endpoint",
     "device_pool",
+    "device_registry",
+    "create_default_device_registry",
+    "normalize_device_request",
     "ensure_daemon_running",
     "ensure_device_awake",
     "find_server_pids",
@@ -91,6 +134,9 @@ __all__ = [
     "is_port_in_use",
     "pid_is_alive",
     "ProcessSupervisor",
+    "PortLease",
+    "PortLeaseError",
+    "PortLeaseManager",
     "process_supervisor",
     "read_server_info",
     "request_cancel",

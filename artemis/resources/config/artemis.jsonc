@@ -8,12 +8,12 @@
   // ------------------------------------------------------------------------------
   "default": {
     "provider": "codex",
-    "model": "gpt-5.6-terra",
+    "model": "gpt-6-sol",
     "reasoning_effort": "medium",
     "timeout": 180,
     "fallback": {
       "provider": "codex",
-      "model": "gpt-5.6-luna",
+      "model": "gpt-6-luna",
       "reasoning_effort": "low"
     }
   },
@@ -24,9 +24,9 @@
   "presets": {
     "codex-client": {
       "provider": "codex",
-      "model": "gpt-5.6-terra",
+      "model": "gpt-6-sol",
       "reasoning_effort": "medium",
-      "fallback": { "provider": "codex", "model": "gpt-5.6-luna", "reasoning_effort": "low" }
+      "fallback": { "provider": "codex", "model": "gpt-6-luna", "reasoning_effort": "low" }
     },
     "gemini-flagship": {
       "provider": "google",
@@ -82,10 +82,10 @@
     // specialized sub-pixel tuning. Prefer indexed UI elements/XML; use Explorer pro for hard screens.
     "object_detector": {
       "provider": "codex",
-      "model": "gpt-5.6-terra",
+      "model": "gpt-6-sol",
       "fallback": {
         "provider": "codex",
-        "model": "gpt-5.6-luna"
+        "model": "gpt-6-luna"
       }
     },
 
@@ -103,10 +103,10 @@
     // 🔽 Hopper: Fast lightweight package name locator
     "hopper": {
       "provider": "codex",
-      "model": "gpt-5.6-luna",
+      "model": "gpt-6-luna",
       "fallback": {
         "provider": "codex",
-        "model": "gpt-5.6-luna"
+        "model": "gpt-6-luna"
       }
     },
 
@@ -131,12 +131,12 @@
       "reasoning_effort": "medium",
       "include_thoughts": true
     },
-    "history_analyzer": { "model": "gpt-5.6-luna", "reasoning_effort": "low", "temperature": 0.0 },
-    "validator_pixel_safety_net": { "model": "gpt-5.6-luna", "reasoning_effort": "low", "temperature": 0.0 },
-    "planner_validation": { "model": "gpt-5.6-luna", "reasoning_effort": "low", "temperature": 0.0 },
-    "output_analyzer": { "model": "gpt-5.6-luna", "reasoning_effort": "low", "temperature": 0.0 }
+    "history_analyzer": { "model": "gpt-6-luna", "reasoning_effort": "low", "temperature": 0.0 },
+    "validator_pixel_safety_net": { "model": "gpt-6-luna", "reasoning_effort": "low", "temperature": 0.0 },
+    "planner_validation": { "model": "gpt-6-luna", "reasoning_effort": "low", "temperature": 0.0 },
+    "output_analyzer": { "model": "gpt-6-luna", "reasoning_effort": "low", "temperature": 0.0 }
     // 🎯 Planner Validation: Advisory review of milestone changes.
-    // Uses the same gpt-5.6-luna client model as the pixel safety net.
+    // Uses the same gpt-6-luna client model as the pixel safety net.
   },
 
   // ------------------------------------------------------------------------------
@@ -157,7 +157,7 @@
       "step_summarizer": {
         "enabled": true, // Whether background step summarization is active
         "provider": "codex",
-        "model": "gpt-5.6-luna", // Lightweight client model for background inference
+        "model": "gpt-6-luna", // Lightweight client model for background inference
         "prune_history_xml": true // Prune outdated heavy XML trees from historical steps
       }
     },
@@ -259,7 +259,7 @@
         "min_steps": 3,
         "target_source_tokens": 2000,
         "provider": "codex",
-        "model": "gpt-5.6-luna",
+        "model": "gpt-6-luna",
         "max_chunks": 8
         // "max_eras": 8 // independent era cap; omitted = follows max_chunks
       },

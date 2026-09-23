@@ -25,6 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from artemis.core.diagnostics.emulator_manager import EmulatorLaunchStage
+from artemis.context import DevicePlatform
 from artemis.core.diagnostics.probes.host_probe import IntegrationHostProbe
 from artemis.core.diagnostics.schema import (
     DeviceInfo,
@@ -34,7 +35,7 @@ from artemis.core.diagnostics.schema import (
     ProbeStatus,
     SystemReadinessReport,
 )
-from artemis.runtime import trace_store
+from artemis.runtime import DeviceDescriptor, DeviceKind, DeviceState, trace_store
 from artemis.runtime.device_lock import DeviceLockOwner
 from mcp_server.tools import diagnose
 from mcp_server.tools.diagnose import mobile_diagnose
@@ -282,6 +283,9 @@ def _run(
     helper_status=None,
     helper_provision=None,
     backend="auto",
+    ios_devices=None,
+    ios_toolchain=None,
+    ios_smoke=None,
     **kwargs,
 ):
     """Run the tool with every side-effecting collaborator stubbed."""
@@ -293,6 +297,36 @@ def _run(
         fake_helper.provision = helper_provision or MagicMock(return_value=_provision_ok())
         stack.enter_context(patch.object(diagnose, "helper_manager", fake_helper))
         stack.enter_context(patch.object(diagnose, "_hierarchy_backend", lambda: backend))
+        stack.enter_context(
+            patch.object(
+                diagnose.device_registry,
+                "list_devices_async",
+                AsyncMock(return_value=list(ios_devices or [])),
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                diagnose,
+                "_ios_toolchain_status",
+                MagicMock(
+                    return_value=ios_toolchain
+                    or {
+                        "host_supported": True,
+                        "xcrun_installed": True,
+                        "appium_installed": True,
+                        "xcuitest_driver_installed": True,
+                        "driver_check_error": None,
+                    }
+                ),
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                diagnose,
+                "_ios_device_smoke_test",
+                ios_smoke or AsyncMock(return_value=_smoke_ok("SIM-UDID")),
+            )
+        )
         kwargs["_fake_helper"] = fake_helper
         stack.enter_context(
             patch.object(
@@ -396,6 +430,18 @@ def _smoke_ok(serial: str = "pixel-1") -> dict:
     }
 
 
+def _ios_device(device_id: str = "SIM-UDID") -> DeviceDescriptor:
+    return DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id=device_id,
+        name="iPhone Simulator",
+        state=DeviceState.READY,
+        kind=DeviceKind.SIMULATOR,
+        provider="simctl",
+        os_version="27.0",
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Schema / shape
 # --------------------------------------------------------------------------- #
@@ -405,6 +451,7 @@ def test_tool_signature_and_registration():
     sig = inspect.signature(mobile_diagnose)
     assert sig.parameters["attempt_fix"].default is False
     assert sig.parameters["device_serial"].default is None
+    assert sig.parameters["device_platform"].default is None
     assert sig.parameters["launch_avd"].default is None
     assert sig.parameters["verify_credentials"].default is False
     assert sig.parameters["probe_device"].default is False
@@ -426,10 +473,108 @@ def test_tool_signature_and_registration():
     ):
         assert field in doc
 
+
+def test_ios_diagnosis_reports_platform_registry_device():
+    result = _run(
+        _healthy_probes(),
+        device_platform="ios",
+        device_serial="SIM-UDID",
+        ios_devices=[_ios_device()],
+    )
+
+    assert result["verdict"] == "ready"
+    assert result["platform"] == "ios"
+    assert result["device"]["canonical_id"] == "ios:SIM-UDID"
+    assert result["devices"][0]["os_version"] == "27.0"
+    assert all(check["id"] != "android_adb" for check in result["checks"])
+    assert any(check["id"] == "ios_device_driver" for check in result["checks"])
+
+
+def test_ios_device_probe_uses_xcuitest_smoke_path():
+    smoke = AsyncMock(return_value={**_smoke_ok("SIM-UDID"), "platform": "ios"})
+
+    result = _run(
+        _healthy_probes(),
+        device_platform="ios",
+        device_serial="ios:SIM-UDID",
+        probe_device=True,
+        ios_devices=[_ios_device()],
+        ios_smoke=smoke,
+    )
+
+    smoke.assert_awaited_once_with("SIM-UDID")
+    assert result["device_probe"]["ok"] is True
+
     from mcp_server.base import mcp
 
     tool_names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert "mobile_diagnose" in tool_names
+
+
+def test_ios_physical_device_without_signing_identity_reports_blocker():
+    device = DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id="REAL-UDID",
+        name="Test iPhone",
+        state=DeviceState.READY,
+        kind=DeviceKind.PHYSICAL,
+        provider="devicectl",
+        os_version="27.0",
+    )
+    smoke = AsyncMock()
+    with patch.dict("os.environ", {"ARTEMIS_IOS_PHYSICAL_DRIVER": "appium"}):
+        result = _run(
+            _healthy_probes(),
+            device_platform="ios",
+            device_serial="ios:REAL-UDID",
+            probe_device=True,
+            ios_devices=[device],
+            ios_toolchain={
+                "host_supported": True,
+                "xcrun_installed": True,
+                "appium_installed": True,
+                "xcuitest_driver_installed": True,
+                "driver_check_error": None,
+                "apple_development_identity_available": False,
+            },
+            ios_smoke=smoke,
+        )
+
+    assert result["verdict"] == "blocked"
+    assert result["device"]["kind"] == "physical"
+    assert any(
+        check["id"] == "ios_device_driver" and check["summary"] == "WebDriverAgent signing unavailable"
+        for check in result["checks"]
+    )
+    smoke.assert_not_awaited()
+
+
+def test_ios_physical_device_hub_does_not_require_appium_or_signing():
+    device = DeviceDescriptor(
+        platform=DevicePlatform.IOS,
+        device_id="REAL-UDID",
+        name="Test iPhone",
+        state=DeviceState.READY,
+        kind=DeviceKind.PHYSICAL,
+        provider="devicectl",
+    )
+    with patch.dict("os.environ", {"ARTEMIS_IOS_PHYSICAL_DRIVER": "device-hub"}):
+        result = _run(
+            _healthy_probes(),
+            device_platform="ios",
+            device_serial="ios:REAL-UDID",
+            ios_devices=[device],
+            ios_toolchain={
+                "host_supported": True,
+                "xcrun_installed": True,
+                "appium_installed": False,
+                "xcuitest_driver_installed": False,
+                "driver_check_error": None,
+                "apple_development_identity_available": False,
+            },
+        )
+    assert result["verdict"] == "ready"
+    assert any(check["id"] == "ios_device_driver" for check in result["checks"])
 
 
 def test_ready_environment_reports_ready_with_slim_shape(temp_trace_env):
@@ -466,7 +611,10 @@ def test_ready_environment_reports_ready_with_slim_shape(temp_trace_env):
         "android_adb",
     ]
     assert result["device"] == {
+        "platform": "android",
         "serial": "pixel-1",
+        "device_id": "pixel-1",
+        "canonical_id": "android:pixel-1",
         "state": "device",
         "model": "Pixel 8",
         "android_version": "15",

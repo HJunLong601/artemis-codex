@@ -29,6 +29,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class UnsupportedOperationError(RuntimeError):
+    """Raised when a device platform cannot provide an operation safely."""
+
+
 class SwipeDirection(str, Enum):
     UP = "up"
     DOWN = "down"

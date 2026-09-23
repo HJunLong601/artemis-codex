@@ -217,6 +217,16 @@ class FlashRunner:
         # backend does not implement (and append its extension tools); without
         # one, the full historical declaration set is kept.
         actuator = getattr(self.ctx, "actuator", None)
+        if actuator is None:
+            from artemis.context import DevicePlatform
+
+            if (
+                getattr(getattr(self.ctx, "device", None), "mobile_platform", None)
+                == DevicePlatform.IOS
+            ):
+                from artemis.mcp.actuators.factory import create_actuator
+
+                actuator = create_actuator(self.ctx)
         if actuator is not None:
             from artemis.mcp.action_manifest import filter_declarations
 

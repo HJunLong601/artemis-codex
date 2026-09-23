@@ -73,7 +73,7 @@ def test_planner_validation_node_defaults_to_lightweight_judge():
     assert node.provider == safety_net.provider
     assert node.temperature == 0.0
     assert node.provider == "codex"
-    assert node.model == "gpt-5.6-luna"
+    assert node.model == "gpt-6-luna"
 
 
 if __name__ == "__main__":
