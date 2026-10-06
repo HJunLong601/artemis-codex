@@ -15,6 +15,7 @@
 """LLM provider, model hierarchy, fallback chaining, and configuration loaders."""
 
 import os
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
 
@@ -171,34 +172,23 @@ class LLMConfig(BaseModel):
     planner_validation: LLMWithFallback | None = None
     output_analyzer: LLMWithFallback | None = None
 
+    def iter_primary_models(self) -> Iterator[tuple[str, LLMWithFallback]]:
+        """Yield the configured node models, excluding optional fallback endpoints."""
+        for name in type(self).model_fields:
+            value = getattr(self, name)
+            if isinstance(value, LLMWithFallback):
+                yield name, value
+            elif isinstance(value, LLMConfigUtils):
+                for util_name in type(value).model_fields:
+                    model = getattr(value, util_name)
+                    if isinstance(model, LLMWithFallback):
+                        yield f"utils.{util_name}", model
+
     def validate_providers(self) -> None:
-        """Validate credentials across all configured agent nodes."""
-        self.planner.validate_provider("Planner")
-        self.utils.outputter.validate_provider("Outputter")
-        self.utils.hopper.validate_provider("Hopper")
-        if self.utils.video_analyzer:
-            self.utils.video_analyzer.validate_provider("VideoAnalyzer")
-        if self.utils.object_detector:
-            self.utils.object_detector.validate_provider("ObjectDetector")
-        self.summarizer.validate_provider("Summarizer")
-        self.operator.validate_provider("Operator")
-        self.operator_summarizer.validate_provider("OperatorSummarizer")
-        self.log_reader_sub_agent.validate_provider("LogReaderSubAgent")
-        self.log_analyzer.validate_provider("LogAnalyzer")
-        self.diagnoser.validate_provider("Diagnoser")
-        self.checker.validate_provider("Checker")
-        self.planner_avatar.validate_provider("PlannerAvatar")
-        self.history_analyzer_expert.validate_provider("HistoryAnalyzerExpert")
-        self.diagnoser_expert.validate_provider("DiagnoserExpert")
-        self.explorer.validate_provider("Explorer")
-        if self.history_analyzer:
-            self.history_analyzer.validate_provider("HistoryAnalyzer")
-        if self.validator_pixel_safety_net:
-            self.validator_pixel_safety_net.validate_provider("ValidatorPixelSafetyNet")
-        if self.planner_validation:
-            self.planner_validation.validate_provider("PlannerValidation")
-        if self.output_analyzer:
-            self.output_analyzer.validate_provider("OutputAnalyzer")
+        """Validate the same primary node routes inspected by readiness diagnostics."""
+        for name, model in self.iter_primary_models():
+            label = "".join(part.title() for part in name.split(".")[-1].split("_"))
+            model.validate_provider(label)
 
     def __str__(self) -> str:
         return f"""

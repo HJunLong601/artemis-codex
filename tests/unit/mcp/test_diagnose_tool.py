@@ -442,6 +442,100 @@ def _ios_device(device_id: str = "SIM-UDID") -> DeviceDescriptor:
     )
 
 
+@pytest.mark.parametrize("platform", ["android", "ios"])
+@pytest.mark.parametrize(
+    "required,invalid,verdict",
+    [
+        (["codex"], "google", "degraded"),
+        (["openai"], "google", "degraded"),
+        (["google", "openai"], "openai", "blocked"),
+        (["codex", "openai"], "openai", "blocked"),
+    ],
+)
+def test_live_credentials_follow_all_primary_routes(platform, required, invalid, verdict):
+    probes = _healthy_probes()
+    metadata = probes[3].metadata
+    metadata["required_providers"] = required
+    metadata["provider_checks"] = [
+        {
+            "provider": provider,
+            "label": provider,
+            "valid": True,
+            "required": True,
+            "credential_type": "client_session" if provider == "codex" else "api_key",
+            "message": "Local configuration available",
+        }
+        for provider in required
+    ]
+    validate = AsyncMock(
+        side_effect=lambda provider, *args, **kwargs: (provider != invalid, "checked")
+    )
+    result = _run(
+        probes,
+        verify_credentials=True,
+        validate=validate,
+        device_platform=platform,
+        **({"ios_devices": [_ios_device()]} if platform == "ios" else {}),
+    )
+
+    assert result["verdict"] == verdict
+    outcomes = {entry["provider"]: entry for entry in result["credentials"]}
+    assert outcomes[invalid]["required"] is (invalid in required)
+    tag = "REQUIRED" if invalid in required else "OPTIONAL"
+    assert any(f"[{tag}]" in step and f"({invalid})" in step for step in result["next_steps"])
+    assert all(call.args[0] != "codex" for call in validate.await_args_list)
+
+
+@pytest.mark.parametrize(
+    "provider,kind", [("codex", "client_session"), ("vertexai", "application_default")]
+)
+@pytest.mark.parametrize("valid", [True, False])
+def test_session_and_adc_results_survive_live_key_verification(provider, kind, valid):
+    probes = _healthy_probes()
+    metadata = probes[3].metadata
+    metadata["required_providers"] = [provider]
+    metadata["provider_checks"] = [
+        {
+            "provider": provider,
+            "label": provider,
+            "valid": valid,
+            "required": True,
+            "credential_type": kind,
+            "message": "Session or ADC validation result",
+        }
+    ]
+    # Vertex's project is an inventory entry, not an API key to verify.
+    if provider == "vertexai":
+        metadata["providers"].append({"provider": provider, "raw_key": "project-id"})
+    validate = AsyncMock(return_value=(True, "verified"))
+    result = _run(probes, verify_credentials=True, validate=validate)
+
+    assert result["verdict"] == ("ready" if valid else "blocked")
+    outcome = next(entry for entry in result["credentials"] if entry["provider"] == provider)
+    assert outcome["valid"] is valid
+    assert outcome["credential_type"] == kind
+    assert all(call.args[0] != provider for call in validate.await_args_list)
+    assert not any("Add a provider API key" in step for step in result["next_steps"])
+
+
+def test_codex_only_verification_needs_no_api_key():
+    probes = _healthy_probes()
+    check = {
+        "provider": "codex",
+        "label": "Codex client",
+        "valid": True,
+        "required": True,
+        "credential_type": "client_session",
+        "message": "CLI login available",
+    }
+    probes[3].metadata = {"required_providers": ["codex"], "provider_checks": [check]}
+    validate = AsyncMock()
+    result = _run(probes, verify_credentials=True, validate=validate)
+    assert result["verdict"] == "ready"
+    assert result["credentials"] == [check]
+    validate.assert_not_awaited()
+
+
 # --------------------------------------------------------------------------- #
 # Schema / shape
 # --------------------------------------------------------------------------- #

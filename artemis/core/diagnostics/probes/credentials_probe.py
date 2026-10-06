@@ -62,31 +62,87 @@ class LLMCredentialsProbe(BaseProbe):
         configured_providers: list[dict[str, Any]] = []
         api_keys_map: dict[str, str] = {}
 
-        # Codex owns its ChatGPT authentication. Only ask the CLI for its
-        # public login status; never read or expose the underlying token.
+        from artemis.config.llm import parse_llm_config
         from artemis.llm.codex_app_server import codex_client_status
 
         try:
-            from artemis.config.llm import parse_llm_config
+            config = parse_llm_config()
+        except Exception as exc:
+            return ProbeResult(
+                id=self.probe_id,
+                category=self.category,
+                title="Multimodal LLM Credentials",
+                status=ProbeStatus.FAIL,
+                is_blocker=True,
+                summary="Model routing unavailable",
+                description="Cannot determine required credentials until the model configuration is valid.",
+                metadata={"configured_count": 0, "routing_error": type(exc).__name__},
+                actions=[
+                    ProbeAction(
+                        action_type="hint",
+                        label="Fix model configuration",
+                        payload="Resolve the System Configuration check and run diagnostics again.",
+                    )
+                ],
+            )
 
-            active_provider = str(parse_llm_config().planner.provider)
-        except Exception:
-            active_provider = ""
-        codex_available = False
-        codex_detail = ""
-        if active_provider == "codex":
-            # A readiness recheck must observe a login completed since the last scan.
+        active_provider = config.planner.provider
+        models = {}
+        roles: dict[str, list[str]] = {}
+        for name, model in config.iter_primary_models():
+            models.setdefault(model.provider, model)
+            roles.setdefault(model.provider, []).append(name)
+
+        # Refresh the public CLI status, never read or copy authentication tokens.
+        if "codex" in models:
             codex_client_status.cache_clear()
-            codex_available, codex_detail = await asyncio.to_thread(codex_client_status)
-        if codex_available:
-            configured_providers.append(
+        outcomes = await asyncio.gather(
+            *(
+                asyncio.to_thread(model.validate_provider, roles[provider][0])
+                for provider, model in models.items()
+            ),
+            return_exceptions=True,
+        )
+        route_checks = []
+        for provider, outcome in zip(models, outcomes):
+            if isinstance(outcome, asyncio.CancelledError):
+                raise outcome
+            valid = not isinstance(outcome, BaseException)
+            credential_type = (
+                "client_session"
+                if provider == "codex"
+                else "application_default"
+                if provider == "vertexai"
+                else "endpoint"
+                if provider in {"custom", "ollama", "vllm"}
+                else "api_key"
+            )
+            route_checks.append(
                 {
-                    "provider": "codex",
-                    "label": "Codex client",
-                    "masked": "ChatGPT login",
-                    "credential_type": "client_session",
+                    "provider": provider,
+                    "label": provider,
+                    "required": True,
+                    "roles": roles[provider],
+                    "valid": valid,
+                    "credential_type": credential_type,
+                    "message": str(outcome)
+                    if not valid
+                    else (
+                        "Codex CLI login is available; model inference was not tested."
+                        if provider == "codex"
+                        else "Required credential configuration is present; API access and model inference were not tested."
+                    ),
                 }
             )
+            if valid and provider == "codex":
+                configured_providers.append(
+                    {
+                        "provider": "codex",
+                        "label": "Codex client",
+                        "masked": "CLI login",
+                        "credential_type": "client_session",
+                    }
+                )
         if gemini_key and not is_placeholder_key(gemini_key):
             g_val = gemini_key.get_secret_value()
             configured_providers.append(
@@ -174,14 +230,20 @@ class LLMCredentialsProbe(BaseProbe):
         if ocr_key and not is_placeholder_key(ocr_key):
             api_keys_map["ocr"] = ocr_key.get_secret_value()
 
-        current_active_key = (
-            gemini_key.get_secret_value()
-            if gemini_key
-            else (configured_providers[0].get("key", "") if configured_providers else "")
-        )
-
+        available = {entry["provider"]: entry for entry in configured_providers}
+        for entry in configured_providers:
+            entry["required"] = entry["provider"] in roles
+            entry["roles"] = roles.get(entry["provider"], [])
+        for check in route_checks:
+            check["label"] = available.get(check["provider"], {}).get("label", check["provider"])
+            for value in api_keys_map.values():
+                if value:
+                    check["message"] = check["message"].replace(value, "***")
+        current_active_key = available.get(active_provider, {}).get("key", "")
         metadata = {
             "active_provider": active_provider,
+            "required_providers": list(roles),
+            "provider_checks": route_checks,
             "configured_count": len(configured_providers),
             "providers": configured_providers,
             "has_ocr_key": ocr_key is not None,
@@ -189,26 +251,12 @@ class LLMCredentialsProbe(BaseProbe):
             "current_gemini_key": gemini_key.get_secret_value() if gemini_key else "",
             "api_keys": api_keys_map,
         }
-
-        if active_provider == "codex" and (codex_available or not configured_providers):
-            return ProbeResult(
-                id=self.probe_id,
-                category=self.category,
-                title="Multimodal LLM Credentials",
-                status=ProbeStatus.PASS if codex_available else ProbeStatus.FAIL,
-                is_blocker=self.is_blocker,
-                summary="Active (Codex client)" if codex_available else "Codex session unavailable",
-                description=(
-                    "The local Codex client is signed in. Artemis can reuse that session "
-                    "through Codex App Server without a separate provider API key."
-                    if codex_available
-                    else f"Codex login is unavailable to this process: {codex_detail}. "
-                    "This does not establish that an API key is missing."
-                ),
-                metadata=metadata,
-                actions=[]
-                if codex_available
-                else [
+        failures = [check for check in route_checks if not check["valid"]]
+        metadata["missing_providers"] = [check["provider"] for check in failures]
+        actions = []
+        if "codex" in metadata["missing_providers"]:
+            actions.extend(
+                [
                     ProbeAction(
                         action_type="command",
                         label="Check Codex login",
@@ -218,81 +266,64 @@ class LLMCredentialsProbe(BaseProbe):
                         action_type="hint",
                         label="Check the execution environment",
                         payload=(
-                            "Compare Codex login status in the normal user environment and the "
-                            "MCP server environment, including CODEX_HOME and the selected CLI. "
-                            "A sandbox may not have access to the user's login. If the normal "
-                            "user environment is also signed out, run codex login there; then "
-                            "restart the MCP server and re-run mobile_diagnose. "
-                            "Do not copy authentication tokens into the sandbox or chat."
+                            "Compare Codex login status in the normal user environment and the MCP server "
+                            "environment, including CODEX_HOME and the selected CLI. A sandbox may not "
+                            "have access to the user's login. If the normal user environment is also "
+                            "signed out, run codex login there; then restart the MCP server and re-run "
+                            "mobile_diagnose. Do not copy authentication tokens into the sandbox or chat."
                         ),
                     ),
-                ],
+                ]
             )
-
-        # Case 1: Gemini API Key configured (Standard / Recommended)
-        if gemini_key:
-            masked = self._mask_key(gemini_key.get_secret_value())
-            return ProbeResult(
-                id=self.probe_id,
-                category=self.category,
-                title="Multimodal LLM API Key",
-                status=ProbeStatus.PASS,
-                is_blocker=self.is_blocker,
-                summary="Active (Gemini)",
-                description=f"Gemini multimodal API credential is active ({masked}) and ready for vision and reasoning.",
-                metadata=metadata,
-                actions=[
-                    ProbeAction(
-                        action_type="hint",
-                        label="Provider Active",
-                        payload="Gemini 2.5 Flash / Pro Multimodal Engine is enabled.",
-                    )
-                ],
+        if "vertexai" in metadata["missing_providers"]:
+            actions.append(
+                ProbeAction(
+                    action_type="hint",
+                    label="Check Vertex AI credentials",
+                    payload="Configure Google Application Default Credentials and a Google Cloud project for Vertex AI.",
+                )
             )
-
-        # Case 2: Other LLM provider configured
-        if configured_providers:
-            first_p = configured_providers[0]
-            return ProbeResult(
-                id=self.probe_id,
-                category=self.category,
-                title="Multimodal LLM API Key",
-                status=ProbeStatus.PASS,
-                is_blocker=self.is_blocker,
-                summary=f"Active ({first_p['label']})",
-                description=f"{first_p['label']} multimodal API credential is active ({first_p['masked']}).",
-                metadata=metadata,
-                actions=[
-                    ProbeAction(
-                        action_type="hint",
-                        label="Provider Active",
-                        payload=f"{first_p['label']} multimodal vision endpoint is active.",
-                    )
-                ],
+        missing_keys = [
+            check["provider"] for check in failures if check["credential_type"] == "api_key"
+        ]
+        if missing_keys:
+            actions.append(
+                ProbeAction(
+                    action_type="hint",
+                    label="Configure required provider keys",
+                    payload="Add credentials for "
+                    + ", ".join(missing_keys)
+                    + " to the local .env or MCP environment, then restart the server. Never paste keys into chat.",
+                )
             )
-
-        # Case 3: No LLM key configured
+        if failures:
+            summary = (
+                "Codex session unavailable"
+                if metadata["missing_providers"] == ["codex"]
+                else "Required credentials unavailable"
+            )
+            description = "; ".join(check["message"] for check in failures)
+        else:
+            summary = (
+                "Active (Codex client)"
+                if list(roles) == ["codex"]
+                else "Required provider credentials configured"
+            )
+            description = (
+                "Credentials are available for the configured primary routes: "
+                + ", ".join(roles)
+                + ". Model inference was not tested."
+            )
         return ProbeResult(
             id=self.probe_id,
             category=self.category,
-            title="Multimodal LLM API Key",
-            status=ProbeStatus.FAIL,
+            title="Multimodal LLM Credentials",
+            status=ProbeStatus.FAIL if failures else ProbeStatus.PASS,
             is_blocker=self.is_blocker,
-            summary="Key Missing",
-            description="No Multimodal LLM credential (e.g. GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY) found in environment or .env file.",
+            summary=summary,
+            description=description,
             metadata=metadata,
-            actions=[
-                ProbeAction(
-                    action_type="command",
-                    label="Run Artemis Init",
-                    payload="artemis init",
-                ),
-                ProbeAction(
-                    action_type="link",
-                    label="Get Google AI Studio Key",
-                    payload="https://aistudio.google.com/app/apikey",
-                ),
-            ],
+            actions=actions,
         )
 
 

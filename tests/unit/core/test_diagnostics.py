@@ -396,6 +396,20 @@ async def test_probe_target_serial_forwards_to_adb_probe():
 async def test_credentials_probe_and_dynamic_update(monkeypatch):
     """Verify dynamic API key updates and metadata reflection."""
     from artemis.config import settings
+    from artemis.config.llm import LLMConfig, _expand_default_into_nodes
+
+    config = LLMConfig.model_validate(
+        _expand_default_into_nodes(
+            {
+                "default": {
+                    "provider": "google",
+                    "model": "test-model",
+                    "fallback": {"provider": "google", "model": "test-fallback"},
+                }
+            }
+        )
+    )
+    monkeypatch.setattr("artemis.config.llm.parse_llm_config", lambda: config)
 
     # set_api_key mutates both the singleton and environment even without persistence.
     for name in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GCP_API_KEY"):

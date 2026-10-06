@@ -90,8 +90,20 @@ $env:ARTEMIS_CODEX_IMAGE_JPEG_QUALITY = "82"
 .venv\Scripts\artemis.exe restart --port 8001
 ```
 
-诊断页应显示 `Active (Codex client)`。如果显示未登录，执行 `codex login`；如果
-模型不可用，将 `config/artemis.jsonc` 中的模型改为当前客户端目录内的模型。
+全部主模型使用 Codex 时，诊断页应显示 `Active (Codex client)`。如果显示未登录，
+先比较普通用户终端与 MCP 服务环境中的 `codex login status`，检查 `CODEX_HOME`、
+CLI 路径及沙箱访问权限。普通用户环境也未登录时再执行 `codex login`，随后重启 MCP
+服务。不要把登录令牌复制到沙箱或聊天中。如果模型不可用，将 `config/artemis.jsonc`
+中的模型改为当前客户端目录内的模型。
+
+凭据诊断与 SDK 使用相同的主模型列表，覆盖 Planner、Operator、Checker、Explorer、
+视频分析和工具节点。混用 Provider 时，每个主模型所需的凭据都必须可用；无关的
+Google Key 不能替代 OpenAI Key 或 Codex 登录态。仅作为 fallback 或未被主模型使用
+的凭据不阻断就绪检查。
+
+`mobile_diagnose(verify_credentials=true)` 会在线验证已配置的 API Key；未使用的
+Key 验证失败标为可选问题。Codex 只检查 CLI 登录状态，Vertex AI 检查本地 ADC 和
+项目配置，这两项不代表模型推理或远程访问已经成功。真机任务仍需单独验证。
 
 ## 边界与取舍
 

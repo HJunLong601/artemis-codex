@@ -50,6 +50,10 @@ async def test_credentials_endpoint_never_returns_key_material(monkeypatch):
 
     honeytoken = f"sk-honeytoken-{py_secrets.token_hex(16)}"
     monkeypatch.setattr(type(settings), "get_api_key", lambda self, provider: SecretStr(honeytoken))
+    monkeypatch.setattr(
+        "artemis.llm.codex_app_server.codex_client_status",
+        MagicMock(return_value=(True, honeytoken)),
+    )
 
     async with _client() as ac:
         res = await ac.get("/api/system/credentials")

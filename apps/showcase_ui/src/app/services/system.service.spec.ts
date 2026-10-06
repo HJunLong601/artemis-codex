@@ -34,6 +34,67 @@ describe('SystemService readiness polling', () => {
 
   afterEach(() => http.verify());
 
+  const setCodexDefault = () => service.modelConfigEnv.set({
+    config_path: '', config_filename: '', config_content: '',
+    default_model: { provider: 'codex' }, presets: {},
+    env_path: '', env_filename: '', env_vars: []
+  });
+
+  const setCredentials = (metadata: Record<string, unknown>, status: 'pass' | 'fail' = 'pass') => {
+    service.readinessReport.set({
+      ...report(1),
+      probes: [{
+        id: 'gemini_api_key', category: 'auth', title: 'Credentials', status,
+        is_blocker: true, summary: '', description: '', metadata, actions: []
+      }]
+    });
+  };
+
+  it('does not claim a Codex login from configuration alone or skipped checks', () => {
+    setCodexDefault();
+    service.skipCredentialsCheck();
+    expect(service.codexCredentialState()).toBe('unverified');
+  });
+
+  it('updates the Codex banner after failed login, successful login, and logout', () => {
+    setCodexDefault();
+    for (const valid of [false, true, false]) {
+      setCredentials({
+        required_providers: ['codex'],
+        provider_checks: [{ provider: 'codex', valid }]
+      }, valid ? 'pass' : 'fail');
+      expect(service.codexCredentialState()).toBe(valid ? 'available' : 'unavailable');
+    }
+  });
+
+  it('shows verified Codex login on a utility node even when another provider fails', () => {
+    setCredentials({
+      active_provider: 'google', required_providers: ['google', 'codex'],
+      provider_checks: [
+        { provider: 'google', valid: false },
+        { provider: 'codex', valid: true, roles: ['utils.outputter'] }
+      ]
+    }, 'fail');
+    expect(service.codexCredentialState()).toBe('available');
+    expect(service.isCredentialsReady()).toBeFalse();
+  });
+
+  it('hides the banner when current routing no longer uses Codex', () => {
+    setCodexDefault();
+    setCredentials({ required_providers: ['openai'], provider_checks: [{ provider: 'openai', valid: true }] });
+    expect(service.codexCredentialState()).toBeNull();
+  });
+
+  it('does not confuse an unrelated passing key with a verified Codex login', () => {
+    setCodexDefault();
+    setCredentials({ providers: [{ provider: 'google' }] });
+    expect(service.codexCredentialState()).toBe('unverified');
+  });
+
+  it('hides the Codex banner before a provider is configured', () => {
+    expect(service.codexCredentialState()).toBeNull();
+  });
+
   it('shares one HTTP request across overlapping readiness callers', () => {
     let firstTimestamp = 0;
     let secondTimestamp = 0;

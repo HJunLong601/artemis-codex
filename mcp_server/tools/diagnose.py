@@ -396,17 +396,38 @@ async def _verify_credentials(cred_result: ProbeResult | None) -> list[dict[str,
         return []
     metadata = cred_result.metadata
     api_keys = metadata.get("api_keys") or {}
+    required = metadata.get("required_providers")
+    session_providers = {
+        check["provider"]
+        for check in metadata.get("provider_checks") or []
+        if check.get("credential_type") in {"client_session", "application_default"}
+    }
+    # Session/ADC checks already ran in the readiness probe. Missing keys must
+    # also remain visible even though there is nothing to send to an API.
+    verified: list[dict[str, Any]] = []
+    key_providers = {
+        entry.get("provider")
+        for entry in metadata.get("providers") or []
+        if entry.get("raw_key") or api_keys.get(entry.get("provider"))
+    }
+    for check in metadata.get("provider_checks") or []:
+        if (
+            not check.get("valid")
+            or check.get("provider") not in key_providers
+            or check.get("provider") in session_providers
+        ):
+            verified.append(dict(check))
     targets: list[tuple[str, str, str]] = []
     for entry in metadata.get("providers") or []:
         provider = str(entry.get("provider") or "").strip()
         raw_key = entry.get("raw_key") or api_keys.get(provider) or ""
-        if not provider or not raw_key:
+        if not provider or not raw_key or provider in session_providers:
             continue
         targets.append((provider, str(entry.get("label") or provider), str(raw_key)))
     if api_keys.get("ocr"):
         targets.append(("ocr", "Vision OCR", str(api_keys["ocr"])))
     if not targets:
-        return []
+        return verified
 
     outcomes = await asyncio.gather(
         *(
@@ -422,14 +443,17 @@ async def _verify_credentials(cred_result: ProbeResult | None) -> list[dict[str,
         ),
         return_exceptions=True,
     )
-    verified: list[dict[str, Any]] = []
     for (provider, label, key), outcome in zip(targets, outcomes):
         if isinstance(outcome, BaseException):
             valid, message = False, f"verification raised {outcome.__class__.__name__}: {outcome}"
         else:
             valid, message = bool(outcome[0]), str(outcome[1])
+        # A malformed/missing required credential may also have an inventory
+        # entry; replace its presence result with the live result once checked.
+        verified = [entry for entry in verified if entry["provider"] != provider]
         verified.append(
             {
+                **({"required": provider in required} if required is not None else {}),
                 "provider": provider,
                 "label": label,
                 "valid": valid,
@@ -439,12 +463,12 @@ async def _verify_credentials(cred_result: ProbeResult | None) -> list[dict[str,
     return verified
 
 
-def _primary_credential(credentials: list[dict[str, Any]] | None) -> dict[str, Any] | None:
-    """The provider the task runner will use: first configured LLM provider (OCR is auxiliary)."""
-    for entry in credentials or []:
-        if entry.get("provider") != "ocr":
-            return entry
-    return None
+def _required_credentials(credentials: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Use explicit routing requirements; retain support for older probe reports."""
+    entries = credentials or []
+    if any("required" in entry for entry in entries):
+        return [entry for entry in entries if entry.get("required")]
+    return next(([entry] for entry in entries if entry.get("provider") != "ocr"), [])
 
 
 def _credential_verification_steps(
@@ -454,19 +478,28 @@ def _credential_verification_steps(
     if not credentials:
         return [], False
     steps: list[str] = []
-    primary = _primary_credential(credentials)
+    required = _required_credentials(credentials)
     needs_restart = False
     for entry in credentials:
         if entry.get("valid"):
             continue
-        tag = "REQUIRED" if entry is primary else "OPTIONAL"
+        tag = "REQUIRED" if entry in required else "OPTIONAL"
+        kind = entry.get("credential_type", "api_key")
+        label = "API key" if kind == "api_key" else "credentials"
+        verification = "live verification" if kind == "api_key" else "validation"
         steps.append(
-            f"[{tag}] {entry.get('label')} API key ({entry.get('provider')}) failed live "
-            f"verification: {entry.get('message')}"
+            f"[{tag}] {entry.get('label')} {label} ({entry.get('provider')}) failed "
+            f"{verification}: {entry.get('message')}"
         )
-        if entry is primary:
-            steps.extend(_credential_steps(env_file))
-            needs_restart = True
+        if entry in required:
+            if kind == "api_key":
+                steps.extend(_credential_steps(env_file))
+                needs_restart = True
+            elif kind == "client_session":
+                steps.append("  Run: codex login status")
+                steps.append(
+                    "  Guidance: Check the MCP host's Codex login environment, then restart the MCP server."
+                )
     return steps, needs_restart
 
 
@@ -770,8 +803,20 @@ def _next_steps(
             if (
                 result.id == "gemini_api_key"
                 and result.status is ProbeStatus.FAIL
-                and result.metadata.get("active_provider") != "codex"
+                and "routing_error" not in result.metadata
+                and (
+                    (
+                        "required_providers" not in result.metadata
+                        and result.metadata.get("active_provider") != "codex"
+                    )
+                    or any(
+                        not check.get("valid") and check.get("credential_type") == "api_key"
+                        for check in result.metadata.get("provider_checks") or []
+                    )
+                )
             ):
+                for action in result.actions:
+                    steps.extend(_render_action_lines(action, installed_avds=installed_avds))
                 steps.extend(_credential_steps(env_file))
                 needs_restart = True
             elif result.id == "android_adb" and in_progress and emulator is not None:
@@ -1046,8 +1091,8 @@ def _verdict(
     verdict = base_verdict(results)
     if verdict == "blocked" or not _requested_device_ready(results, requested_device):
         return "blocked"
-    primary = _primary_credential(credentials)
-    if primary is not None and not primary.get("valid"):
+    required = _required_credentials(credentials)
+    if any(not entry.get("valid") for entry in required):
         return "blocked"
     if device_probe is not None and not device_probe.get("ok"):
         return "blocked"
@@ -1077,7 +1122,9 @@ def _summary(
         if r.status is not ProbeStatus.PASS
     ]
     failing.extend(
-        f"{entry.get('label')} key verification: {entry.get('message')}"
+        f"{entry.get('label')} "
+        f"{'key verification' if entry.get('credential_type', 'api_key') == 'api_key' else 'credential validation'}: "
+        f"{entry.get('message')}"
         for entry in credentials or []
         if not entry.get("valid")
     )
@@ -1486,8 +1533,8 @@ async def _diagnose_ios(
             )
 
     verdict = base_verdict(results)
-    primary = _primary_credential(credentials)
-    if primary is not None and not primary.get("valid"):
+    required = _required_credentials(credentials)
+    if any(not entry.get("valid") for entry in required):
         verdict = "blocked"
     elif device_probe is not None and not device_probe.get("ok"):
         verdict = "blocked"
@@ -1582,7 +1629,9 @@ async def mobile_diagnose(
         started_at/created_at). Stop a stuck one with
         mobile_manage_task(action="stop", trace_id=<session_id>).
       - `credentials`: null unless verify_credentials; else
-        [{provider, label, valid, message}] per configured key.
+        [{provider, label, required, valid, message}] per configured key
+        and required primary provider; session/ADC checks also report
+        credential_type and do not perform model inference.
       - `device_probe`: null unless probe_device; else {ok, serial,
         elapsed_seconds, screenshot_bytes, element_count, error, fix}.
       - `fixes_applied`: what `attempt_fix` did ({fix, success, skipped, message}).
@@ -1615,7 +1664,9 @@ async def mobile_diagnose(
           against its provider over the network (about 12 seconds worst
           case, keys stay on the server). Use it when tasks fail with
           authentication, quota or model errors although the key check
-          passes. An invalid primary key makes the verdict "blocked".
+          passes. Failure for any configured primary provider makes the
+          verdict "blocked"; unused/fallback keys are optional. Codex login
+          and Vertex ADC checks are local and do not verify remote inference.
         probe_device: When true, drives the attached device end to end
           (screenshot + UI hierarchy, about 20 seconds) to prove a task can
           really start. Use it when the checks pass but tasks still fail on

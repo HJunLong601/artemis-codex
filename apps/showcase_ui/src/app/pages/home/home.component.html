@@ -303,10 +303,22 @@
   </div>
 
   <div class="guide-card-body">
-    @if (modelConfigEnv()?.default_model?.provider === 'codex') {
-    <div class="feedback-msg success">
-      <span class="material-symbols-outlined">verified_user</span>
-      <span><strong>Codex client active.</strong> Artemis is reusing the local ChatGPT login; no API key is required.</span>
+    @if (systemService.codexCredentialState(); as codexState) {
+    <div class="codex-login-status" [class.success]="codexState === 'available'" [class.error]="codexState === 'unavailable'" role="status">
+      @switch (codexState) {
+        @case ('available') {
+          <span class="material-symbols-outlined">verified_user</span>
+          <span><strong>Codex login available.</strong> Codex models use the local session. Other configured providers may still require API keys.</span>
+        }
+        @case ('unavailable') {
+          <span class="material-symbols-outlined">error</span>
+          <span><strong>Codex login unavailable.</strong> Check the Codex login in the environment running Artemis, then refresh diagnostics.</span>
+        }
+        @default {
+          <span class="material-symbols-outlined">info</span>
+          <span><strong>Codex login not verified.</strong> Refresh diagnostics to check the configured Codex connection.</span>
+        }
+      }
     </div>
     }
 

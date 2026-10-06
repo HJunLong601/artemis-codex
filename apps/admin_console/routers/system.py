@@ -287,7 +287,7 @@ class ValidateCredentialsRequest(BaseModel):
 
 @router.get("/credentials")
 async def get_credentials():
-    """Report which providers have an API key configured.
+    """Report configured API keys and the login state of required Codex models.
 
     Secret values never leave the process: this endpoint intentionally returns
     presence booleans only. Keys are written via POST /credentials and used
@@ -295,15 +295,20 @@ async def get_credentials():
     """
     from artemis.config import settings
 
-    providers = ("google", "openai", "anthropic", "openrouter", "ocr")
+    providers = ("google", "openai", "anthropic", "openrouter", "xai", "ocr")
     status = {name: bool(settings.get_api_key(name)) for name in providers}
     status["gemini"] = status["google"]
     try:
         from artemis.config.llm import parse_llm_config
         from artemis.llm.codex_app_server import codex_client_status
 
-        uses_codex = parse_llm_config().planner.provider == "codex"
-        status["codex"] = uses_codex and (await asyncio.to_thread(codex_client_status))[0]
+        uses_codex = any(
+            model.provider == "codex" for _, model in parse_llm_config().iter_primary_models()
+        )
+        status["codex"] = False
+        if uses_codex:
+            codex_client_status.cache_clear()
+            status["codex"] = (await asyncio.to_thread(codex_client_status))[0]
     except Exception:
         status["codex"] = False
     return {

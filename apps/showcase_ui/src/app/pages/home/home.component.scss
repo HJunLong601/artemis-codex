@@ -54,6 +54,23 @@ $text-secondary: #475569;
 $text-muted: #64748b;
 $text-light: #94a3b8;
 
+.codex-login-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid $card-border;
+  border-radius: 8px;
+  background: $bg-base;
+  color: $text-secondary;
+  font-size: 13px;
+  line-height: 1.5;
+
+  .material-symbols-outlined { font-size: 20px; }
+  &.success { background: $emerald-light; color: $emerald-dark; border-color: $emerald-border; }
+  &.error { background: $rose-light; color: $rose-dark; border-color: $rose-border; }
+}
+
 // Shared OS switcher. It is rendered in both the dependency installer and
 // the empty-AVD guide, so the styling cannot be scoped to either card.
 .os-selector-pills {

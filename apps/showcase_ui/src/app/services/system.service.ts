@@ -60,6 +60,21 @@ export class SystemService {
   public geminiProbe = computed(() => this.llmProbe());
   public ocrProbe = computed(() => this.probes().find(p => p.id === 'vision_ocr_key' || p.id === 'ocr_api_key') || null);
 
+  public codexCredentialState = computed<'available' | 'unavailable' | 'unverified' | null>(() => {
+    const metadata = this.llmProbe()?.metadata;
+    const checks = metadata?.['provider_checks'];
+    const codex = Array.isArray(checks) ? checks.find(check => check.provider === 'codex') : null;
+    if (codex?.valid === true) return 'available';
+    if (codex?.valid === false) return 'unavailable';
+
+    // Configuration selects a provider; it does not establish a working login.
+    const required = metadata?.['required_providers'];
+    const usesCodex = Array.isArray(required)
+      ? required.includes('codex')
+      : metadata?.['active_provider'] === 'codex' || this.modelConfigEnv()?.default_model?.provider === 'codex';
+    return usesCodex ? 'unverified' : null;
+  });
+
   // Grouped readiness helpers for the 3-step onboarding flow
   public isEnvironmentReady = computed(() => {
     const py = this.pythonProbe();
