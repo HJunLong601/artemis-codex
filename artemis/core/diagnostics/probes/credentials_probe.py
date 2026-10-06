@@ -73,8 +73,11 @@ class LLMCredentialsProbe(BaseProbe):
         except Exception:
             active_provider = ""
         codex_available = False
+        codex_detail = ""
         if active_provider == "codex":
-            codex_available, _ = await asyncio.to_thread(codex_client_status)
+            # A readiness recheck must observe a login completed since the last scan.
+            codex_client_status.cache_clear()
+            codex_available, codex_detail = await asyncio.to_thread(codex_client_status)
         if codex_available:
             configured_providers.append(
                 {
@@ -178,6 +181,7 @@ class LLMCredentialsProbe(BaseProbe):
         )
 
         metadata = {
+            "active_provider": active_provider,
             "configured_count": len(configured_providers),
             "providers": configured_providers,
             "has_ocr_key": ocr_key is not None,
@@ -185,6 +189,45 @@ class LLMCredentialsProbe(BaseProbe):
             "current_gemini_key": gemini_key.get_secret_value() if gemini_key else "",
             "api_keys": api_keys_map,
         }
+
+        if active_provider == "codex" and (codex_available or not configured_providers):
+            return ProbeResult(
+                id=self.probe_id,
+                category=self.category,
+                title="Multimodal LLM Credentials",
+                status=ProbeStatus.PASS if codex_available else ProbeStatus.FAIL,
+                is_blocker=self.is_blocker,
+                summary="Active (Codex client)" if codex_available else "Codex session unavailable",
+                description=(
+                    "The local Codex client is signed in. Artemis can reuse that session "
+                    "through Codex App Server without a separate provider API key."
+                    if codex_available
+                    else f"Codex login is unavailable to this process: {codex_detail}. "
+                    "This does not establish that an API key is missing."
+                ),
+                metadata=metadata,
+                actions=[]
+                if codex_available
+                else [
+                    ProbeAction(
+                        action_type="command",
+                        label="Check Codex login",
+                        payload="codex login status",
+                    ),
+                    ProbeAction(
+                        action_type="hint",
+                        label="Check the execution environment",
+                        payload=(
+                            "Compare Codex login status in the normal user environment and the "
+                            "MCP server environment, including CODEX_HOME and the selected CLI. "
+                            "A sandbox may not have access to the user's login. If the normal "
+                            "user environment is also signed out, run codex login there; then "
+                            "restart the MCP server and re-run mobile_diagnose. "
+                            "Do not copy authentication tokens into the sandbox or chat."
+                        ),
+                    ),
+                ],
+            )
 
         # Case 1: Gemini API Key configured (Standard / Recommended)
         if gemini_key:
@@ -210,27 +253,6 @@ class LLMCredentialsProbe(BaseProbe):
         # Case 2: Other LLM provider configured
         if configured_providers:
             first_p = configured_providers[0]
-            if first_p["provider"] == "codex":
-                return ProbeResult(
-                    id=self.probe_id,
-                    category=self.category,
-                    title="Multimodal LLM Credentials",
-                    status=ProbeStatus.PASS,
-                    is_blocker=self.is_blocker,
-                    summary="Active (Codex client)",
-                    description=(
-                        "The local Codex client is signed in with ChatGPT. Artemis can reuse "
-                        "that session through Codex App Server without an API key."
-                    ),
-                    metadata=metadata,
-                    actions=[
-                        ProbeAction(
-                            action_type="hint",
-                            label="Provider Active",
-                            payload="Codex App Server multimodal and reasoning access is enabled.",
-                        )
-                    ],
-                )
             return ProbeResult(
                 id=self.probe_id,
                 category=self.category,

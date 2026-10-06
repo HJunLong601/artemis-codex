@@ -767,7 +767,11 @@ def _next_steps(
             tag = "REQUIRED" if result.is_blocker else "OPTIONAL"
             steps.append(f"[{tag}] {result.title}: {result.description}")
 
-            if result.id == "gemini_api_key" and result.status is ProbeStatus.FAIL:
+            if (
+                result.id == "gemini_api_key"
+                and result.status is ProbeStatus.FAIL
+                and result.metadata.get("active_provider") != "codex"
+            ):
                 steps.extend(_credential_steps(env_file))
                 needs_restart = True
             elif result.id == "android_adb" and in_progress and emulator is not None:
