@@ -605,7 +605,7 @@ class StorageManager:
                 meta = json.loads(row["extra_metadata"]) if row["extra_metadata"] else {}
                 if not isinstance(meta, dict):
                     meta = {}
-            except Exception:
+            except (ValueError, TypeError):
                 meta = {}
 
             current_version = meta.get("summary_version")
@@ -703,13 +703,13 @@ class StorageManager:
         for row in rows:
             try:
                 source_ids = json.loads(row["source_step_ids"]) if row["source_step_ids"] else []
-            except Exception:
+            except (ValueError, TypeError):
                 source_ids = []
             try:
                 band1 = json.loads(row["band1"]) if row["band1"] else {}
                 if not isinstance(band1, dict):
                     band1 = {}
-            except Exception:
+            except (ValueError, TypeError):
                 band1 = {}
             records.append(
                 HistoryChunkRecord(

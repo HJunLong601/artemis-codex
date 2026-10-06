@@ -73,7 +73,11 @@ def locate_screen(phone_png: bytes, window_png: bytes) -> tuple[float, float, fl
         nonlocal best, best_score, best_factor
         scale = max_scale * float(factor)
         template = cv2.resize(central, None, fx=scale, fy=scale)
-        if min(template.shape) < 24 or template.shape[0] >= search_h or template.shape[1] >= search_w:
+        if (
+            min(template.shape) < 24
+            or template.shape[0] >= search_h
+            or template.shape[1] >= search_w
+        ):
             return
         scores = cv2.matchTemplate(window, template, cv2.TM_CCOEFF_NORMED)
         _, score, _, point = cv2.minMaxLoc(scores)
@@ -172,8 +176,13 @@ class IosDeviceHubDriver(BaseDeviceDriver):
                     get_temp_dir("device-hub-clang-cache")
                 )
                 await self._command(
-                    "xcrun", "swiftc", str(source), "-o", str(candidate),
-                    timeout=90.0, environment=build_environment,
+                    "xcrun",
+                    "swiftc",
+                    str(source),
+                    "-o",
+                    str(candidate),
+                    timeout=90.0,
+                    environment=build_environment,
                 )
                 candidate.chmod(0o700)
                 candidate.replace(binary)
@@ -197,8 +206,16 @@ class IosDeviceHubDriver(BaseDeviceDriver):
         with tempfile.TemporaryDirectory(dir=get_temp_dir("device-hub-captures")) as directory:
             output = Path(directory) / "phone.png"
             await self._command(
-                "xcrun", "devicectl", "device", "capture", "screenshot",
-                "--device", self._device_id, "--destination", str(output), "--quiet",
+                "xcrun",
+                "devicectl",
+                "device",
+                "capture",
+                "screenshot",
+                "--device",
+                self._device_id,
+                "--destination",
+                str(output),
+                "--quiet",
                 timeout=40.0,
             )
             screenshot = output.read_bytes()
@@ -213,7 +230,12 @@ class IosDeviceHubDriver(BaseDeviceDriver):
         with tempfile.TemporaryDirectory(dir=get_temp_dir("device-hub-captures")) as directory:
             output = Path(directory) / "window.png"
             await self._command(
-                "screencapture", "-x", "-o", "-l", str(window["windowID"]), str(output),
+                "screencapture",
+                "-x",
+                "-o",
+                "-l",
+                str(window["windowID"]),
+                str(output),
                 timeout=20.0,
             )
             window_png = output.read_bytes()
@@ -226,15 +248,23 @@ class IosDeviceHubDriver(BaseDeviceDriver):
 
     @staticmethod
     def _host_point(
-        window: dict[str, float | int], rect: tuple[float, float, float, float],
-        x: int, y: int, phone_width: int, phone_height: int,
+        window: dict[str, float | int],
+        rect: tuple[float, float, float, float],
+        x: int,
+        y: int,
+        phone_width: int,
+        phone_height: int,
     ) -> tuple[float, float]:
         if not (0 <= x < phone_width and 0 <= y < phone_height):
             raise ValueError("Touch coordinate lies outside the iPhone screen")
         rx, ry, rw, rh = rect
         return (
-            float(window["x"]) + (rx + x * rw / phone_width) * float(window["width"]) / float(window["image_width"]),
-            float(window["y"]) + (ry + y * rh / phone_height) * float(window["height"]) / float(window["image_height"]),
+            float(window["x"])
+            + (rx + x * rw / phone_width) * float(window["width"]) / float(window["image_width"]),
+            float(window["y"])
+            + (ry + y * rh / phone_height)
+            * float(window["height"])
+            / float(window["image_height"]),
         )
 
     async def connect(self) -> None:
@@ -260,17 +290,25 @@ class IosDeviceHubDriver(BaseDeviceDriver):
             platform="ios",
         )
 
-    async def tap(self, x: int, y: int, duration_ms: int = 100,
-                  times: int = 1, delay_ms: int = 100) -> bool:
+    async def tap(
+        self, x: int, y: int, duration_ms: int = 100, times: int = 1, delay_ms: int = 100
+    ) -> bool:
         for index in range(max(1, times)):
             window, rect = await self._calibrate()
             host_x, host_y = self._host_point(window, rect, x, y, self._width, self._height)
             bridge = await self._ensure_bridge()
             await self._command(
-                str(bridge), "tap", self._device_name, str(host_x), str(host_y),
+                str(bridge),
+                "tap",
+                self._device_name,
+                str(host_x),
+                str(host_y),
                 str(max(duration_ms, 0) / 1000),
-                str(window["windowID"]), str(window["x"]), str(window["y"]),
-                str(window["width"]), str(window["height"]),
+                str(window["windowID"]),
+                str(window["x"]),
+                str(window["y"]),
+                str(window["width"]),
+                str(window["height"]),
             )
             if index < times - 1:
                 await asyncio.sleep(max(delay_ms, 0) / 1000)
@@ -279,23 +317,33 @@ class IosDeviceHubDriver(BaseDeviceDriver):
     async def long_press(self, x: int, y: int, duration_ms: int = 1000) -> bool:
         return await self.tap(x, y, duration_ms=duration_ms)
 
-    async def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int,
-                    duration_ms: int = 800) -> bool:
+    async def swipe(
+        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 800
+    ) -> bool:
         window, rect = await self._calibrate()
         start = self._host_point(window, rect, start_x, start_y, self._width, self._height)
         end = self._host_point(window, rect, end_x, end_y, self._width, self._height)
         bridge = await self._ensure_bridge()
         await self._command(
-            str(bridge), "drag", self._device_name,
-            str(start[0]), str(start[1]), str(end[0]), str(end[1]),
+            str(bridge),
+            "drag",
+            self._device_name,
+            str(start[0]),
+            str(start[1]),
+            str(end[0]),
+            str(end[1]),
             str(max(duration_ms, 0) / 1000),
-            str(window["windowID"]), str(window["x"]), str(window["y"]),
-            str(window["width"]), str(window["height"]),
+            str(window["windowID"]),
+            str(window["x"]),
+            str(window["y"]),
+            str(window["width"]),
+            str(window["height"]),
         )
         return True
 
     async def swipe_direction(
-        self, direction: SwipeDirection | Literal["up", "down", "left", "right"],
+        self,
+        direction: SwipeDirection | Literal["up", "down", "left", "right"],
         duration_ms: int = 800,
     ) -> bool:
         name = direction.value if isinstance(direction, SwipeDirection) else str(direction)
@@ -318,15 +366,26 @@ class IosDeviceHubDriver(BaseDeviceDriver):
         name = key.value if isinstance(key, KeyCode) else str(key).lower()
         if name == KeyCode.HOME.value:
             return await self.swipe(
-                self._width // 2, int(self._height * 0.96),
-                self._width // 2, int(self._height * 0.4), duration_ms=400,
+                self._width // 2,
+                int(self._height * 0.96),
+                self._width // 2,
+                int(self._height * 0.4),
+                duration_ms=400,
             )
         raise UnsupportedOperationError(f"Device Hub key '{name}' is not supported")
 
     async def launch_app(self, package_name: str) -> bool:
         await self._command(
-            "xcrun", "devicectl", "device", "process", "launch", "--quiet",
-            "--device", self._device_id, package_name, timeout=40.0,
+            "xcrun",
+            "devicectl",
+            "device",
+            "process",
+            "launch",
+            "--quiet",
+            "--device",
+            self._device_id,
+            package_name,
+            timeout=40.0,
         )
         return True
 
@@ -346,13 +405,24 @@ class IosDeviceHubDriver(BaseDeviceDriver):
             return
         directory = output_dir or get_temp_dir("recordings")
         directory.mkdir(parents=True, exist_ok=True)
-        safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in self._device_id)
+        safe_id = "".join(
+            char if char.isalnum() or char in "-_" else "_" for char in self._device_id
+        )
         output = directory / f"ios-{safe_id}-device-hub.mp4"
         output.unlink(missing_ok=True)
         process = await asyncio.create_subprocess_exec(
-            "xcrun", "devicectl", "device", "capture", "screen-record",
-            "--device", self._device_id, "--destination", str(output), "--quiet",
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+            "xcrun",
+            "devicectl",
+            "device",
+            "capture",
+            "screen-record",
+            "--device",
+            self._device_id,
+            "--destination",
+            str(output),
+            "--quiet",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
         )
         try:
             await asyncio.wait_for(process.wait(), timeout=1.0)

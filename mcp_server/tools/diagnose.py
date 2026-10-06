@@ -1246,9 +1246,7 @@ async def _collect_ios_probe(
     ready = [device for device in devices if device.is_available]
     target = selected or (ready[0] if len(ready) == 1 else None)
     physical_backend = os.environ.get("ARTEMIS_IOS_PHYSICAL_DRIVER", "device-hub").strip().lower()
-    backend = (
-        physical_backend if target and target.kind == DeviceKind.PHYSICAL else "appium"
-    )
+    backend = physical_backend if target and target.kind == DeviceKind.PHYSICAL else "appium"
     if backend not in {"device-hub", "appium"}:
         missing.append("ARTEMIS_IOS_PHYSICAL_DRIVER is invalid")
         actions.append(
@@ -1395,7 +1393,8 @@ async def _ios_device_smoke_test(device_id: str) -> dict[str, Any]:
         await controller.driver.connect()
         screen = await controller.driver.get_screen_data(skip_settling=True)
         return {
-            "ok": bool(screen.screenshot_bytes) and (
+            "ok": bool(screen.screenshot_bytes)
+            and (
                 descriptor.kind == DeviceKind.PHYSICAL
                 and os.environ.get("ARTEMIS_IOS_PHYSICAL_DRIVER", "device-hub").strip().lower()
                 == "device-hub"

@@ -20,10 +20,10 @@ from unittest.mock import patch
 from artemis.toolchain import ToolchainResolver, find_adb, find_ffmpeg, find_scrcpy
 
 
-def test_toolchain_env_override():
+def test_toolchain_env_override(tmp_path):
     """Verify explicit environment variables override tool path resolution."""
     resolver = ToolchainResolver()
-    fake_adb = Path("/tmp/fake_adb_binary")
+    fake_adb = tmp_path / "fake_adb_binary"
     fake_adb.touch(exist_ok=True)
 
     with patch.dict("os.environ", {"ARTEMIS_ADB_PATH": str(fake_adb)}):

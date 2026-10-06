@@ -74,7 +74,9 @@ def create_driver(ctx: "ArtemisContext") -> BaseDeviceDriver:
             descriptor = device_registry.select_device(DevicePlatform.IOS, ctx.device.device_id)
             kind = descriptor.kind
             name = descriptor.name
-        physical_backend = os.environ.get("ARTEMIS_IOS_PHYSICAL_DRIVER", "device-hub").strip().lower()
+        physical_backend = (
+            os.environ.get("ARTEMIS_IOS_PHYSICAL_DRIVER", "device-hub").strip().lower()
+        )
         if kind == DeviceKind.PHYSICAL and physical_backend == "device-hub":
             if not name:
                 raise UnsupportedPlatformDriverError("Device Hub requires the selected device name")

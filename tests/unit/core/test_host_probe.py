@@ -65,6 +65,8 @@ def host_env(tmp_path, monkeypatch, clean_ide_env):
     monkeypatch.setattr(sys, "executable", str(venv_python))
 
     monkeypatch.setattr("artemis.runtime.daemon_client.is_standalone_forced", lambda: False)
+    monkeypatch.setattr("artemis.runtime.daemon_client.DEFAULT_DAEMON_HOST", "127.0.0.1")
+    monkeypatch.setattr("artemis.runtime.daemon_client.DEFAULT_DAEMON_PORT", 8000)
     monkeypatch.setattr("artemis.runtime.daemon_client.is_artemis_daemon", lambda: True)
     monkeypatch.setattr(
         "artemis.runtime.daemon_client.daemon_log_path", lambda: tmp_path / "daemon.log"

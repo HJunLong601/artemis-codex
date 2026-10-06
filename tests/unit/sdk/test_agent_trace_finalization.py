@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from artemis.sdk.agent import Agent
+from artemis.sdk.builders.agent_config_builder import AgentConfigBuilder
 from artemis.context import DeviceContext, DevicePlatform
 import artemis.runtime as runtime
 from artemis.runtime.device_provider import DeviceDescriptor, DeviceKind, DeviceState
@@ -94,7 +95,9 @@ async def test_ios_device_context_does_not_query_adb():
         provider="simctl",
         name="Test Simulator",
     )
-    with patch.object(runtime.device_registry, "select_device_async", AsyncMock(return_value=descriptor)):
+    with patch.object(
+        runtime.device_registry, "select_device_async", AsyncMock(return_value=descriptor)
+    ):
         context = await agent._get_device_context("SIM-UDID", DevicePlatform.IOS)
 
     assert context.mobile_platform == DevicePlatform.IOS
@@ -153,7 +156,7 @@ async def test_device_driver_connection_updates_context_dimensions():
 
 @pytest.mark.asyncio
 async def test_task_that_never_acquires_queue_does_not_create_trace_session():
-    agent = Agent()
+    agent = Agent(config=AgentConfigBuilder().build(validate_profiles=False))
     agent._initialized = True
     agent._device_context = DeviceContext(
         host_platform="WINDOWS",
@@ -208,7 +211,7 @@ async def test_agent_inherits_session_id_from_env_and_propagates_to_tracing(monk
     canonical_sid = "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
     monkeypatch.setenv("ARTEMIS_SESSION_ID", canonical_sid)
 
-    agent = Agent()
+    agent = Agent(config=AgentConfigBuilder().build(validate_profiles=False))
     assert agent._session_id == canonical_sid
 
     task = MagicMock()

@@ -543,7 +543,8 @@ def test_ios_physical_device_without_signing_identity_reports_blocker():
     assert result["verdict"] == "blocked"
     assert result["device"]["kind"] == "physical"
     assert any(
-        check["id"] == "ios_device_driver" and check["summary"] == "WebDriverAgent signing unavailable"
+        check["id"] == "ios_device_driver"
+        and check["summary"] == "WebDriverAgent signing unavailable"
         for check in result["checks"]
     )
     smoke.assert_not_awaited()

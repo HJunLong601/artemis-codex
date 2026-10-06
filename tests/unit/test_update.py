@@ -12,25 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from artemis.utils.notes import update_note_content
 
-base_dir = "/tmp/artemis_test"
-os.makedirs(f"{base_dir}/notes", exist_ok=True)
-task_plan = """- [x] Initial task
+
+def test_update_task_plan_preserves_surrounding_tasks(tmp_path):
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    plan = notes / "task_plan.md"
+    task_plan = """- [x] Initial task
 - [/] Active task
 - [ ] Future task"""
-with open(f"{base_dir}/notes/task_plan.md", "w") as f:
-    f.write(task_plan)
+    plan.write_text(task_plan, encoding="utf-8")
 
-try:
-    res = update_note_content(
-        base_dir,
+    warning = update_note_content(
+        tmp_path,
         "task_plan",
         "- [/] Active task",
         "- [/] Active task\n    - [ ] New subgoal",
     )
-    print("Update successful!")
-    print(open(f"{base_dir}/notes/task_plan.md").read())
-except Exception as e:
-    print("Error:", e)
+    assert warning is None
+    assert plan.read_text(encoding="utf-8") == (
+        "- [x] Initial task\n- [/] Active task\n    - [ ] New subgoal\n- [ ] Future task"
+    )

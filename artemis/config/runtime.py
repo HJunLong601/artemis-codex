@@ -91,7 +91,7 @@ def write_ipc_port(port: int) -> Path:
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(str(port), encoding="utf-8")
-        except Exception as e:
+        except (OSError, UnicodeError) as e:
             logger.debug(f"Could not write IPC port to {target}: {e}")
     return port_file
 
@@ -126,7 +126,7 @@ def read_ls_address() -> str | None:
             content = addr_file.read_text(encoding="utf-8").strip()
             if content:
                 return content
-        except Exception as e:
+        except (OSError, UnicodeError) as e:
             logger.warning(f"Failed to read LS address from {addr_file}: {e}")
 
     return None
@@ -140,7 +140,7 @@ def write_ls_address(address: str) -> Path:
     try:
         addr_file.parent.mkdir(parents=True, exist_ok=True)
         addr_file.write_text(clean_addr, encoding="utf-8")
-    except Exception as e:
+    except (OSError, UnicodeError) as e:
         logger.warning(f"Failed to write LS address file to {addr_file}: {e}")
     return addr_file
 

@@ -393,10 +393,14 @@ async def test_probe_target_serial_forwards_to_adb_probe():
 
 
 @pytest.mark.asyncio
-async def test_credentials_probe_and_dynamic_update():
+async def test_credentials_probe_and_dynamic_update(monkeypatch):
     """Verify dynamic API key updates and metadata reflection."""
     from artemis.config import settings
 
+    # set_api_key mutates both the singleton and environment even without persistence.
+    for name in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GCP_API_KEY"):
+        monkeypatch.setattr(settings, name, None)
+        monkeypatch.setenv(name, "")
     settings.set_api_key("google", "test_gemini_key_1234567890", persist_to_env=False)
 
     probe = LLMCredentialsProbe()

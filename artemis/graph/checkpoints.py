@@ -295,7 +295,7 @@ def read_ledger(base_dir: str | Path) -> list[dict]:
                 continue
             try:
                 records.append(json.loads(line))
-            except Exception:
+            except (ValueError, TypeError):
                 logger.warning(f"Skipping malformed ledger line: {line[:120]}")
     except Exception as e:
         logger.error(f"Failed to read check ledger: {e}")
@@ -397,7 +397,7 @@ def read_attempt_streams(base_dir: str | Path) -> list[dict]:
                 continue
             try:
                 loaded = json.loads(line)
-            except Exception:
+            except (ValueError, TypeError):
                 logger.warning(f"Skipping malformed check stream line: {line[:120]}")
                 continue
             if isinstance(loaded, dict):
@@ -418,7 +418,7 @@ def _read_plan_text(ctx) -> str:
         return ""
     try:
         return path.read_text(encoding="utf-8")
-    except Exception as e:
+    except (OSError, UnicodeError) as e:
         logger.error(f"Failed to read task plan: {e}")
         return ""
 
@@ -1239,5 +1239,5 @@ def read_run_outcome(base_dir: str | Path) -> dict | None:
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, ValueError):
         return None

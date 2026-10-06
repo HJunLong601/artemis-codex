@@ -84,6 +84,7 @@ def test_settings_and_api_key_fallbacks(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GCP_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("XAI_API_KEY", "")
 
     custom_settings = Settings(
         _env_file=None,
@@ -265,18 +266,22 @@ def test_planner_validation_builder_and_milestones():
 
     # Default builder inherits from artemis.jsonc (enabled=True)
     builder = AgentConfigBuilder()
-    cfg = builder.build()
+    cfg = builder.build(validate_profiles=False)
     assert cfg.disable_planner_validation is False
     # The dead similarity-threshold knob is gone: validation has no tunable
     # trigger, every milestone text change is reviewed.
     assert not hasattr(cfg, "planner_validation_threshold")
 
     # Fluent enabling
-    cfg_enabled = AgentConfigBuilder().with_planner_validation(enabled=True).build()
+    cfg_enabled = (
+        AgentConfigBuilder().with_planner_validation(enabled=True).build(validate_profiles=False)
+    )
     assert cfg_enabled.disable_planner_validation is False
 
     # Fluent disabling
-    cfg_disabled = AgentConfigBuilder().with_disable_planner_validation(True).build()
+    cfg_disabled = (
+        AgentConfigBuilder().with_disable_planner_validation(True).build(validate_profiles=False)
+    )
     assert cfg_disabled.disable_planner_validation is True
 
     # Milestone drift detection is threshold-free: any text change counts,
@@ -296,12 +301,16 @@ async def test_committee_builder_and_graph_mounting():
     from artemis.sdk.builders.agent_config_builder import AgentConfigBuilder
 
     # Default: disabled
-    cfg_default = AgentConfigBuilder().build()
+    cfg_default = AgentConfigBuilder().build(validate_profiles=False)
     assert cfg_default.enable_committee is False
     assert cfg_default.committee_debate_rounds == 2
 
     # Enabled via builder
-    cfg_enabled = AgentConfigBuilder().with_committee(enabled=True, debate_rounds=3).build()
+    cfg_enabled = (
+        AgentConfigBuilder()
+        .with_committee(enabled=True, debate_rounds=3)
+        .build(validate_profiles=False)
+    )
     assert cfg_enabled.enable_committee is True
     assert cfg_enabled.committee_debate_rounds == 3
 
@@ -346,7 +355,7 @@ def test_checker_builder_and_context_propagation():
 
     # Default builder inherits from artemis.jsonc (enabled=True, midway off, final on)
     builder = AgentConfigBuilder()
-    cfg = builder.build()
+    cfg = builder.build(validate_profiles=False)
     assert cfg.disable_checker is False
     assert cfg.checker_max_iterations == 20
     assert cfg.disable_midway_checks is True
@@ -364,7 +373,7 @@ def test_checker_builder_and_context_propagation():
             assert_failure_policy="halt",
             device_probes=False,
         )
-        .build()
+        .build(validate_profiles=False)
     )
     assert cfg_enabled.disable_checker is False
     assert cfg_enabled.checker_max_iterations == 25
@@ -375,7 +384,7 @@ def test_checker_builder_and_context_propagation():
     assert cfg_enabled.disable_device_probes is True
 
     # Fluent disabling
-    cfg_disabled = AgentConfigBuilder().with_disable_checker(True).build()
+    cfg_disabled = AgentConfigBuilder().with_disable_checker(True).build(validate_profiles=False)
     assert cfg_disabled.disable_checker is True
 
     # Test propagation to ExecutionSetup via Agent._prepare_tracing
@@ -434,7 +443,7 @@ def test_factory_default_verification_layering():
     assert setup.checks_enabled is True
 
     # Builder default (fed by config/artemis.jsonc) agrees
-    cfg = AgentConfigBuilder().build()
+    cfg = AgentConfigBuilder().build(validate_profiles=False)
     assert cfg.disable_checker is False
     assert cfg.disable_midway_checks is True
     assert cfg.disable_final_check is False
@@ -460,7 +469,7 @@ def test_explorer_builder_and_resolution(monkeypatch):
 
     # Default builder inherits the one-shot explorer path from artemis.jsonc.
     builder = AgentConfigBuilder()
-    cfg = builder.build()
+    cfg = builder.build(validate_profiles=False)
     assert cfg.explorer.default_version == "flash"
     assert cfg.explorer.flash_mode == "flash"
     assert cfg.explorer.pro_mode == "flash"
@@ -469,11 +478,15 @@ def test_explorer_builder_and_resolution(monkeypatch):
 
     # With the shipped (empty) override the profile knobs actually win: the
     # Pro agents follow pro_mode and the Flash runner follows flash_mode.
-    cfg_pro_ultra = AgentConfigBuilder().with_explorer(pro_mode="ultra").build()
+    cfg_pro_ultra = (
+        AgentConfigBuilder().with_explorer(pro_mode="ultra").build(validate_profiles=False)
+    )
     assert cfg_pro_ultra.get_explorer_version(agent_name="operator") == "ultra"
     assert cfg_pro_ultra.get_explorer_version(agent_name="validator") == "ultra"
     assert cfg_pro_ultra.get_explorer_version(agent_name="flash") == "flash"
-    cfg_flash_pro = AgentConfigBuilder().with_explorer(flash_mode="pro").build()
+    cfg_flash_pro = (
+        AgentConfigBuilder().with_explorer(flash_mode="pro").build(validate_profiles=False)
+    )
     assert cfg_flash_pro.get_explorer_version(agent_name="flash") == "pro"
     assert cfg_flash_pro.get_explorer_version(agent_name="operator") == "flash"
 
@@ -487,7 +500,7 @@ def test_explorer_builder_and_resolution(monkeypatch):
             caching=False,
             versions={"operator": "ultra", "validator": "pro"},
         )
-        .build()
+        .build(validate_profiles=False)
     )
     assert cfg_custom.explorer.default_version == "pro"
     assert cfg_custom.explorer.flash_mode == "flash"
@@ -497,7 +510,9 @@ def test_explorer_builder_and_resolution(monkeypatch):
     assert cfg_custom.explorer_versions["validator"] == "pro"
 
     # Fluent configuration with with_explorer_version shorthand
-    cfg_shorthand = AgentConfigBuilder().with_explorer_version("ultra").build()
+    cfg_shorthand = (
+        AgentConfigBuilder().with_explorer_version("ultra").build(validate_profiles=False)
+    )
     assert cfg_shorthand.explorer.default_version == "ultra"
 
     # Context setup for resolution tests
@@ -528,7 +543,7 @@ def test_explorer_builder_and_resolution(monkeypatch):
     cfg_profiled = (
         AgentConfigBuilder()
         .with_explorer(flash_mode="flash", pro_mode="pro", default_version="flash", versions={})
-        .build()
+        .build(validate_profiles=False)
     )
     ctx_profiled = ArtemisContext(device=device, agent_config=cfg_profiled)
     assert resolve_explorer_version(ctx_profiled, agent_or_profile_name="flash") == "flash"
@@ -561,19 +576,23 @@ def test_outputter_builder_and_context_propagation():
 
     # Default builder inherits from artemis.jsonc (enabled=True, force_synthesis=False)
     builder = AgentConfigBuilder()
-    cfg = builder.build()
+    cfg = builder.build(validate_profiles=False)
     assert cfg.disable_outputter is False
     assert cfg.outputter.enabled is True
     assert cfg.outputter.force_synthesis is False
 
     # Fluent configuration with with_outputter
-    cfg_custom = AgentConfigBuilder().with_outputter(enabled=True, force_synthesis=True).build()
+    cfg_custom = (
+        AgentConfigBuilder()
+        .with_outputter(enabled=True, force_synthesis=True)
+        .build(validate_profiles=False)
+    )
     assert cfg_custom.disable_outputter is False
     assert cfg_custom.outputter.enabled is True
     assert cfg_custom.outputter.force_synthesis is True
 
     # Fluent disabling with with_disable_outputter
-    cfg_disabled = AgentConfigBuilder().with_disable_outputter(True).build()
+    cfg_disabled = AgentConfigBuilder().with_disable_outputter(True).build(validate_profiles=False)
     assert cfg_disabled.disable_outputter is True
     assert cfg_disabled.outputter.enabled is False
 
@@ -608,7 +627,11 @@ def test_categorized_flash_and_pro_profile_builders():
     from artemis.sdk.builders.agent_config_builder import AgentConfigBuilder
 
     # 1. Test with_flash_config
-    cfg_flash = AgentConfigBuilder().with_flash_config(max_turns=15, explorer_mode="flash").build()
+    cfg_flash = (
+        AgentConfigBuilder()
+        .with_flash_config(max_turns=15, explorer_mode="flash")
+        .build(validate_profiles=False)
+    )
     assert cfg_flash.flash.max_turns == 15
     assert cfg_flash.flash.explorer_mode == "flash"
     assert cfg_flash.explorer.flash_mode == "flash"
@@ -623,7 +646,7 @@ def test_categorized_flash_and_pro_profile_builders():
             checker=True,
             video_ledger=False,
         )
-        .build()
+        .build(validate_profiles=False)
     )
     assert cfg_pro.pro.explorer.mode == "ultra"
     assert cfg_pro.explorer.pro_mode == "ultra"

@@ -274,7 +274,7 @@ async def exit_settlement_node(state: State, ctx: ArtemisContext):
     if plan_path.exists():
         try:
             plan_text = plan_path.read_text(encoding="utf-8")
-        except Exception as e:
+        except (OSError, UnicodeError) as e:
             logger.error(f"Failed to read task plan at settlement: {e}")
     snapshot = parse_plan(plan_text)
 
@@ -704,7 +704,7 @@ async def _process_plan_write(
             content_after = merged
             try:
                 task_plan_path.write_text(content_after, encoding="utf-8")
-            except Exception as e:
+            except (OSError, UnicodeError) as e:
                 logger.error(f"Failed to write merged check lines: {e}")
 
     # Deterministic finding-line projection: unresolved verify findings are
@@ -900,7 +900,7 @@ def convergence_gate(
             return ""
         try:
             return file_path.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeError):
             return ""
 
     def _terminal_route() -> Literal["exit_settlement", "end"]:
@@ -936,7 +936,7 @@ def convergence_gate(
         return "continue"
     try:
         task_plan_content = file_path.read_text(encoding="utf-8")
-    except Exception as e:
+    except (OSError, UnicodeError) as e:
         logger.error(f"Failed to read task plan: {e}")
         return "continue"
 

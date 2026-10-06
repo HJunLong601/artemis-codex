@@ -15,6 +15,7 @@
 """MCP Tool: mobile_get_device_state."""
 
 import base64
+import logging
 import os
 
 from mcp_server.base import mcp
@@ -31,6 +32,8 @@ from artemis.utils.ocr_xml_fusion import (
 )
 from artemis.utils.ocr_api import is_ocr_configured, perform_ocr
 from artemis.utils.visualization import format_minimal_list_with_elements
+
+logger = logging.getLogger(__name__)
 
 
 @mcp.tool()
@@ -140,4 +143,4 @@ async def mobile_get_device_state(
             try:
                 await controller.cleanup()
             except Exception:
-                pass
+                logger.warning("Failed to clean up device observation controller", exc_info=True)

@@ -22,8 +22,7 @@ def test_locate_phone_screen_after_device_hub_zoom():
     for index in range(8):
         row = 60 + index * 88
         cv2.rectangle(phone, (30, row), (365, row + 45), (index * 23 + 20) % 255, -1)
-        cv2.putText(phone, f"Screen {index}", (60, row + 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, 255, 2)
+        cv2.putText(phone, f"Screen {index}", (60, row + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, 255, 2)
     scale = 0.5
     displayed = cv2.resize(phone, None, fx=scale, fy=scale)
     window = np.full((700, 1000), 26, dtype=np.uint8)
@@ -54,8 +53,12 @@ def test_calibration_rejects_blank_phone_screen():
 
 def test_physical_phone_point_maps_through_retina_window():
     window = {
-        "x": 100.0, "y": 80.0, "width": 1000.0, "height": 700.0,
-        "image_width": 2000, "image_height": 1400,
+        "x": 100.0,
+        "y": 80.0,
+        "width": 1000.0,
+        "height": 700.0,
+        "image_width": 2000,
+        "image_height": 1400,
     }
     point = IosDeviceHubDriver._host_point(window, (480, 240, 400, 850), 200, 425, 400, 850)
     assert point == pytest.approx((440, 412.5))

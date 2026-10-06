@@ -535,7 +535,7 @@ class MediaService:
         if plan_path.exists():
             try:
                 return plan_path.read_text(encoding="utf-8")
-            except Exception as e:
+            except (OSError, UnicodeError) as e:
                 return f"Error reading task plan: {e}"
         return "No task plan created yet."
 
@@ -599,7 +599,7 @@ class MediaService:
                 if file.is_file() and file.suffix in [".md", ".txt", ".json", ".yaml"]:
                     try:
                         notes_content[file.name] = file.read_text(encoding="utf-8")
-                    except Exception as e:
+                    except (OSError, UnicodeError) as e:
                         notes_content[file.name] = f"Error reading file: {e}"
 
         if not notes_content:
@@ -614,7 +614,7 @@ class MediaService:
                     ]:
                         try:
                             notes_content[file.name] = file.read_text(encoding="utf-8")
-                        except Exception as e:
+                        except (OSError, UnicodeError) as e:
                             notes_content[file.name] = f"Error reading file: {e}"
 
         return notes_content

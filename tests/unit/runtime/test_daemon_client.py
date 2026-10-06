@@ -95,7 +95,9 @@ def test_ensure_daemon_running_auto_spawns():
         patch("artemis.runtime.daemon_client.is_daemon_running", side_effect=[False, True]),
         patch("artemis.runtime.daemon_client.spawn_daemon") as mock_spawn,
     ):
-        ok, base_url = ensure_daemon_running(timeout=1.0, wait_ready=True)
+        ok, base_url = ensure_daemon_running(
+            host="127.0.0.1", port=8000, timeout=1.0, wait_ready=True
+        )
         assert ok is True
         assert base_url == "http://127.0.0.1:8000"
         mock_spawn.assert_called_once()
