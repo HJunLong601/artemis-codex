@@ -180,6 +180,39 @@ async def test_task_that_never_acquires_queue_does_not_create_trace_session():
 
 
 @pytest.mark.asyncio
+async def test_model_preflight_failure_happens_before_device_mutation():
+    from artemis.llm.model_preflight import ModelPreflightError
+
+    agent = Agent(config=AgentConfigBuilder().build(validate_profiles=False))
+    agent._initialized = True
+    agent._device_context = DeviceContext(
+        host_platform="WINDOWS",
+        mobile_platform=DevicePlatform.ANDROID,
+        device_id="device-123",
+        device_width=1080,
+        device_height=2424,
+    )
+    agent._adb_client = MagicMock()
+    agent._ui_adb_client = MagicMock()
+    agent._connect_device_driver = AsyncMock()
+    agent._ensure_device_unlocked = AsyncMock()
+    agent._prepare_tracing = MagicMock()
+    with (
+        patch(
+            "artemis.llm.model_preflight.require_available_models",
+            AsyncMock(side_effect=ModelPreflightError("unavailable model")),
+        ),
+        patch("artemis.sdk.agent.DeviceExecutionLock.acquire") as acquire,
+    ):
+        with pytest.raises(ModelPreflightError, match="unavailable model"):
+            await agent.run_task(goal="must not touch device", profile="flash")
+    acquire.assert_not_called()
+    agent._connect_device_driver.assert_not_awaited()
+    agent._ensure_device_unlocked.assert_not_awaited()
+    agent._prepare_tracing.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_secure_keyguard_is_rejected_without_guessing_credentials():
     agent = object.__new__(Agent)
     agent._device_context = MagicMock(device_id="device-123")

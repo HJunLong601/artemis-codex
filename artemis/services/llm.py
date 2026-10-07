@@ -297,6 +297,21 @@ def _install_provider_retry_telemetry() -> None:
 _install_provider_retry_telemetry()
 
 
+def _persist_task_pause(pause: dict[str, Any] | None) -> None:
+    """Attach pause facts to this session without changing its terminal verdict."""
+    from artemis.runtime import trace_store
+    from uuid import UUID
+
+    engine = _get_current_data_engine()
+    session_id = getattr(engine, "current_session_id", None) if engine else None
+    if not isinstance(session_id, (str, UUID)):
+        return
+    try:
+        trace_store.update_trace_fields(str(session_id), pause=pause)
+    except (OSError, TimeoutError) as exc:
+        llm_logger.warning("Could not persist task pause: %s", type(exc).__name__)
+
+
 def _handle_llm_pause_and_resume(last_error: Exception) -> Path:
     """Handles pausing task execution upon persistent failure until resumed."""
     err_msg = str(last_error)
@@ -304,6 +319,14 @@ def _handle_llm_pause_and_resume(last_error: Exception) -> Path:
         err_msg = err_msg[:1000] + "... [Truncated by LLM Wrapper]"
 
     llm_logger.warning(f"LLM Error: {err_msg}. Pausing execution to wait for resume signal...")
+    _persist_task_pause(
+        {
+            "reason": err_msg,
+            "category": classify_failure(last_error).category.value,
+            "since": time.time(),
+            "resume": "Resolve the model error, then resume the task in the Artemis console; stop it if recovery is not intended.",
+        }
+    )
     pause_file = PAUSE_FILE
     try:
         pause_file.write_text(f"LLM Error: {err_msg}", encoding="utf-8")
@@ -488,7 +511,11 @@ async def _run_with_recovery[T](
         finally:
             _ACTIVE_LLM_REQUEST.reset(request_token)
 
-        if not await _wait_for_resume(pause_file):
+        try:
+            resumed = await _wait_for_resume(pause_file)
+        finally:
+            _persist_task_pause(None)
+        if not resumed:
             llm_logger.error(
                 "LLM pause deadline"
                 f" ({settings.LLM_PAUSE_TIMEOUT_SECONDS:.0f}s) exceeded; giving up."

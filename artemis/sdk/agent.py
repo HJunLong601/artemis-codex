@@ -649,6 +649,10 @@ class Agent:
             )
             driver_controller = None
             try:
+                from artemis.llm.model_preflight import require_available_models
+
+                # Fail before acquiring a device or launching/changing any app.
+                await require_available_models(agent_profile.llm_config)
                 if device_lock is not None and os.environ.get("ARTEMIS_CLOUD_MODE") != "1":
                     queue_cancel_event = threading.Event()
                     acquire_task = asyncio.create_task(

@@ -8,6 +8,16 @@ from artemis.llm.reliability import (
 )
 
 
+def test_wrapped_codex_unsupported_model_is_permanent():
+    error = RuntimeError(
+        'Codex turn failed: {"status":400,"error":{"type":"invalid_request_error","message":"The model is not supported when using Codex with a ChatGPT account."}}'
+    )
+    failure = classify_failure(error)
+    assert failure.category is FailureCategory.BAD_REQUEST
+    assert not failure.retryable and not failure.should_fallback
+    assert classify_failure(RuntimeError("Codex turn failed: 503 unavailable")).retryable
+
+
 def test_classifier_categories_and_recovery_decisions():
     rate = classify_failure(RuntimeError("429 rate limit exceeded"))
     assert rate.category is FailureCategory.RATE_LIMIT

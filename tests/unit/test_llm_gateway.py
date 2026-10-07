@@ -111,7 +111,10 @@ async def test_stream_unsupported_downgrades_loudly_and_is_remembered():
 
 
 @pytest.mark.asyncio
-async def test_exhausted_retries_pause_then_raise_on_deadline():
+async def test_exhausted_retries_pause_then_raise_on_deadline(monkeypatch):
+    metadata = []
+    monkeypatch.setattr(llm_service, "_persist_task_pause", metadata.append)
+
     class AlwaysUnavailable:
         def __init__(self):
             self.calls = 0
@@ -126,6 +129,8 @@ async def test_exhausted_retries_pause_then_raise_on_deadline():
         await wrapper.complete([])
     # The pause file was written for the pause window, then cleaned up.
     assert not llm_service.PAUSE_FILE.exists()
+    assert metadata[0]["category"] == "provider_unavailable"
+    assert metadata[-1] is None
 
 
 @pytest.mark.asyncio
@@ -147,6 +152,54 @@ async def test_with_fallback_takes_over_without_pausing():
     assert result.content == "fallback answer"
     # Because a fallback existed, exhaustion handed over instead of pausing.
     assert not llm_service.PAUSE_FILE.exists()
+
+
+@pytest.mark.asyncio
+async def test_cancel_while_paused_clears_session_metadata(monkeypatch):
+    import asyncio
+
+    metadata = []
+    waiting = asyncio.Event()
+    monkeypatch.setattr(llm_service, "_persist_task_pause", metadata.append)
+
+    async def unavailable():
+        raise RuntimeError("503 unavailable")
+
+    async def wait(_path):
+        waiting.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(llm_service, "_wait_for_resume", wait)
+    task = asyncio.create_task(llm_service._run_with_recovery(unavailable))
+    await asyncio.wait_for(waiting.wait(), timeout=2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert metadata[0]["category"] == "provider_unavailable"
+    assert metadata[-1] is None
+
+
+@pytest.mark.asyncio
+async def test_resume_clears_session_pause_before_retry(monkeypatch):
+    metadata = []
+    monkeypatch.setattr(llm_service, "_persist_task_pause", metadata.append)
+    recovered = False
+
+    async def call():
+        if not recovered:
+            raise RuntimeError("503 unavailable")
+        assert metadata[-1] is None
+        return "recovered"
+
+    async def resume(path):
+        nonlocal recovered
+        path.unlink()
+        recovered = True
+        return True
+
+    monkeypatch.setattr(llm_service, "_wait_for_resume", resume)
+    assert await llm_service._run_with_recovery(call) == "recovered"
+    assert metadata[-1] is None
 
 
 @pytest.mark.asyncio

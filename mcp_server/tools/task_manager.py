@@ -230,7 +230,7 @@ def mobile_manage_task(
     can also steer a subagent that is stuck or off-track, or abort a task.
 
     ### Actions
-    - **'status'**: Returns `trace_id`, `status` ('running'/'completed'/'failed'/
+    - **'status'**: Returns `trace_id`, `status` ('running'/'paused'/'completed'/'failed'/
       'cancelled'), `device_serial` (which phone owns this task in multi-device
       setups), `task_desc`, `model`, `elapsed_seconds`, a `test_summary` (when
       the run declared verification check items: machine-readable
@@ -334,6 +334,16 @@ def mobile_manage_task(
             "stdout_log": os.path.join(trace_dir, "stdout.log"),
             "stderr_log": os.path.join(trace_dir, "stderr.log"),
         }
+        # A paused worker is still alive and still owns its device. Keep the
+        # persisted lifecycle state for stop/reconciliation; expose the actual
+        # execution state to callers, scoped to this session's recorded pause.
+        pause = status_data.get("pause")
+        if current_status == "running" and is_alive and isinstance(pause, dict):
+            response["status"] = "paused"
+            response["pause"] = pause
+            response["next_steps"] = [
+                pause.get("resume") or "Resolve the error and resume, or stop this task."
+            ]
         # Which UI-hierarchy source served the run ("helper" or "uiautomator"),
         # plus any mid-run switch; written by the agent once the device connects.
         if status_data.get("hierarchy_backend"):

@@ -125,6 +125,54 @@ def test_pidless_running_task_is_assumed_alive(no_persistence):
     assert status_data.get("error") is None
 
 
+@pytest.mark.parametrize(
+    "state,paused", [("running", True), ("completed", False), ("failed", False)]
+)
+def test_mcp_pause_is_live_session_scoped_and_terminal_state_wins(
+    no_persistence, monkeypatch, tmp_path, state, paused
+):
+    data = {
+        "status": state,
+        "model": "Flash",
+        "device_serial": "phone",
+        "pause": {
+            "reason": "503 unavailable",
+            "category": "provider_unavailable",
+            "since": 123.0,
+            "resume": "Resolve and resume.",
+        },
+    }
+    monkeypatch.setattr(task_manager.trace_store, "read_status", lambda _: data)
+    monkeypatch.setattr(task_manager.trace_store, "get_trace_dir", lambda _: str(tmp_path))
+    monkeypatch.setattr(task_manager.trace_store, "TRACES_DIR", str(tmp_path))
+    monkeypatch.setattr(task_manager.env_utils, "get_project_root", lambda: str(tmp_path))
+    result = task_manager.mobile_manage_task(action="status", trace_id="paused-task")
+    assert result["status"] == ("paused" if paused else state)
+    assert ("pause" in result) is paused
+    if paused:
+        assert result["next_steps"] == ["Resolve and resume."]
+        data["pause"] = None
+        assert (
+            task_manager.mobile_manage_task(action="status", trace_id="paused-task")["status"]
+            == "running"
+        )
+
+
+def test_one_task_pause_does_not_pause_another(no_persistence, monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        task_manager.trace_store,
+        "read_status",
+        lambda _: {"status": "running", "model": "Flash", "device_serial": "phone"},
+    )
+    monkeypatch.setattr(task_manager.trace_store, "get_trace_dir", lambda _: str(tmp_path))
+    monkeypatch.setattr(task_manager.trace_store, "TRACES_DIR", str(tmp_path))
+    monkeypatch.setattr(task_manager.env_utils, "get_project_root", lambda: str(tmp_path))
+    assert (
+        task_manager.mobile_manage_task(action="status", trace_id="other-task")["status"]
+        == "running"
+    )
+
+
 def test_dead_pid_past_grace_is_marked_failed(no_persistence, monkeypatch):
     monkeypatch.setattr(task_manager, "_pid_alive", lambda _pid: False)
     status_data = {

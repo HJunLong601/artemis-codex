@@ -90,6 +90,13 @@ def classify_failure(error: BaseException) -> Failure:
     code = extract_status_code(error)
     message = str(error).lower()
 
+    # Codex App Server wraps structured 400 responses in RuntimeError text.
+    # These cannot recover by sleeping or waiting for a resume signal.
+    if "codex" in message and (
+        "invalid_request_error" in message or "model is not supported" in message
+    ):
+        return Failure(FailureCategory.BAD_REQUEST, False, False)
+
     if code == 429 or any(marker in message for marker in _RATE_LIMIT_MARKERS):
         return Failure(FailureCategory.RATE_LIMIT, True, True)
     if code in {500, 502, 503, 504} or any(marker in message for marker in _UNAVAILABLE_MARKERS):

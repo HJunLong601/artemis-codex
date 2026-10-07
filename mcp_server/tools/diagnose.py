@@ -1577,6 +1577,40 @@ async def _diagnose_ios(
     }
 
 
+async def _with_model_preflight(report: dict[str, Any], enabled: bool) -> dict[str, Any]:
+    if not enabled:
+        return report
+    from artemis.config.llm import parse_llm_config
+    from artemis.llm.model_preflight import preflight_models
+
+    try:
+        models = await asyncio.wait_for(
+            preflight_models(parse_llm_config(), verify_inference=True, force=True), timeout=90
+        )
+    except (OSError, RuntimeError, ValueError, TimeoutError) as exc:
+        models = {
+            "ok": False,
+            "checks": [],
+            "error": f"Model preflight incomplete ({type(exc).__name__}).",
+        }
+    report["models"] = models
+    if not models["ok"]:
+        report["verdict"] = "blocked"
+        report["summary"] = "Model preflight failed; resolve model access before starting a task."
+        report["next_steps"] = [
+            "[REQUIRED] Inspect models.checks and select models supported by this Codex client/account in config/artemis.jsonc; restart the server and re-run mobile_diagnose(verify_models=true).",
+            *[s for s in report["next_steps"] if not s.startswith("Environment is ready.")],
+        ]
+    elif any(not c["valid"] for c in models["checks"]):
+        if report["verdict"] == "ready":
+            report["verdict"] = "degraded"
+            report["summary"] = "Required checks pass; optional fallback model preflight failed."
+        report["next_steps"].append(
+            "[OPTIONAL] A fallback model failed preflight; inspect models.checks."
+        )
+    return report
+
+
 @mcp.tool()
 async def mobile_diagnose(
     attempt_fix: bool = False,
@@ -1585,6 +1619,7 @@ async def mobile_diagnose(
     launch_avd: str | None = None,
     verify_credentials: bool = False,
     probe_device: bool = False,
+    verify_models: bool = False,
 ) -> dict[str, Any]:
     """Diagnoses why ARTEMIS cannot run tasks from this IDE and returns the fixes.
 
@@ -1667,23 +1702,32 @@ async def mobile_diagnose(
           passes. Failure for any configured primary provider makes the
           verdict "blocked"; unused/fallback keys are optional. Codex login
           and Vertex ADC checks are local and do not verify remote inference.
+        verify_models: When true, checks the configured Codex models/efforts
+          against model/list and sends one minimal READY inference per unique
+          model (up to 90 seconds total). Returns models.checks; a primary
+          failure blocks readiness, while a fallback failure is optional.
+          Unlike verify_credentials, this checks actual account inference
+          access. Ordinary diagnostics never issue these inference requests.
         probe_device: When true, drives the attached device end to end
           (screenshot + UI hierarchy, about 20 seconds) to prove a task can
           really start. Use it when the checks pass but tasks still fail on
           the device, or the screen stays black. A failed probe makes the
           verdict "blocked" and lists the fix.
     """
+    # verify_models explicitly permits small inference calls (up to 90 seconds).
+    # Ordinary polling and credential checks never spend inference tokens.
     platform, requested_device = normalize_device_request(device_platform, device_serial)
     platform = platform or DevicePlatform.ANDROID
     if platform == DevicePlatform.IOS:
         if launch_avd and launch_avd.strip():
             raise ValueError("launch_avd is Android-only; boot the iOS Simulator first.")
-        return await _diagnose_ios(
+        report = await _diagnose_ios(
             attempt_fix=attempt_fix,
             requested_device=requested_device,
             verify_credentials=verify_credentials,
             probe_device=probe_device,
         )
+        return await _with_model_preflight(report, verify_models)
 
     fixes_applied: list[dict[str, Any]] = []
     avd_name = launch_avd.strip() if launch_avd and launch_avd.strip() else None
@@ -1727,7 +1771,7 @@ async def mobile_diagnose(
     if device is not None and accessibility_helper is not None:
         device["accessibility_helper"] = accessibility_helper
     env_file = host.metadata.get("env_file")
-    return {
+    response = {
         "verdict": verdict,
         "platform": DevicePlatform.ANDROID.value,
         "summary": _summary(results, verdict, credentials=credentials, device_probe=device_probe),
@@ -1754,3 +1798,4 @@ async def mobile_diagnose(
         "fixes_applied": fixes_applied,
         "logs": _collect_logs(host.metadata),
     }
+    return await _with_model_preflight(response, verify_models)

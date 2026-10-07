@@ -72,6 +72,25 @@ def test_pause_error_is_persisted_and_published(monkeypatch, tmp_path):
     assert isinstance(payload["timestamp"], float)
 
 
+def test_pause_metadata_is_session_scoped_and_can_be_cleared(monkeypatch, tmp_path):
+    from artemis.runtime import trace_store
+
+    engine = _RecordingEngine()
+    monkeypatch.setattr(llm, "_CURRENT_DATA_ENGINE", engine)
+    monkeypatch.setattr(llm, "PAUSE_FILE", tmp_path / "pause")
+    updates = []
+    monkeypatch.setattr(
+        trace_store, "update_trace_fields", lambda sid, **kw: updates.append((sid, kw))
+    )
+    llm._handle_llm_pause_and_resume(RuntimeError("503 unavailable"))
+    sid, fields = updates[0]
+    assert sid == engine.current_session_id
+    assert fields["pause"]["category"] == "provider_unavailable"
+    assert fields["pause"]["reason"]
+    llm._persist_task_pause(None)
+    assert updates[-1] == (sid, {"pause": None})
+
+
 def test_provider_sdk_retry_is_persisted_and_published(monkeypatch):
     engine = _RecordingEngine()
     monkeypatch.setattr(llm, "_CURRENT_DATA_ENGINE", engine)
