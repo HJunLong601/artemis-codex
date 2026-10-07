@@ -156,6 +156,7 @@
       // replacing images only after strictly objective, high-density summaries are ready.
       "step_summarizer": {
         "enabled": true, // Whether background step summarization is active
+        "defer_until_steps": 3, // Short tasks retain original evidence; 0 restores immediate summaries. Pressure/history demand/errors start earlier.
         "provider": "codex",
         "model": "gpt-5.6-luna", // Lightweight client model for background inference
         "prune_history_xml": true // Prune outdated heavy XML trees from historical steps

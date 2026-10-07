@@ -391,6 +391,12 @@ class StepSummarizerConfig(BaseModel):
         default=True,
         description="Whether to asynchronously summarize historical steps to replace pruned images.",
     )
+    defer_until_steps: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Flash only: defer visual summaries until this many actions; 0 restores immediate dispatch. History demand, context pressure or action failure starts them earlier.",
+    )
     model: str = Field(
         default="gemini-2.5-flash-lite",
         description="Lightweight model used for background step state summarization.",

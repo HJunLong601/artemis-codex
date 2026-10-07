@@ -69,6 +69,96 @@ def test_flash_runner_tools_initialization(mock_context):
         assert tool_names[:2] == ["click", "click_sequence"]
 
 
+def test_flash_starts_deferred_summaries_on_context_pressure(mock_context):
+    from artemis.memory.transcript import TranscriptLedger
+
+    runner = object.__new__(FlashRunner)
+    runner.summarizer = Mock()
+    ledger = TranscriptLedger(context_budget_tokens=100, start_ratio=0.35)
+    runner._start_summaries_under_pressure(ledger)
+    runner.summarizer.activate_deferred.assert_not_called()
+    ledger.record_prompt_tokens(34)
+    runner._start_summaries_under_pressure(ledger)
+    runner.summarizer.activate_deferred.assert_not_called()
+    ledger.record_prompt_tokens(35)
+    runner._start_summaries_under_pressure(ledger)
+    runner.summarizer.activate_deferred.assert_called_once()
+
+
+def test_flash_trace_distinguishes_missing_cache_usage_from_zero(mock_context):
+    from langchain_core.messages import AIMessage
+
+    runner = object.__new__(FlashRunner)
+    runner.ctx = mock_context
+    mock_context.data_engine = Mock()
+    for cached in (None, 0, 12):
+        usage = {"input_tokens": 20, "output_tokens": 1, "total_tokens": 21}
+        if cached is not None:
+            usage["input_token_details"] = {"cache_read": cached}
+        response = AIMessage(content="test", usage_metadata=usage)
+        runner._record_llm_trace({"prompt_tokens": 20}, "test", duration=1.5, response=response)
+        recorded = mock_context.data_engine.record_trace.call_args.kwargs
+        assert recorded["duration"] == 1.5
+        assert recorded["payload"]["cached_tokens"] == cached
+        assert recorded["payload"]["cache_usage_available"] is (cached is not None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status,persisted,immediate",
+    [("success", "step-1", False), ("error", "step-1", True), ("success", None, True)],
+)
+async def test_summary_fallback_on_error_or_missing_persistence(
+    mock_context, status, persisted, immediate
+):
+    from artemis.agents.flash.runner import _TurnRecord
+
+    with patch("artemis.controllers.unified_controller.get_driver"):
+        runner = FlashRunner(mock_context, goal="test")
+    runner.summarizer = Mock()
+    runner.executor = Mock(action_tool_names={"click"})
+    runner.executor.execute = AsyncMock(
+        return_value=ToolExecutionResult(
+            tool_call_id="call-1", tool_name="click", status=status, text_summary="observed"
+        )
+    )
+    runner._capture_post_screenshot = AsyncMock(return_value=b"post")
+    runner._record_action_step = Mock(return_value=persisted)
+    mock_context.data_engine = Mock()
+    await runner._execute_and_record_action(
+        "click", {"target": 1}, "call-1", Mock(), [], "reason", {}, b"pre", "ui", 0, _TurnRecord()
+    )
+    assert runner.summarizer.activate_deferred.called is immediate
+    runner.summarizer.dispatch.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_raised_device_error_starts_deferred_backlog(mock_context):
+    from artemis.agents.flash.runner import _TurnRecord
+
+    with patch("artemis.controllers.unified_controller.get_driver"):
+        runner = FlashRunner(mock_context, goal="test")
+    runner.summarizer = Mock()
+    runner.executor = Mock(action_tool_names={"click"})
+    runner.executor.execute = AsyncMock(side_effect=RuntimeError("device unavailable"))
+    messages = []
+    await runner._execute_and_record_action(
+        "click",
+        {"target": 1},
+        "call-1",
+        Mock(),
+        messages,
+        "reason",
+        {},
+        b"pre",
+        "ui",
+        0,
+        _TurnRecord(),
+    )
+    runner.summarizer.activate_deferred.assert_called_once()
+    assert messages[-1].status == "error"
+
+
 # --- Post-action screenshot fallback (failed action / unknown tool) ----------------
 
 

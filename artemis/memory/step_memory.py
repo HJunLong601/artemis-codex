@@ -90,6 +90,7 @@ class StepMemoryService:
         max_concurrency: int = 1,
         retry_limit: int = 3,
         flush_timeout_s: float = 30.0,
+        defer_until_steps: int = 0,
     ):
         self.ctx = ctx
         self._lens = lens
@@ -103,6 +104,9 @@ class StepMemoryService:
         self._flush_timeout_s = max(0.0, flush_timeout_s)
         self._aliases: dict[JobKey, JobKey] = {}
         self._semaphore = asyncio.Semaphore(max(1, max_concurrency))
+        self._defer_until_steps = max(0, defer_until_steps)
+        self._deferred: dict[JobKey, None] = {}
+        self._deferred_bytes = 0
 
     # ------------------------------------------------------------------
     # Keying
@@ -133,8 +137,34 @@ class StepMemoryService:
         self._failed.discard(key)
         self._on_status(key, "pending")
 
+        if self._defer_until_steps:
+            self._deferred[key] = None
+            self._deferred_bytes += sum(len(v) for v in payload.values() if isinstance(v, bytes))
+            # Bound retained frames even when a device produces huge images.
+            if (
+                len(self._deferred) >= self._defer_until_steps
+                or self._deferred_bytes >= 8 * 1024 * 1024
+            ):
+                self.activate_deferred()
+            return
+
         task = asyncio.create_task(self._run_until_ready(key))
         self._pending_tasks[key] = task
+
+    def activate_deferred(self) -> None:
+        """Permanently restore normal scheduling for this run, including backlog."""
+        self._defer_until_steps = 0
+        keys = list(self._deferred)
+        self._deferred.clear()
+        self._deferred_bytes = 0
+        for key in keys:
+            self._on_status(key, "pending")
+            self._pending_tasks[key] = asyncio.create_task(self._run_until_ready(key))
+
+    def request_summary(self, key: JobKey) -> None:
+        """History needs this frame: start pending work before evidence is pruned."""
+        if self.resolve_key(key) in self._deferred:
+            self.activate_deferred()
 
     # ------------------------------------------------------------------
     # Scheduling core
@@ -268,6 +298,10 @@ class StepMemoryService:
         if timeout_seconds is None:
             timeout_seconds = self._flush_timeout_s
         tasks = [t for t in self._pending_tasks.values() if not t.done()]
+        # A short completed task needs no compression; do not spend model calls
+        # merely to drain deferred work. Source frames remain in the job/DB.
+        for key in self._deferred:
+            self._on_status(key, "deferred")
         if tasks:
             logger.info(f"StepMemoryService: Flushing {len(tasks)} pending summary tasks...")
             _, pending = await asyncio.wait(tasks, timeout=timeout_seconds)

@@ -697,6 +697,8 @@ def _screen_description_line(step: dict, summary: Any) -> str | None:
     status = str((step.get("extra_metadata") or {}).get("summary_status") or "").lower()
     if status == "pending":
         return "[Screen]: (screen description pending)"
+    if status == "deferred":
+        return "[Screen]: (visual summary deferred for this short run; inspect original evidence with get_step_screenshot)"
     if status in ("failed", "unavailable"):
         return "[Screen]: (screen description unavailable)"
     return None

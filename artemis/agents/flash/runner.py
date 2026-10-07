@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import re
+import time
 import uuid
 
 from jinja2 import Template
@@ -168,6 +169,7 @@ class FlashRunner:
                 retry_limit=self.memory_runtime_cfg.retry_limit,
                 max_concurrency=self.memory_runtime_cfg.max_concurrency,
                 flush_timeout_s=self.memory_runtime_cfg.flush_timeout_s,
+                defer_until_steps=self.step_summarizer_cfg.defer_until_steps,
             )
             if self.step_summarizer_cfg.enabled
             else None
@@ -236,6 +238,10 @@ class FlashRunner:
     def _prune_intermediate_screenshots(self, messages: list[BaseMessage]) -> None:
         """Prunes binary screenshot blocks from intermediate observation messages."""
         prune_intermediate_screenshots(messages)
+
+    def _start_summaries_under_pressure(self, ledger: TranscriptLedger) -> None:
+        if self.summarizer and ledger.occupancy is not None and not ledger.below_start_gate:
+            self.summarizer.activate_deferred()
 
     # ------------------------------------------------------------------
     # run() setup helpers
@@ -513,16 +519,28 @@ class FlashRunner:
             return step_token_usage, True
         return self._estimate_token_usage(messages, raw_text), False
 
-    def _record_llm_trace(self, step_token_usage: dict, raw_text: str) -> None:
+    def _record_llm_trace(
+        self, step_token_usage: dict, raw_text: str, *, duration: float | None = None, response=None
+    ) -> None:
         """Records the llm_call trace for this turn in the DataEngine."""
         if self.ctx.data_engine:
             current_step_id = getattr(self.ctx.data_engine, "current_step_id", None)
+            metadata = getattr(response, "response_metadata", None) or {}
+            usage = getattr(response, "usage_metadata", None) or {}
+            cache_read = (usage.get("input_token_details") or {}).get("cache_read")
             self.ctx.data_engine.record_trace(
                 type="llm_call",
                 name="FlashRunner",
-                payload={"token_usage": step_token_usage, "response": raw_text},
+                payload={
+                    "token_usage": step_token_usage,
+                    "response": raw_text,
+                    "cached_tokens": cache_read,
+                    "cache_usage_available": cache_read is not None,
+                    "provider_inference_seconds": metadata.get("inference_seconds"),
+                },
                 step_id=current_step_id,
                 status="success",
+                duration=duration,
             )
 
     def _resolve_tool_calls(self, response, raw_text: str) -> list:
@@ -835,6 +853,10 @@ class FlashRunner:
 
             # ⚡ Non-blocking dispatch of objective visual transition summarizer
             if self.summarizer and name in action_names:
+                if exec_result.status != "success" or recorded_step_id is None:
+                    # Errors need immediate evidence, and without persistence
+                    # the short-task optimization must not discard summaries.
+                    self.summarizer.activate_deferred()
                 action_sequence += 1
                 self.summarizer.dispatch(
                     step_number=action_sequence,
@@ -880,6 +902,8 @@ class FlashRunner:
         except Exception as e:
             logger.error(f"Error executing tool {name}: {e}")
             if name in action_names:
+                if self.summarizer:
+                    self.summarizer.activate_deferred()
                 turn.step_keys.append(str(tc_id))
                 turn.actions.append((name, "error", f"Error executing tool {name}: {e}"))
             messages.append(
@@ -1110,11 +1134,14 @@ class FlashRunner:
             pending_notices = []
 
             # S + F + A + tail: chunk compression and the scrub edge advance here.
+            self._start_summaries_under_pressure(ledger)
             messages = ledger.render([tail])
             turn_base = len(messages) - 1
             current_tools = report_only_tools if is_final else tools_declaration
 
+            model_started = time.monotonic()
             response = await self._invoke_model(llm, current_tools, messages)
+            model_duration = time.monotonic() - model_started
 
             if response is None:
                 break
@@ -1138,7 +1165,9 @@ class FlashRunner:
                 messages=messages[:-1] if measured else None,
             )
 
-            self._record_llm_trace(step_token_usage, raw_text)
+            self._record_llm_trace(
+                step_token_usage, raw_text, duration=model_duration, response=response
+            )
 
             tool_calls = self._resolve_tool_calls(response, raw_text)
 

@@ -159,12 +159,14 @@ class VisualStepSummarizer(StepMemoryService):
         *,
         max_concurrency: int = 1,
         flush_timeout_s: float = 30.0,
+        defer_until_steps: int = 0,
     ):
         super().__init__(
             ctx,
             max_concurrency=max_concurrency,
             retry_limit=retry_limit,
             flush_timeout_s=flush_timeout_s,
+            defer_until_steps=defer_until_steps,
         )
 
         # Explicit background endpoints must still use the configured provider;

@@ -122,6 +122,20 @@ LLM 暂停时，`mobile_manage_task(action="status", ...)` 返回 `status="pause
 
 ## 边界与取舍
 
+缓存遥测现由 Artemis 对锁定的 `codex-client-provider==0.1.0` 做局部响应适配，
+保持原有进程池、图片转换、请求/工具契约和错误传播；不修改 site-packages，不对
+公共模块做全局替换。将原始 `usage.last.cachedInputTokens` 映射到 LangChain 的
+`usage_metadata.input_token_details.cache_read`，并记录 `inference_seconds`。
+`cache_usage_available=false` 表示未知，不应当解释为零命中。无效计数被忽略，
+不会重发已经完成的推理请求。该桥接依赖锁定版本的私有转换助手，升级 provider
+时必须跑契约兼容测试；上游公开扩展入口后应移除此桥接。
+
+设置 `ARTEMIS_CODEX_TELEMETRY=0` 并重启服务可恢复原 provider 实现；仅缺少缓存/
+耗时扩展统计，不改变当前模型或工具权限。也可单独构造
+`CodexAppServerChatModel(..., telemetry_enabled=False)`。计时覆盖 provider 请求
+（包括启动/图片转换）；Flash trace 的 `duration` 覆盖整个网关调用，包括重试等待，
+与单次 provider 的 `provider_inference_seconds` 区分。
+
 - 这是本地客户端集成，消耗当前 ChatGPT/Codex 账号的使用额度，而不是 API 余额。
 - App Server 协议随 Codex 客户端发布；升级客户端后应重新跑适配器集成测试。
 - Codex 通用视觉模型没有 Gemini Robotics ER 的专用坐标能力。默认保留较快的

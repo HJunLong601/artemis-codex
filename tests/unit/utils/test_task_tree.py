@@ -696,6 +696,10 @@ def test_render_step_replay_reports_missing_screen_description_status():
         _replay_step("ok", summary="", extra_metadata={"summary_status": "failed"})
     )
     assert "[Screen]: (screen description unavailable)" in failed
+    deferred = render_step_replay(
+        _replay_step("ok", summary=None, extra_metadata={"summary_status": "deferred"})
+    )
+    assert "visual summary deferred" in deferred and "get_step_screenshot" in deferred
     assert "[Screen]" not in render_step_replay(_replay_step("ok", summary=None))
 
 

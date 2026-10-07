@@ -77,3 +77,29 @@ MCP 任务状态若为 `paused`，读取 `pause.reason`、`pause.category`、`pa
 和 `next_steps`。这是 LLM 重试耗尽后正在等待恢复的执行状态，任务进程和设备锁仍然
 存在；修复后在控制台恢复，或用 `mobile_manage_task(action="stop", trace_id=...)`
 停止。恢复/取消/暂停超时会清理暂停元数据，完成或失败状态优先于旧暂停记录。
+
+## Flash 延迟摘要与回退验证
+
+`agent.flash.step_summarizer.defer_until_steps` 默认 3，0 恢复立即摘要。短任务保留
+原始截图、操作与 UI 记录，结束时标记摘要 `deferred`，不为了收尾额外调用模型。
+达到动作数门槛后补齐积压并恢复后续即时调度。以下条件也会提前恢复：
+
+- 已测上下文达到 `memory.transcript.start_ratio`；
+- 历史压缩器需要某一步摘要（未就绪时仍遵循原有保留原图的宽限窗口）；
+- 动作失败，或操作记录未能持久化；
+- 延迟队列中原始图片达到 8 MiB。
+
+Pro 仍使用即时摘要。摘要失败继续走既有并发上限、重试上限、flush 超时及原始
+截图召回流程。`deferred` 只表示未生成文字摘要，不能解释成验证通过或失败。
+如需每一步都有文字摘要的导出报告，将该阈值设为 0 后运行。
+
+影子模型对比只读取通过上述真机回归获得的三个页面，不执行候选模型给出的动作：
+
+```powershell
+.venv\Scripts\python.exe scripts/benchmark_codex_settings.py --frames artifacts/android/2026-10-07/speed-baseline-frames --repeats 2 --output artifacts/android/2026-10-07/model-shadow-benchmark.json
+```
+
+脚本轮换 Sol medium、Sol low、Luna low 的顺序，记录成功率、缓存计数和中位/最大
+延迟；无权限/超时单独记失败，不悄悄换模型。这只是已知页面的语义动作选择测试，
+不覆盖真实点击坐标、长流程恢复、完整 Flash 工具集合和复杂应用，不可据此自动
+修改生产默认模型。小样本不报告有统计意义的 P95。

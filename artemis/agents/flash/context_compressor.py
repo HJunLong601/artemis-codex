@@ -299,6 +299,10 @@ class ScrubEdgeCompressor:
             effective_key = rec["legacy"]
             summary = summarizer.get_summary(effective_key)
 
+        request_summary = getattr(summarizer, "request_summary", None)
+        if summary is None and callable(request_summary):
+            request_summary(effective_key)
+
         failed = summarizer.has_failed(effective_key)
         pending = summarizer.is_pending(effective_key) and not failed
         step_no = summarizer.get_step_number(effective_key)

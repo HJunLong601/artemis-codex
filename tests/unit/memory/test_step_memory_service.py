@@ -40,6 +40,93 @@ class _ScriptedService(StepMemoryService):
         self.status_events.append((key, status))
 
 
+async def _ready(svc, key):
+    svc._summaries[key] = f"summary-{key}"
+    return True
+
+
+@pytest.mark.asyncio
+async def test_short_run_defers_without_losing_source_or_alias():
+    service = _ScriptedService(_ready, defer_until_steps=3)
+    service.submit("one", {"pre_img_bytes": b"evidence"}, aliases=("call-1",))
+    service.submit("two", {"pre_img_bytes": b"evidence2"})
+    await service.flush()
+    assert not service._pending_tasks
+    assert service.get_job_payload("call-1")["pre_img_bytes"] == b"evidence"
+    assert service.is_pending("call-1") and not service.has_failed("one")
+    assert ("one", "deferred") in service.status_events
+
+
+def test_delay_config_has_bounded_rollback_switch():
+    from artemis.config.agent import StepSummarizerConfig
+    from pydantic import ValidationError
+
+    assert StepSummarizerConfig().defer_until_steps == 3
+    assert StepSummarizerConfig(defer_until_steps=0).defer_until_steps == 0
+    for value in (-1, 11):
+        with pytest.raises(ValidationError):
+            StepSummarizerConfig(defer_until_steps=value)
+
+
+@pytest.mark.asyncio
+async def test_threshold_starts_backlog_and_future_jobs_once():
+    service = _ScriptedService(_ready, defer_until_steps=3)
+    for n in range(3):
+        service.submit(str(n), {"step_number": n})
+    service.activate_deferred()
+    service.submit("3", {"step_number": 3})
+    await service.flush()
+    assert len(service._pending_tasks) == 4
+    assert all(service.has_summary(str(n)) for n in range(4))
+
+
+@pytest.mark.asyncio
+async def test_history_demand_promotes_before_pruning_and_keeps_pending_frame():
+    from langchain_core.messages import ToolMessage
+    from artemis.agents.flash.context_compressor import ScrubEdgeCompressor
+
+    service = _ScriptedService(_ready, defer_until_steps=10)
+    service.submit("one", {"pre_img_bytes": b"evidence"}, aliases=("call-1",))
+    old = ToolMessage(
+        tool_call_id="call-1",
+        content=[{"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}}],
+    )
+    latest = ToolMessage(
+        tool_call_id="call-2",
+        content=[{"type": "image_url", "image_url": {"url": "data:image/png;base64,AQ=="}}],
+    )
+    compressor = ScrubEdgeCompressor(service, image_scrub_depth=2, pending_grace_steps=3)
+    messages = [old, latest]
+    compressor.compress(messages)
+    assert "one" in service._pending_tasks
+    assert any(b.get("type") == "image_url" for b in old.content)
+    await service.flush()
+    compressor.compress(messages)
+    assert not any(b.get("type") == "image_url" for b in old.content)
+    assert "summary-one" in str(old.content)
+
+
+@pytest.mark.asyncio
+async def test_large_deferred_frame_restores_normal_runtime():
+    service = _ScriptedService(_ready, defer_until_steps=10)
+    service.submit("large", {"pre_img_bytes": bytes(8 * 1024 * 1024)})
+    await service.flush()
+    assert service.has_summary("large")
+
+
+@pytest.mark.asyncio
+async def test_promoted_failure_retains_images_and_bounded_retries():
+    async def fail(_svc, _key):
+        return False
+
+    service = _ScriptedService(fail, defer_until_steps=3, retry_limit=1)
+    service.submit("one", {"pre_img_bytes": b"evidence"})
+    service.request_summary("one")
+    await service.flush()
+    assert service.has_failed("one")
+    assert service.get_job_payload("one")["pre_img_bytes"] == b"evidence"
+
+
 @pytest.mark.asyncio
 async def test_zero_blocking_submit_and_flush():
     """submit() returns immediately; flush() drains the background job."""
