@@ -26,7 +26,7 @@ from artemis.drivers.base import BaseDeviceDriver
 from artemis.drivers.ios.device_hub_driver import IosDeviceHubDriver
 from artemis.drivers.ios.xcuitest_driver import IosXcuiTestDriver
 from artemis.drivers.mock.mock_driver import MockDeviceDriver
-from artemis.utils.logger import get_logger
+from third_party.mobile_use.utils.logger import get_logger
 
 if TYPE_CHECKING:
     from artemis.context import ArtemisContext

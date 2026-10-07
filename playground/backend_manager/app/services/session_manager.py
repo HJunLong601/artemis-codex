@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import asyncio
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import UTC, datetime, timedelta
 import logging
 import uuid
 from app.config import settings

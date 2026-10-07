@@ -15,7 +15,6 @@
 import asyncio
 import logging
 import os
-from typing import Optional
 from app.config import settings
 
 logger = logging.getLogger("artemis.docker")

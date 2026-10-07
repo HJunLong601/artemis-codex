@@ -4,7 +4,7 @@ import pytest
 
 from artemis.context import ArtemisContext, DeviceContext, DevicePlatform
 from artemis.controllers.unified_controller import UnifiedMobileController
-from artemis.utils.video import get_active_session, remove_active_session
+from third_party.mobile_use.utils.video import get_active_session, remove_active_session
 
 
 class RecordingDriver:

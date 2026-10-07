@@ -14,7 +14,6 @@
 
 from datetime import datetime, timezone
 import logging
-from typing import Optional
 from app.config import settings
 from app.schemas.session_schema import SessionRecord, SessionStatus
 

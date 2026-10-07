@@ -73,6 +73,7 @@ jobs:
           --cov=artemis
           --cov=mcp_server
           --cov=apps/admin_console
+          --cov=third_party
           --cov-fail-under=60
 
   frontend:
@@ -154,6 +155,7 @@ jobs:
           source "$GITHUB_WORKSPACE/.smoke-venv/bin/activate"
           python - <<'PY'
           from importlib.metadata import files, version
+          from importlib.resources import files as resource_files
 
           import artemis
           from artemis.resources import get_bundled_config_path, get_bundled_showcase_dist
@@ -164,6 +166,10 @@ jobs:
           assert bundled_config is not None and bundled_config.is_file()
           assert bundled_ui is not None and (bundled_ui / "index.html").is_file()
           assert not any("node_modules" in str(path) for path in (files("artemis") or ()))
+          vendor = resource_files("third_party.mobile_use")
+          for name in ("LICENSE", "NOTICE", "METADATA", "agents/hopper/hopper.md"):
+              assert vendor.joinpath(name).is_file(), name
+          assert resource_files("artemis.drivers.ios").joinpath("device_hub_bridge.swift").is_file()
           print(f"Installed Artemis {artemis.__version__} with bundled runtime resources")
           PY
           artemis --version

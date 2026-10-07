@@ -157,7 +157,7 @@ async def test_vertex_uses_adc_even_without_project_environment(credentials, mon
     parse, _ = credentials
     parse.return_value = model_config("vertexai")
     adc = Mock(side_effect=RuntimeError("ADC unavailable"))
-    monkeypatch.setattr("artemis.config.llm.validate_vertex_ai_credentials", adc)
+    monkeypatch.setattr("third_party.mobile_use.config.llm.validate_vertex_ai_credentials", adc)
     failed = await LLMCredentialsProbe().probe()
     assert failed.status is ProbeStatus.FAIL
     assert failed.metadata["missing_providers"] == ["vertexai"]

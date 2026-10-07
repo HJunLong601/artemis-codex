@@ -22,7 +22,7 @@ from artemis.context import DeviceContext, DevicePlatform
 import artemis.runtime as runtime
 from artemis.runtime.device_provider import DeviceDescriptor, DeviceKind, DeviceState
 from artemis.runtime.device_lock import DeviceBusyError
-from artemis.sdk.types.exceptions import AgentError
+from third_party.mobile_use.sdk.types.exceptions import AgentError
 
 
 @pytest.mark.asyncio
@@ -70,8 +70,8 @@ def test_ios_client_initialization_does_not_create_adb_clients():
     agent = object.__new__(Agent)
 
     with (
-        patch("artemis.sdk.agent.AdbClient") as adb_client,
-        patch("artemis.sdk.agent.create_screen_client") as screen_client,
+        patch("third_party.mobile_use.sdk.agent.AdbClient") as adb_client,
+        patch("third_party.mobile_use.sdk.agent.create_screen_client") as screen_client,
     ):
         agent._init_clients("SIM-UDID", DevicePlatform.IOS)
 
@@ -170,7 +170,7 @@ async def test_task_that_never_acquires_queue_does_not_create_trace_session():
     agent._prepare_tracing = MagicMock()
 
     with patch(
-        "artemis.sdk.agent.DeviceExecutionLock.acquire",
+        "artemis.runtime.DeviceExecutionLock.acquire",
         side_effect=DeviceBusyError("queue cancelled"),
     ):
         with pytest.raises(DeviceBusyError, match="queue cancelled"):
@@ -202,7 +202,7 @@ async def test_model_preflight_failure_happens_before_device_mutation():
             "artemis.llm.model_preflight.require_available_models",
             AsyncMock(side_effect=ModelPreflightError("unavailable model")),
         ),
-        patch("artemis.sdk.agent.DeviceExecutionLock.acquire") as acquire,
+        patch("third_party.mobile_use.sdk.agent.DeviceExecutionLock.acquire") as acquire,
     ):
         with pytest.raises(ModelPreflightError, match="unavailable model"):
             await agent.run_task(goal="must not touch device", profile="flash")

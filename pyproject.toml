@@ -100,9 +100,6 @@ artemis-admin = "apps.admin_console.server:main"
 requires = ["setuptools>=61.0", "Cython"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.package-data]
-"artemis.drivers.ios" = ["*.swift"]
-
 [tool.uv.workspace]
 members = ["packages/artemis-client"]
 

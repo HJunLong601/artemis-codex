@@ -59,6 +59,7 @@ def test_execute_task_configures_ios_device_without_adb(monkeypatch):
     from artemis.context import DevicePlatform
     from artemis.runtime import DeviceDescriptor, DeviceKind, DeviceState
     import artemis.interfaces.cli.commands.run as run_module
+    import third_party.mobile_use.main as automation_module
 
     descriptor = DeviceDescriptor(
         platform=DevicePlatform.IOS,
@@ -79,10 +80,11 @@ def test_execute_task_configures_ios_device_without_adb(monkeypatch):
     fake_agent.run_task = AsyncMock()
     fake_agent.clean = AsyncMock()
 
-    monkeypatch.setattr(run_module, "initialize_llm_config", MagicMock())
-    monkeypatch.setattr(run_module, "AgentProfile", MagicMock())
-    monkeypatch.setattr(run_module, "Builders", fake_builders)
-    monkeypatch.setattr(run_module, "Agent", MagicMock(return_value=fake_agent))
+    monkeypatch.setattr(automation_module, "initialize_llm_config", MagicMock())
+    monkeypatch.setattr(automation_module, "AgentProfile", MagicMock())
+    monkeypatch.setattr(automation_module, "Builders", fake_builders)
+    monkeypatch.setattr(automation_module, "Agent", MagicMock(return_value=fake_agent))
+    monkeypatch.setattr(run_module.settings, "ADB_HOST", "127.0.0.1")
     monkeypatch.setattr(
         run_module.device_registry, "select_device", MagicMock(return_value=descriptor)
     )

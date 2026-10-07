@@ -43,9 +43,9 @@ from artemis.services.llm import (
     get_llm,
 )
 from artemis.services.token_meter import record_llm_usage
-from artemis.utils.logger import get_logger
 from artemis.utils.task_tree import format_actions_clean
 from artemis.utils.visualization import draw_action_overlay_on_image
+from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
