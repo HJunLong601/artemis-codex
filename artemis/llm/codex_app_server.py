@@ -14,10 +14,10 @@
 
 """Artemis integration for the reusable Codex client provider.
 
-Protocol, process pooling and multimodal conversion live in the independently
-published ``codex_client_provider`` package. This module supplies Artemis identity
-and a pinned-0.1.0 response bridge that preserves cache counters until the public
-provider exposes them. The original provider remains available as a kill switch.
+Protocol, process pooling and image materialization live in the independently
+published ``codex_client_provider`` package. Artemis supplies its model-bound WebP
+image policy, identity and a pinned-0.1.0 cache-counter response bridge. Image policy
+and telemetry each have an independent switch to restore provider behavior.
 """
 
 from __future__ import annotations
@@ -46,10 +46,14 @@ from codex_client_provider.langchain import (
     find_codex_binary,
 )
 
+from artemis.llm.image_inputs import prepare_image_messages
+
 
 class CodexAppServerChatModel(_CodexAppServerChatModel):
     """Codex App Server model carrying Artemis identity in protocol metadata."""
 
+    model_name: str = Field(default="gpt-6.1-sol")
+    reasoning_effort: str | None = Field(default="medium")
     client_name: str = Field(default="artemis")
     client_title: str = Field(default="Artemis")
     client_version: str = Field(default="1.0")
@@ -57,8 +61,14 @@ class CodexAppServerChatModel(_CodexAppServerChatModel):
     telemetry_enabled: bool = Field(
         default_factory=lambda: os.getenv("ARTEMIS_CODEX_TELEMETRY", "1") != "0"
     )
+    image_preprocessing_enabled: bool = Field(
+        default_factory=lambda: os.getenv("ARTEMIS_CODEX_IMAGE_PREPROCESSING", "1") != "0"
+    )
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        started = time.monotonic()
+        if self.image_preprocessing_enabled:
+            messages = prepare_image_messages(messages)
         # Compatibility bridge for pinned provider 0.1.0, which discards raw
         # cache usage. Reuse its transport, pool, prompts, images and contract.
         # No global monkeypatch and no second inference on telemetry failure.
@@ -73,7 +83,6 @@ class CodexAppServerChatModel(_CodexAppServerChatModel):
             callable(getattr(provider, n, None)) for n in helpers
         ):
             return await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
-        started = time.monotonic()
         tools = list(kwargs.get("tools") or [])
         schema, contract = provider._response_contract(tools, kwargs.get("tool_choice"))
         transcript, images, temp_paths = provider._message_transcript(messages)

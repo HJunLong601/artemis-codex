@@ -103,7 +103,9 @@ async def _run_object_detection_logic(
 
     try:
         with TraceSpan(name="run_object_detection", ctx=ctx) as span:
-            result = await _run_object_detection(ctx, target_image, target_queries, templates)
+            result = await _run_object_detection(
+                ctx, target_image, target_queries, templates, state=state
+            )
             span.result = result
             output = json.dumps(result) if not isinstance(result, str) else result
 

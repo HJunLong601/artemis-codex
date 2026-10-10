@@ -1,0 +1,116 @@
+{
+  "date": "2026-10-10",
+  "model": "gpt-6.1-sol",
+  "reasoning_effort": "medium",
+  "original_dimensions": [
+    1080,
+    2400
+  ],
+  "resized_dimensions": [
+    720,
+    1600
+  ],
+  "webp_quality": 70,
+  "webp_method": 4,
+  "webp_lossless": false,
+  "privacy": "Aggregate only; no screenshots, raw output, identifiers or local paths.",
+  "timing": "Request includes adapter, App Server, upload, queue, inference and output. Total also includes decode, resize, encode and base64. Capture, source reads, report writes, cleanup and warmups excluded.",
+  "recognition_scope": "Three text checks and one target hit per successful request.",
+  "recovery_requests_excluded_from_experiment_A": 4,
+  "recovery_requests_passed": 4,
+  "conclusion": "Smaller payload confirmed; neither paired confidence interval establishes a stable speedup. Experiments measured separately.",
+  "experiments": [
+    {
+      "experiment": "A",
+      "pages": 8,
+      "rounds": 2,
+      "variants": [
+        {
+          "variant": "png_original",
+          "total_bytes_8_images": 2959067,
+          "attempts": 16,
+          "successful": 15,
+          "errors_before_inference": 1,
+          "text_checks_correct": 45,
+          "text_checks_evaluated": 45,
+          "target_hits": 15,
+          "target_checks_evaluated": 15,
+          "median_image_kib": 159.147,
+          "median_conversion_ms": 0.0,
+          "median_request_seconds": 15.26,
+          "median_total_seconds": 15.26
+        },
+        {
+          "variant": "webp_q70",
+          "total_bytes_8_images": 358802,
+          "attempts": 16,
+          "successful": 14,
+          "errors_before_inference": 2,
+          "text_checks_correct": 42,
+          "text_checks_evaluated": 42,
+          "target_hits": 14,
+          "target_checks_evaluated": 14,
+          "median_image_kib": 41.386,
+          "median_conversion_ms": 205.826,
+          "median_request_seconds": 13.085,
+          "median_total_seconds": 13.279
+        }
+      ],
+      "paired_total_time": {
+        "pairs": 14,
+        "geometric_mean_ratio": 0.918511,
+        "page_cluster_bootstrap_ci95": [
+          0.822944,
+          1.034258
+        ],
+        "faster_pairs": 9
+      }
+    },
+    {
+      "experiment": "B",
+      "pages": 8,
+      "rounds": 2,
+      "variants": [
+        {
+          "variant": "webp_native_q70",
+          "total_bytes_8_images": 358802,
+          "attempts": 16,
+          "successful": 16,
+          "errors_before_inference": 0,
+          "text_checks_correct": 48,
+          "text_checks_evaluated": 48,
+          "target_hits": 16,
+          "target_checks_evaluated": 16,
+          "median_image_kib": 41.386,
+          "median_conversion_ms": 196.837,
+          "median_request_seconds": 14.705,
+          "median_total_seconds": 14.894
+        },
+        {
+          "variant": "webp_720_q70",
+          "total_bytes_8_images": 224594,
+          "attempts": 16,
+          "successful": 16,
+          "errors_before_inference": 0,
+          "text_checks_correct": 48,
+          "text_checks_evaluated": 48,
+          "target_hits": 16,
+          "target_checks_evaluated": 16,
+          "median_image_kib": 25.785,
+          "median_conversion_ms": 124.221,
+          "median_request_seconds": 14.326,
+          "median_total_seconds": 14.451
+        }
+      ],
+      "paired_total_time": {
+        "pairs": 16,
+        "geometric_mean_ratio": 0.955559,
+        "page_cluster_bootstrap_ci95": [
+          0.90211,
+          1.020739
+        ],
+        "faster_pairs": 10
+      }
+    }
+  ]
+}

@@ -40,7 +40,8 @@ This fork can use the ChatGPT session from the locally installed **Codex CLI** a
 |---|---|
 | Key-free Codex provider | Planner, Operator, Checker, Explorer, Outputter, summaries, and history compression use the signed-in Codex client. |
 | Multimodal input | Screenshots are sent as local image inputs through Codex App Server. |
-| Screenshot size control | Images larger than the configured dimensions or byte limit are proportionally resized and JPEG-compressed before model calls. |
+| Screenshot size control | Local and embedded images use lossy WebP quality 70/100 with proportional 720p bounds before Codex calls; original captures remain available for device coordinates. |
+| Visual location reuse | After UI-tree locating fails, reuse visual positions from a persistent per-device LRU only when both screenshot pixels and the hierarchy are unchanged. |
 | Isolated execution | Every model call uses a temporary Codex thread with a read-only sandbox and no approval prompts; Artemis remains responsible for device actions. |
 | First-run bootstrap | Startup scripts install or locate ADB, scrcpy, FFmpeg, Codex CLI, `uv`/Python, Node.js, and project dependencies; `--with-ios` opts in to Appium/XCUITest setup on macOS. |
 | Cross-platform setup | Windows, Apple Silicon macOS, Intel macOS, and Linux use the same dependency and readiness workflow. |
@@ -50,10 +51,67 @@ This fork can use the ChatGPT session from the locally installed **Codex CLI** a
 The default image limits can be changed in `.env`:
 
 ```dotenv
+ARTEMIS_CODEX_IMAGE_SHORT_EDGE=720
 ARTEMIS_CODEX_IMAGE_MAX_EDGE=1600
 ARTEMIS_CODEX_IMAGE_MAX_BYTES=786432
-ARTEMIS_CODEX_IMAGE_JPEG_QUALITY=82
+ARTEMIS_CODEX_IMAGE_WEBP_QUALITY=70
 ```
+
+The short edge is capped at 720 pixels and the long edge at 1600, without upscaling: a 1080×2400 portrait becomes 720×1600, and a 1920×1080 landscape becomes 1280×720. Quality 70 is an encoder setting, not a guaranteed 70% reduction in file size. Images exceeding the byte budget are further resized at the same quality. Remote image URLs remain with the provider. Set `ARTEMIS_CODEX_IMAGE_PREPROCESSING=0` to restore the generic provider's policy.
+
+### Visual Location Cache
+
+Locating follows **ADB/UI hierarchy → local visual location cache → image OCR/model**. Normal ADB actions and XML matches never query this cache. Each device has its own persistent **2000-position LRU**, shared across its system, launcher and application groups; package, page fingerprint, screen dimensions, target and locating strategy further distinguish entries. Reading a position refreshes its recency; the least recently used positions on that device are evicted when full. One entry contains one position, not an entire action sequence.
+
+The unchanged-UI guard compares exact decoded screenshot pixels and the full UI hierarchy, rather than a perceptual hash. App/device changes, scrolling, overlays, rotation and text/tree changes miss the cache. Clock or animation changes can also cause a conservative miss. Historical screenshots, unknown devices/apps, ambiguous/missing locations and invalid coordinates are not cached. Correction feedback or an open execution incident bypasses and invalidates the relevant target. A corrupt, busy or unwritable cache falls back to normal locating. A location is an inference result, not proof that a subsequent tap achieved its goal; clicks still use the existing executor and verification behavior.
+
+The default database is `.cache/visual_locations.sqlite3` beside the installation's `.env`; it survives task and process restarts and is excluded from Git. Only location metadata and fingerprints are stored, not screenshots or complete model responses. Flash and direct object detection cache each target separately, including partially cached requests; Pro/Ultra reuse unambiguous single-target outcomes before image OCR or the reasoning loop.
+
+```dotenv
+ARTEMIS_VISUAL_LOCATION_CACHE=1
+ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY=2000
+# Optional absolute path override:
+# ARTEMIS_VISUAL_LOCATION_CACHE_PATH=/path/to/visual_locations.sqlite3
+```
+
+Capacity is per device and capped at 2000; set the enable flag to `0` to disable reuse. This skips repeated visual grounding, while the main agent's decision-making and device execution continue normally.
+
+#### Cache verification results (2026-10-10)
+
+A real `gpt-6.1-sol` verification used one ARTEMIS-explored Settings screenshot, with `medium` reasoning and the default WebP Q70 / 720p input policy. The same original screenshot and hierarchy were replayed for both visual requests; the XML check used a label present in the hierarchy.
+
+| Locating path | Time (s) | Visual model calls | Cache hits | Target check |
+|---|---:|---:|---:|---|
+| XML-resolvable label | Not timed | 0 | 0 | Resolved from the hierarchy |
+| Initial visual request | 15.8241 | 1 | 0 | Point inside verified target bounds |
+| Repeated visual request | 0.1272 | 0 | 1 | Point inside verified target bounds |
+
+Timing covers the Explorer locating call, including cache lookup and, on a miss, the model request; screenshot capture and device actions are excluded. This is one fixed-screenshot replay, not an end-to-end task speed benchmark or an estimate of cache hit rate on changing screens. [Anonymized verification data](./docs/benchmarks/visual-location-cache-2026-10-10.json) contains measurements and validation scope without screenshots, device identifiers or raw responses.
+
+The final cache and affected-routing regression run passed **150 tests in 16.82 s**, including **25 cache-specific cases**. Coverage includes a device receiving 2001 positions and retaining 2000 while another retains its own three; read-based LRU promotion across system/launcher/app groups; persistence after reopening the database; and 60 writes from four concurrent instances across two devices with a 10-position quota each. Routing checks cover XML-first behavior, partial multi-target hits, unchanged coordinates, device/app/pixel/tree changes, old frames, correction feedback, open execution incidents, ambiguous/invalid results, and corrupt or locked databases. The run emitted 11 dependency/test-mock warnings and no failures. These are unit/regression checks; only the screenshot replay above used a live model.
+
+Run the 25 cache-specific cases locally with:
+
+```bash
+python -m pytest tests/unit/utils/test_visual_location_cache.py tests/unit/agents/test_visual_location_routing.py -q
+```
+
+### Image Input Benchmark (2026-10-10)
+
+An anonymized benchmark used eight ARTEMIS-verified Android pages (settings, display, sound, notifications, battery, additional settings, launcher, and a calculator consent screen). Both experiments used `gpt-6.1-sol`, `medium` reasoning, two rounds, paired order reversal, identical prompts and structured output, and excluded warmups. [Public aggregate results](./docs/benchmarks/image-input-2026-10-10.json) contain no screenshots, device identifiers, account data, local paths, session identifiers or raw model responses.
+
+| Experiment | Input | Total size of 8 images (KiB) | Conversion median (ms) | Request median (s) | Total median (s) | Successful / attempted |
+|---|---|---:|---:|---:|---:|---:|
+| A: format only | PNG, 1080×2400 | 2889.7 | 0.0 | 15.26 | 15.26 | 15 / 16 |
+| A: format only | WebP Q70, 1080×2400 | 350.4 | 205.8 | 13.08 | 13.28 | 14 / 16 |
+| B: resolution | WebP Q70, 1080×2400 | 350.4 | 196.8 | 14.71 | 14.89 | 16 / 16 |
+| B: resolution | WebP Q70, 720×1600 | 219.3 | 124.2 | 14.33 | 14.45 | 16 / 16 |
+
+Native WebP was **87.9% smaller than PNG**. Resizing to 720×1600 cut another **37.4%**, making the final input **92.4% smaller than PNG**. All successful requests passed three text checks and one target-location check; experiment B passed 48/48 text checks and 16/16 target checks for each variant. These checks cover this small sample, not all UI text or coordinate accuracy.
+
+Experiment A had three App Server/MCP initialization failures before inference under memory pressure; they are excluded from timing and recognition scores. Four recovery requests on the affected pages passed separately and are not pooled into the table. Experiment B had no errors. The geometric mean of paired total-time ratios was 0.919 (95% page-cluster bootstrap interval 0.823–1.034; 14 pairs) for A and 0.956 (0.902–1.021; 16 pairs) for B. Both intervals include 1: **smaller payloads are confirmed; a stable inference speedup is not**. Do not compare timings across experiments as if they were one simultaneous run.
+
+Request timing includes adapter work, App Server, upload, queueing, inference and output; total additionally includes PNG decoding, resizing, WebP encoding and base64 preparation. Capture, source-file reads, report writes and session cleanup are excluded. Historical native comparisons explicitly bypass Artemis preprocessing and raise generic adapter limits, preserving actual submitted bytes. Benchmark scripts in `scripts/benchmark_png_webp.py` and `scripts/benchmark_webp_720p.py` require locally verified screenshots; raw artifacts remain local.
 
 Core automation does not need an API key when the Codex client is selected. Cloud OCR and alternative Gemini, OpenAI API, Anthropic, OpenRouter, or xAI providers still require their corresponding keys when explicitly enabled. The reusable adapter is published as [codex-client-provider](https://pypi.org/project/codex-client-provider/); see [Codex client provider](./docs/codex-client-provider.md) for the protocol, model routing, configuration, and limitations.
 
@@ -64,7 +122,7 @@ In a source checkout, edit [`config/artemis.jsonc`](./config/artemis.jsonc). Thi
 
 | Key | Purpose |
 |---|---|
-| `default` | Provider, model, reasoning effort, and fallback inherited by agent nodes. The checked-in default is the Codex client with `gpt-6-sol` and a `gpt-6-luna` fallback. |
+| `default` | Provider, model, reasoning effort, and fallback inherited by agent nodes. The checked-in default is the Codex client with `gpt-6.1-sol`, `medium` reasoning, and a `gpt-6-luna` fallback; lightweight roles keep the Luna tier. |
 | `nodes` | Override individual roles such as `planner`, `operator`, `explorer`, and `checker`; unspecified fields inherit from `default`. |
 | `presets` | Named provider/model combinations for selecting a different model route. |
 | `agent.flash` / `agent.pro` | Profile behavior, including Explorer mode and the Flash step summarizer's model. |

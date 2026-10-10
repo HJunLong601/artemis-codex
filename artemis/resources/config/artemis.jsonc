@@ -8,7 +8,7 @@
   // ------------------------------------------------------------------------------
   "default": {
     "provider": "codex",
-    "model": "gpt-6-sol",
+    "model": "gpt-6.1-sol",
     "reasoning_effort": "medium",
     "timeout": 180,
     "fallback": {
@@ -24,7 +24,7 @@
   "presets": {
     "codex-client": {
       "provider": "codex",
-      "model": "gpt-6-sol",
+      "model": "gpt-6.1-sol",
       "reasoning_effort": "medium",
       "fallback": { "provider": "codex", "model": "gpt-6-luna", "reasoning_effort": "low" }
     },
@@ -82,7 +82,7 @@
     // specialized sub-pixel tuning. Prefer indexed UI elements/XML; use Explorer pro for hard screens.
     "object_detector": {
       "provider": "codex",
-      "model": "gpt-6-sol",
+      "model": "gpt-6.1-sol",
       "fallback": {
         "provider": "codex",
         "model": "gpt-6-luna"

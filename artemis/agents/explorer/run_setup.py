@@ -96,6 +96,8 @@ class RunSetupMixin:
         _user_denylist: frozenset[str]
         screen_index: ScreenIndex
         label_registry: dict[str, ScreenElement]
+        location_cache_scope: Any
+        location_cache_bypass: bool
 
         def _hidden_tool_names(self) -> set[str]: ...
 
@@ -125,6 +127,8 @@ class RunSetupMixin:
                 queries,
                 templates,
                 global_timeout=global_timeout,
+                cache_scope=self.location_cache_scope,
+                bypass_cache=self.location_cache_bypass,
             )
             detected_items = result.get("detected", [])
             candidates = []
@@ -139,10 +143,10 @@ class RunSetupMixin:
                         }
                     )
             fallback_message = "" if candidates else f"Failed to detect: {query}"
-            return json.dumps(
-                {"candidates": candidates, "fallback_message": fallback_message},
-                ensure_ascii=False,
-            )
+            answer = {"candidates": candidates, "fallback_message": fallback_message}
+            if result.get("location_cache_hits"):
+                answer["location_cache_hits"] = result["location_cache_hits"]
+            return json.dumps(answer, ensure_ascii=False)
         except Exception as e:
             logger.error(f"Flash mode object detection failed: {e}")
             return self._failure_outcome(f"Flash mode detection error: {e}")
@@ -195,8 +199,17 @@ class RunSetupMixin:
         image_name, record = self._resolve_image_record(screenshot_path)
         self.image_name = image_name
         self._resolve_screen_dimensions(state)
+        self._screen_record = record
         fused_xml = await self._build_fused_hierarchy(
-            record, state, screenshot_path, allow_ocr=not tier.is_oneshot
+            record, state, screenshot_path, allow_ocr=False
+        )
+        self.screen_index = ScreenIndex.from_hierarchy(fused_xml, self.width, self.height)
+        return fused_xml
+
+    async def _load_ocr_screen(self, screenshot_path: str, state: State) -> list[dict[str, Any]]:
+        """Only a visual cache miss may trigger on-the-fly OCR for loop tiers."""
+        fused_xml = await self._build_fused_hierarchy(
+            self._screen_record, state, screenshot_path, allow_ocr=True
         )
         self.screen_index = ScreenIndex.from_hierarchy(fused_xml, self.width, self.height)
         return fused_xml

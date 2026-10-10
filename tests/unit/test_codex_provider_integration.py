@@ -26,6 +26,13 @@ from artemis.llm.codex_app_server import CodexAppServerChatModel
 from artemis.llm.router import ModelEndpoint, ModelFactory, ModelProvider
 
 
+def test_adapter_defaults_to_sol_61_medium_and_webp_policy():
+    model = CodexAppServerChatModel()
+    assert model.model_name == "gpt-6.1-sol"
+    assert model.reasoning_effort == "medium"
+    assert model.image_preprocessing_enabled
+
+
 def test_telemetry_kill_switch(monkeypatch):
     monkeypatch.setenv("ARTEMIS_CODEX_TELEMETRY", "0")
     assert not CodexAppServerChatModel(model_name="test").telemetry_enabled

@@ -25,6 +25,7 @@ from langchain_core.messages import HumanMessage, ToolMessage
 
 from artemis.llm.structured import ParseFailure, parse_structured
 from artemis.services.llm import get_llm
+from artemis.utils.visual_location_cache import configured_cache, scope_for_state
 from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -110,6 +111,10 @@ async def _run_object_detection(
     mime_type: str = "image/jpeg",
     global_timeout: float = 30.0,
     image_path: str | Path | None = None,
+    *,
+    state=None,
+    cache_scope=None,
+    bypass_cache: bool = False,
 ) -> dict:
     target_img = image_bytes if image_bytes is not None else image_path
     if target_img is None:
@@ -123,6 +128,55 @@ async def _run_object_detection(
 
     queries = queries or []
     templates = templates or ["Point to the following objects: {labels_str}"]
+    resolved = []
+    cached_hits = 0
+    # Legacy/direct detection tools share the same XML-first ordering. Crops,
+    # annotations and historical frames cannot borrow the live-screen scope.
+    if state is not None and str(target_img) == getattr(state, "latest_screenshot", None):
+        from artemis.agents.explorer.geometry import pixel_to_norm, resolve_screen_size
+        from artemis.agents.explorer.screen_index import ScreenIndex
+
+        width, height = resolve_screen_size(ctx, state)
+        index = ScreenIndex.from_hierarchy(state.latest_ui_hierarchy, width, height)
+        remaining = []
+        for query in queries:
+            hits = index.exact_matches(query)
+            if len(hits) == 1:
+                resolved.append(
+                    {
+                        "label": query,
+                        "point": list(pixel_to_norm(*hits[0].center, width, height)),
+                        "source": hits[0].source,
+                    }
+                )
+            else:
+                remaining.append(query)
+        queries = remaining
+        if queries and cache_scope is None:
+            cache_scope = await scope_for_state(ctx, state, target_img)
+        incident = getattr(state, "open_incident", None)
+        bypass_cache = bypass_cache or (isinstance(incident, dict) and bool(incident))
+    cache = configured_cache() if cache_scope and queries else None
+    namespace = "detector:" + json.dumps(templates, ensure_ascii=False)
+    if cache:
+        remaining = []
+        for query in queries:
+            if bypass_cache:
+                await asyncio.to_thread(cache.invalidate, cache_scope, query, namespace)
+                value = None
+            else:
+                value = await asyncio.to_thread(cache.get, cache_scope, query, namespace)
+            if value:
+                resolved.append({"label": query, "point": value["coords"]})
+                cached_hits += 1
+            else:
+                remaining.append(query)
+        queries = remaining
+    if not queries:
+        answer = {"detected": resolved, "failed": []}
+        if cached_hits:
+            answer["location_cache_hits"] = cached_hits
+        return answer
     try:
         llm = get_llm(ctx, name="object_detector")
     except Exception:
@@ -176,12 +230,35 @@ async def _run_object_detection(
             y_norm, x_norm = item["point"]
             item["point"] = [x_norm, y_norm]
 
+    if cache and not bypass_cache:
+        for query in queries:
+            matches = [
+                item
+                for item in fused_results
+                if isinstance(item, dict) and item.get("label") == query
+            ]
+            if len(matches) == 1:
+                await asyncio.to_thread(
+                    cache.put,
+                    cache_scope,
+                    query,
+                    namespace,
+                    {
+                        "coords": matches[0].get("point"),
+                        "description": query,
+                    },
+                )
+
+    fused_results = [*resolved, *fused_results]
+
     detected_labels = set(
         item["label"] for item in fused_results if isinstance(item, dict) and "label" in item
     )
     failed_queries = [query for query in queries if query not in detected_labels]
 
     result_dict = {"detected": fused_results, "failed": failed_queries}
+    if cached_hits:
+        result_dict["location_cache_hits"] = cached_hits
 
     if failed_queries:
         result_dict["message"] = (

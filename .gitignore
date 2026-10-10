@@ -103,6 +103,10 @@ live_screenshot*.png
 
 # Local device verification artifacts
 artifacts/ios/
+# Raw image benchmarks include device screenshots and local session metadata.
+# Publish only the allowlisted aggregate in docs/benchmarks/.
+artifacts/image-benchmark/
+artifacts/visual-location-cache/
 
 # Environment & Secrets
 .env

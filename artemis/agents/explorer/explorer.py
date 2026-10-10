@@ -24,6 +24,7 @@ The :class:`Explorer` class combines the following modules:
 - ``native_runner``: the native Gemini reasoning loop of ``run``.
 """
 
+import asyncio
 import json
 import os
 from typing import Any, Literal
@@ -51,6 +52,7 @@ from artemis.data_engine.trace import trace
 from artemis.graph.state import State
 from artemis.llm.google import is_gemini_model, strip_provider_prefix
 from artemis.utils.ocr_api import is_ocr_configured
+from artemis.utils.visual_location_cache import configured_cache, scope_for_state
 from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -93,6 +95,8 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
         self.turn_latencies: list[float] = []
         self.turn_cached_tokens: list[int] = []
         self.trace_history: list[dict[str, Any]] = []
+        self.location_cache_scope = None
+        self.location_cache_bypass = False
 
         # Rebuilt per ``run``: the queryable snapshot of the screen, and the
         # element behind every label the model has been shown so far.
@@ -346,13 +350,13 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
                 {"candidates": prepass, "fallback_message": str(raw)}, ensure_ascii=False
             )
         engine_candidates = data.get("candidates") or []
-        return json.dumps(
-            {
-                "candidates": [*prepass, *engine_candidates],
-                "fallback_message": str(data.get("fallback_message") or ""),
-            },
-            ensure_ascii=False,
-        )
+        answer = {
+            "candidates": [*prepass, *engine_candidates],
+            "fallback_message": str(data.get("fallback_message") or ""),
+        }
+        if data.get("location_cache_hits"):
+            answer["location_cache_hits"] = data["location_cache_hits"]
+        return json.dumps(answer, ensure_ascii=False)
 
     # ------------------------------------------------------------------ #
     # Entry point
@@ -395,9 +399,54 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
                 )
             engine_query = " | ".join(unresolved) if prepass else query
 
+            # XML/locally available OCR remains first. Only unresolved visual
+            # targets reach this persistent cache; old frames never use it.
+            self.location_cache_scope = await scope_for_state(self.ctx, state, screenshot_path)
+            incident = getattr(state, "open_incident", None)
+            self.location_cache_bypass = bool(context_feedback) or (
+                isinstance(incident, dict) and bool(incident)
+            )
+            scope = self.location_cache_scope
+            cache = configured_cache() if scope else None
+            namespace = f"explorer:{tier.name}"
+            single_target = len([p for p in engine_query.split("|") if p.strip()]) == 1
+            if not tier.is_oneshot and cache and single_target:
+                if self.location_cache_bypass:
+                    await asyncio.to_thread(cache.invalidate, scope, engine_query, namespace)
+                else:
+                    cached = await asyncio.to_thread(cache.get, scope, engine_query, namespace)
+                    if cached:
+                        logger.info("Explorer reused a visual location on an unchanged screen")
+                        return self._merge_prepass(
+                            prepass,
+                            json.dumps(
+                                {
+                                    "candidates": [cached],
+                                    "fallback_message": "",
+                                    "location_cache_hits": 1,
+                                }
+                            ),
+                        )
+
             if tier.is_oneshot:
                 raw = await self._run_flash(engine_query, screenshot_path)
             else:
+                # Defer any paid/image OCR until XML and the cache both miss.
+                fused_xml = await self._load_ocr_screen(screenshot_path, state)
+                prepass, unresolved = self._structural_prepass(query)
+                if prepass and not unresolved:
+                    raw = json.dumps({"candidates": prepass, "fallback_message": ""})
+                    if (
+                        cache
+                        and single_target
+                        and not self.location_cache_bypass
+                        and len(prepass) == 1
+                    ):
+                        await asyncio.to_thread(
+                            cache.put, scope, engine_query, namespace, prepass[0]
+                        )
+                    return raw
+                engine_query = " | ".join(unresolved) if prepass else query
                 raw = await self._run_loop(
                     tier,
                     engine_query,
@@ -408,6 +457,22 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
                     enable_caching,
                     fused_xml,
                 )
+                if cache and single_target and not self.location_cache_bypass:
+                    try:
+                        answer = json.loads(raw)
+                        candidates = (
+                            answer.get("candidates", []) if isinstance(answer, dict) else []
+                        )
+                        if (
+                            isinstance(candidates, list)
+                            and len(candidates) == 1
+                            and not answer.get("fallback_message")
+                        ):
+                            await asyncio.to_thread(
+                                cache.put, scope, engine_query, namespace, candidates[0]
+                            )
+                    except (TypeError, ValueError, AttributeError):
+                        pass  # A malformed/uncertain answer must not enter the cache.
             return self._merge_prepass(prepass, raw)
         finally:
             await self._close_http_client()

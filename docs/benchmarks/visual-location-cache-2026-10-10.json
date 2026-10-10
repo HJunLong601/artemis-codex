@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "measurement_date": "2026-10-10",
+  "model": "gpt-6.1-sol",
+  "reasoning_effort": "medium",
+  "input_policy": {"format": "webp", "quality": 70, "short_edge_max": 720, "long_edge_max": 1600},
+  "live_verification": {
+    "page": "Settings",
+    "unique_screenshots": 1,
+    "device_actions": 0,
+    "xml_check": {"seconds": null, "visual_model_calls": 0, "cache_hits": 0},
+    "visual_requests": [
+      {"round": 1, "seconds": 15.8241, "visual_model_calls": 1, "cache_hits": 0, "point_inside_verified_bounds": true},
+      {"round": 2, "seconds": 0.1272, "visual_model_calls": 0, "cache_hits": 1, "point_inside_verified_bounds": true}
+    ],
+    "timing_scope": "Explorer locating call, including cache lookup and model request on a miss; excludes screenshot capture and device actions.",
+    "limitations": "Single ARTEMIS-verified physical-device screenshot replay. Not an end-to-end task benchmark or a changing-screen cache hit-rate estimate."
+  },
+  "regression_run": {
+    "passed": 150,
+    "failed": 0,
+    "warnings": 11,
+    "seconds": 16.82,
+    "cache_specific_cases": 25,
+    "live_model_calls": 0,
+    "test_files": [
+      "tests/unit/utils/test_visual_location_cache.py",
+      "tests/unit/agents/test_visual_location_routing.py",
+      "tests/unit/agents/test_explorer_prepass.py",
+      "tests/unit/agents/test_explorer_tiers.py",
+      "tests/unit/agents/test_explorer_universal.py",
+      "tests/unit/agents/test_explorer.py",
+      "tests/unit/tools/test_explorer_tool.py",
+      "tests/unit/tools/test_object_detection_tool.py",
+      "tests/unit/tools/test_object_detection_trace.py",
+      "tests/unit/graph/test_state_contract.py"
+    ]
+  },
+  "capacity_checks": {
+    "device_a_positions_written": 2001,
+    "device_a_positions_retained": 2000,
+    "device_b_positions_written": 3,
+    "device_b_positions_retained": 3,
+    "concurrency": {"instances": 4, "writes": 60, "devices": 2, "capacity_per_device": 10, "no_device_exceeded_capacity": true}
+  },
+  "privacy": "No screenshots, device identifiers, account information, local absolute paths, session identifiers or raw model responses."
+}
