@@ -45,6 +45,7 @@ class AgentConfigBuilder(AgentConfigBuilderBase):
 
         agent_cfg = load_agent_config()
         self._explorer = agent_cfg.explorer
+        self._visual_location_cache = agent_cfg.visual_location_cache
         self._explorer_versions = agent_cfg.explorer_versions
         self._denylisted_tools = agent_cfg.denylisted_tools
         self._video_analyzer = agent_cfg.video_analyzer
@@ -446,6 +447,7 @@ class AgentConfigBuilder(AgentConfigBuilderBase):
             "flash": self._flash,
             "pro": self._pro,
             "explorer": self._explorer,
+            "visual_location_cache": self._visual_location_cache,
             "explorer_versions": self._explorer_versions,
             "denylisted_tools": self._denylisted_tools,
             "enable_video_ledger": self._enable_video_ledger,

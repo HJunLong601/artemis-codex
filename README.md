@@ -67,14 +67,20 @@ The unchanged-UI guard compares exact decoded screenshot pixels and the full UI 
 
 The default database is `.cache/visual_locations.sqlite3` beside the installation's `.env`; it survives task and process restarts and is excluded from Git. Only location metadata and fingerprints are stored, not screenshots or complete model responses. Flash and direct object detection cache each target separately, including partially cached requests; Pro/Ultra reuse unambiguous single-target outcomes before image OCR or the reasoning loop.
 
-```dotenv
-ARTEMIS_VISUAL_LOCATION_CACHE=1
-ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY=2000
-# Optional absolute path override:
-# ARTEMIS_VISUAL_LOCATION_CACHE_PATH=/path/to/visual_locations.sqlite3
+Set the shared cache options in `config/artemis.jsonc` (the wheel includes the same defaults):
+
+```jsonc
+{
+  "agent": {
+    "visual_location_cache": {
+      "enabled": true,
+      "capacity_per_device": 2000
+    }
+  }
+}
 ```
 
-Capacity is per device and capped at 2000; set the enable flag to `0` to disable reuse. This skips repeated visual grounding, while the main agent's decision-making and device execution continue normally.
+Capacity is per device and accepts integers from 1 to 2000; invalid values fail configuration validation. Flash, Pro, direct detection and SDK-built tasks share this setting. Set `enabled` to `false` to disable reuse; the existing `.env` switch `ARTEMIS_VISUAL_LOCATION_CACHE=0` can also force it off. The old `ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY` environment variable is no longer read; move its value to `capacity_per_device` in JSONC. An optional `.env` `ARTEMIS_VISUAL_LOCATION_CACHE_PATH` still overrides the database path. Restart the ARTEMIS/MCP process after changing configuration. This skips repeated visual grounding, while the main agent's decision-making and device execution continue normally.
 
 #### Cache verification results (2026-10-10)
 
@@ -90,10 +96,12 @@ Timing covers the Explorer locating call, including cache lookup and, on a miss,
 
 The final cache and affected-routing regression run passed **150 tests in 16.82 s**, including **25 cache-specific cases**. Coverage includes a device receiving 2001 positions and retaining 2000 while another retains its own three; read-based LRU promotion across system/launcher/app groups; persistence after reopening the database; and 60 writes from four concurrent instances across two devices with a 10-position quota each. Routing checks cover XML-first behavior, partial multi-target hits, unchanged coordinates, device/app/pixel/tree changes, old frames, correction feedback, open execution incidents, ambiguous/invalid results, and corrupt or locked databases. The run emitted 11 dependency/test-mock warnings and no failures. These are unit/regression checks; only the screenshot replay above used a live model.
 
-Run the 25 cache-specific cases locally with:
+After moving cache capacity into JSONC on 2026-10-11, the expanded regression run passed **205 tests in 17.89 s** with 11 dependency/test-mock warnings. It includes **34 cache/configuration cases**, covering SDK propagation, task-loaded settings, invalid capacity rejection, configured LRU eviction and configuration disablement. The earlier 150-test result above is retained as a separate recorded run; the live screenshot measurements were not repeated.
+
+Run the 34 cache/configuration cases locally with:
 
 ```bash
-python -m pytest tests/unit/utils/test_visual_location_cache.py tests/unit/agents/test_visual_location_routing.py -q
+python -m pytest tests/unit/utils/test_visual_location_cache.py tests/unit/agents/test_visual_location_routing.py tests/unit/config/test_visual_location_cache_config.py -q
 ```
 
 ### Image Input Benchmark (2026-10-10)

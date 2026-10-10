@@ -407,7 +407,7 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
                 isinstance(incident, dict) and bool(incident)
             )
             scope = self.location_cache_scope
-            cache = configured_cache() if scope else None
+            cache = configured_cache(self.ctx) if scope else None
             namespace = f"explorer:{tier.name}"
             single_target = len([p for p in engine_query.split("|") if p.strip()]) == 1
             if not tier.is_oneshot and cache and single_target:

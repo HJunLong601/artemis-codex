@@ -192,3 +192,37 @@ async def test_direct_detector_tool_retains_xml_before_cache_or_model(environmen
     assert answer["detected"][0]["source"] == "xml"
     driver.get_current_package.assert_not_awaited()
     inference.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_jsonc_task_capacity_controls_real_routing_eviction(environment):
+    from artemis.config import AgentGlobalConfig
+
+    ctx, state, _, inference = environment
+    ctx.agent_config = AgentGlobalConfig.model_validate(
+        {"visual_location_cache": {"capacity_per_device": 2}}
+    )
+    await run(ctx, state, query="gear icon | blue icon")
+    await run(ctx, state, query="gear icon")  # Promote gear, so blue is evicted next.
+    await run(ctx, state, query="red icon")
+    await run(ctx, state, query="gear icon")
+    assert inference.await_count == 3
+    await run(ctx, state, query="blue icon")
+    assert inference.await_count == 4
+
+
+@pytest.mark.asyncio
+async def test_jsonc_disable_cannot_be_reenabled_by_legacy_environment_switch(
+    environment, monkeypatch
+):
+    from artemis.config import AgentGlobalConfig
+
+    ctx, state, driver, inference = environment
+    monkeypatch.setenv("ARTEMIS_VISUAL_LOCATION_CACHE", "1")
+    ctx.agent_config = AgentGlobalConfig.model_validate(
+        {"visual_location_cache": {"enabled": False}}
+    )
+    await run(ctx, state)
+    await run(ctx, state)
+    assert inference.await_count == 2
+    driver.get_current_package.assert_not_awaited()

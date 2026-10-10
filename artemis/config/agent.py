@@ -869,6 +869,18 @@ class ProProfileConfig(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class VisualLocationCacheConfig(BaseModel):
+    """Persistent visual-location reuse shared by all execution profiles."""
+
+    enabled: bool = True
+    capacity_per_device: int = Field(
+        default=2000,
+        ge=1,
+        le=2000,
+        description="LRU positions per device, shared across system, launcher and app groups.",
+    )
+
+
 class AgentGlobalConfig(BaseModel):
     """Global configuration parsed from artemis.jsonc / agent_config.json."""
 
@@ -922,6 +934,10 @@ class AgentGlobalConfig(BaseModel):
     memory: MemoryConfig = Field(
         default_factory=MemoryConfig,
         description="Unified step-memory runtime and transcript scrub options.",
+    )
+    visual_location_cache: VisualLocationCacheConfig = Field(
+        default_factory=VisualLocationCacheConfig,
+        description="Persistent visual-location cache shared by Flash, Pro and direct detection.",
     )
 
     model_config = {"extra": "allow"}

@@ -23,6 +23,21 @@ logger = logging.getLogger(__name__)
 MAX_LOCATIONS_PER_DEVICE = 2000
 
 
+def cache_config_for_context(ctx=None):
+    """Use the task's loaded config, or the normal JSONC loader for direct callers."""
+    from artemis.config.agent import VisualLocationCacheConfig, load_agent_config
+
+    for source in (getattr(ctx, "agent_config", None), getattr(ctx, "execution_setup", None)):
+        config = getattr(source, "visual_location_cache", None)
+        if isinstance(config, VisualLocationCacheConfig):
+            return config
+    try:
+        return load_agent_config().visual_location_cache
+    except (OSError, ValueError):
+        logger.debug("Visual location cache config unavailable; continuing without reuse")
+        return VisualLocationCacheConfig(enabled=False)
+
+
 def _digest(value) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, ensure_ascii=False).encode()
@@ -85,6 +100,8 @@ def screen_scope(device, application: str, image_bytes: bytes, hierarchy, size) 
 async def scope_for_state(ctx, state, screenshot_path) -> LocationScope | None:
     """Unknown device/app, old frames and corrupt images must bypass caching."""
     if os.getenv("ARTEMIS_VISUAL_LOCATION_CACHE", "1") == "0" or ctx is None or state is None:
+        return None
+    if not cache_config_for_context(ctx).enabled:
         return None
     device = getattr(ctx, "device", None)
     device_id = getattr(device, "device_id", None)
@@ -269,13 +286,10 @@ class VisualLocationCache:
             ]
 
 
-def configured_cache() -> VisualLocationCache:
+def configured_cache(ctx=None) -> VisualLocationCache:
     from artemis.config.paths import get_env_file
 
     default_path = get_env_file().parent / ".cache" / "visual_locations.sqlite3"
     path = Path(os.getenv("ARTEMIS_VISUAL_LOCATION_CACHE_PATH") or default_path)
-    try:
-        capacity = int(os.getenv("ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY", "2000"))
-    except ValueError:
-        capacity = MAX_LOCATIONS_PER_DEVICE
+    capacity = cache_config_for_context(ctx).capacity_per_device
     return VisualLocationCache(path, capacity)

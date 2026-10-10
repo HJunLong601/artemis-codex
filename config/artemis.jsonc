@@ -205,6 +205,11 @@
     // ==========================================================================
     // 🌐 4.3 Shared Capabilities & Global Overrides
     // ==========================================================================
+    // Visual grounding only: ADB/UI-tree locating remains first.
+    "visual_location_cache": {
+      "enabled": true,
+      "capacity_per_device": 2000 // 1–2000 positions per device; system/launcher/app groups share this quota
+    },
     // Shared step memory and history compression
     // Transcript ledger + layered compression for the Pro operator.
     "memory": {

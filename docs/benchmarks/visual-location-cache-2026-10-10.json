@@ -43,5 +43,20 @@
     "device_b_positions_retained": 3,
     "concurrency": {"instances": 4, "writes": 60, "devices": 2, "capacity_per_device": 10, "no_device_exceeded_capacity": true}
   },
+  "configuration_regression_run": {
+    "date": "2026-10-11",
+    "passed": 205,
+    "failed": 0,
+    "warnings": 11,
+    "seconds": 17.89,
+    "cache_and_configuration_cases": 34,
+    "live_model_calls": 0,
+    "additional_test_files": [
+      "tests/unit/config/test_visual_location_cache_config.py",
+      "tests/unit/sdk/test_agent_config_builder_tuning.py",
+      "tests/unit/test_config_package.py"
+    ],
+    "scope": "Original regression test files plus the additional files, including newly added routing cases; verifies centralized JSONC capacity and enablement. No repeated live screenshot benchmark."
+  },
   "privacy": "No screenshots, device identifiers, account information, local absolute paths, session identifiers or raw model responses."
 }

@@ -156,7 +156,7 @@ async def _run_object_detection(
             cache_scope = await scope_for_state(ctx, state, target_img)
         incident = getattr(state, "open_incident", None)
         bypass_cache = bypass_cache or (isinstance(incident, dict) and bool(incident))
-    cache = configured_cache() if cache_scope and queries else None
+    cache = configured_cache(ctx) if cache_scope and queries else None
     namespace = "detector:" + json.dumps(templates, ensure_ascii=False)
     if cache:
         remaining = []

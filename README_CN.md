@@ -67,14 +67,20 @@ ARTEMIS_CODEX_IMAGE_WEBP_QUALITY=70
 
 默认数据库为安装环境 `.env` 同目录下的 `.cache/visual_locations.sqlite3`，跨任务及进程重启保留，已被 Git 忽略。只保存位置元数据与指纹，不保存截图或模型完整回复。Flash 和直接物体检测逐个目标缓存，部分命中时只识别未命中的目标；Pro/Ultra 的确定单目标结果可在图片 OCR 和推理循环前复用。
 
-```dotenv
-ARTEMIS_VISUAL_LOCATION_CACHE=1
-ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY=2000
-# 可选：指定缓存数据库的绝对路径
-# ARTEMIS_VISUAL_LOCATION_CACHE_PATH=/path/to/visual_locations.sqlite3
+在 `config/artemis.jsonc` 中统一配置缓存，打包模板也包含相同默认值：
+
+```jsonc
+{
+  "agent": {
+    "visual_location_cache": {
+      "enabled": true,
+      "capacity_per_device": 2000
+    }
+  }
+}
 ```
 
-容量按设备计算，最大 2000，可调小；将启用开关设为 `0` 可关闭复用。优化跳过的是重复视觉定位，主 Agent 的决策和设备动作仍按正常流程进行。
+容量按设备计算，支持 1–2000 的整数，非法值会在配置校验时报错。Flash、Pro、直接图片定位和 SDK 构建的任务共享这一配置。将 `enabled` 设为 `false` 可关闭复用；原有 `.env` 开关 `ARTEMIS_VISUAL_LOCATION_CACHE=0` 仍可强制关闭。旧环境变量 `ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY` 不再读取，请将其数值移到 JSONC 的 `capacity_per_device`。`.env` 中可选的 `ARTEMIS_VISUAL_LOCATION_CACHE_PATH` 仍用于覆盖数据库路径。修改后需重启 ARTEMIS/MCP 进程。优化跳过的是重复视觉定位，主 Agent 的决策和设备动作仍按正常流程进行。
 
 #### 缓存验证数据（2026-10-10）
 
@@ -90,10 +96,12 @@ ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY=2000
 
 缓存及受影响定位流程的最终回归运行 **150 项通过，耗时 16.82 秒**，其中 **25 项为缓存专项用例**。覆盖向一台设备写入 2001 条后保留 2000 条、另一台独立保留 3 条；系统/桌面/应用分组之间按读取更新 LRU；重新打开数据库后仍保留数据；4 个并发实例跨两台设备写入 60 次，每台额度设为 10 且不超限。定位检查覆盖 XML 优先、多目标部分命中、坐标保持一致、设备/应用/像素/UI 树变化、旧截图、纠错反馈、未解决的执行失败、多候选/无效结果及数据库损坏或锁定。运行产生 11 条依赖或测试 mock 警告，没有失败。这些属于单元和回归检查，只有上表的截图重放调用了真实模型。
 
-本地运行 25 项缓存专项用例：
+2026-10-11 将容量统一到 JSONC 后，扩展回归运行 **205 项通过，耗时 17.89 秒**，仍有 11 条依赖或测试 mock 警告。其中 **34 项为缓存及配置用例**，新增 SDK 配置传递、任务已加载设置、非法容量拒绝、配置容量下的 LRU 淘汰及配置关闭检查。上面的 150 项结果作为之前的一次运行记录保留，本次没有重新测量真实模型的截图耗时。
+
+本地运行 34 项缓存及配置用例：
 
 ```bash
-python -m pytest tests/unit/utils/test_visual_location_cache.py tests/unit/agents/test_visual_location_routing.py -q
+python -m pytest tests/unit/utils/test_visual_location_cache.py tests/unit/agents/test_visual_location_routing.py tests/unit/config/test_visual_location_cache_config.py -q
 ```
 
 ### 图片输入基准测试（2026-10-10）

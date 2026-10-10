@@ -20,6 +20,7 @@ from artemis.config import (
     OutputterConfig,
     ProProfileConfig,
     VideoAnalyzerConfig,
+    VisualLocationCacheConfig,
 )
 from artemis.context import DevicePlatform
 from artemis.utils.video import detect_video_tools_enabled
@@ -63,6 +64,9 @@ class AgentConfig(AgentConfigBase):
     flash: FlashProfileConfig = Field(default_factory=FlashProfileConfig)
     pro: ProProfileConfig = Field(default_factory=ProProfileConfig)
     explorer: ExplorerConfig = Field(default_factory=ExplorerConfig)
+    visual_location_cache: VisualLocationCacheConfig = Field(
+        default_factory=VisualLocationCacheConfig
+    )
     # Advanced per-agent tier override; empty so the per-profile knobs
     # (``explorer.flash_mode`` / ``explorer.pro_mode``) decide by default.
     explorer_versions: dict[str, Literal["flash", "pro", "ultra"]] = Field(default_factory=dict)
