@@ -426,6 +426,13 @@ class AndroidAdbDriver(BaseDeviceDriver):
             logger.debug(f"Error querying current package: {e}")
         return None
 
+    async def get_status_bar_bounds(self) -> tuple[int, int, int, int] | None:
+        """Read the visible system status-bar inset; never guess a fixed top crop."""
+        from artemis.utils.visual_page_fingerprint import status_bar_from_insets
+
+        dump = await asyncio.to_thread(self.device.shell, "dumpsys window displays")
+        return status_bar_from_insets(dump, self.screen_size)
+
     async def execute_shell(self, command: str, timeout_seconds: float = 15.0) -> str:
         try:
             return await asyncio.wait_for(

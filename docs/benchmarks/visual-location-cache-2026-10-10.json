@@ -58,5 +58,30 @@
     ],
     "scope": "Original regression test files plus the additional files, including newly added routing cases; verifies centralized JSONC capacity and enablement. No repeated live screenshot benchmark."
   },
+  "fingerprint_v2_verification": {
+    "date": "2026-10-11",
+    "passed": 239,
+    "failed": 0,
+    "warnings": 11,
+    "seconds": 18.16,
+    "new_cases": 26,
+    "cache_and_configuration_cases": 60,
+    "additional_test_files": [
+      "tests/unit/utils/test_visual_page_fingerprint.py",
+      "tests/unit/test_drivers.py",
+      "tests/unit/drivers/test_driver_factory.py"
+    ],
+    "live_capture_check": {
+      "real_screenshots": 2,
+      "status_pixels_changed": true,
+      "main_pixels_equal": false,
+      "page_key_equal": false,
+      "cache_hit": false,
+      "controlled_status_only_hit": true,
+      "model_calls": 0,
+      "device_actions": 0,
+      "scope": "Two read-only captures of an ARTEMIS-explored screen; controlled image combines the first body with the second real status strip. Cache seeded with an ARTEMIS-verified target coordinate. Not an inference latency benchmark."
+    }
+  },
   "privacy": "No screenshots, device identifiers, account information, local absolute paths, session identifiers or raw model responses."
 }

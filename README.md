@@ -41,7 +41,7 @@ This fork can use the ChatGPT session from the locally installed **Codex CLI** a
 | Key-free Codex provider | Planner, Operator, Checker, Explorer, Outputter, summaries, and history compression use the signed-in Codex client. |
 | Multimodal input | Screenshots are sent as local image inputs through Codex App Server. |
 | Screenshot size control | Local and embedded images use lossy WebP quality 70/100 with proportional 720p bounds before Codex calls; original captures remain available for device coordinates. |
-| Visual location reuse | After UI-tree locating fails, reuse visual positions from a persistent per-device LRU only when both screenshot pixels and the hierarchy are unchanged. |
+| Visual location reuse | After UI-tree locating fails, reuse positions from a persistent per-device LRU when main-content pixels and the hierarchy match; verified status-bar changes are ignored. |
 | Isolated execution | Every model call uses a temporary Codex thread with a read-only sandbox and no approval prompts; Artemis remains responsible for device actions. |
 | First-run bootstrap | Startup scripts install or locate ADB, scrcpy, FFmpeg, Codex CLI, `uv`/Python, Node.js, and project dependencies; `--with-ios` opts in to Appium/XCUITest setup on macOS. |
 | Cross-platform setup | Windows, Apple Silicon macOS, Intel macOS, and Linux use the same dependency and readiness workflow. |
@@ -63,7 +63,9 @@ The short edge is capped at 720 pixels and the long edge at 1600, without upscal
 
 Locating follows **ADB/UI hierarchy → local visual location cache → image OCR/model**. Normal ADB actions and XML matches never query this cache. Each device has its own persistent **2000-position LRU**, shared across its system, launcher and application groups; package, page fingerprint, screen dimensions, target and locating strategy further distinguish entries. Reading a position refreshes its recency; the least recently used positions on that device are evicted when full. One entry contains one position, not an entire action sequence.
 
-The unchanged-UI guard compares exact decoded screenshot pixels and the full UI hierarchy, rather than a perceptual hash. App/device changes, scrolling, overlays, rotation and text/tree changes miss the cache. Clock or animation changes can also cause a conservative miss. Historical screenshots, unknown devices/apps, ambiguous/missing locations and invalid coordinates are not cached. Correction feedback or an open execution incident bypasses and invalidates the relevant target. A corrupt, busy or unwritable cache falls back to normal locating. A location is an inference result, not proof that a subsequent tap achieved its goal; clicks still use the existing executor and verification behavior.
+The unchanged-UI guard compares exact decoded **main-content** pixels and the UI hierarchy, rather than a perceptual hash. A status bar identified by explicit UI nodes or a visible Android system inset is masked, so its clock, battery and icon changes do not invalidate an otherwise unchanged page. Status-bar nodes and dump-only node indices are excluded from the hierarchy fingerprint. There is no guessed fixed-percentage top crop; unknown, hidden, conflicting or oversized boundaries fall back to full-screen comparison. App controls at the top prevent masking when they may overlap the bar.
+
+App/device changes, scrolling, popups, keyboards, notification panels/banners, rotation, main-content text/pixel changes and layout changes miss the cache. Other content animations may still cause conservative misses. Targets whose point neighborhood (at least 4 pixels, otherwise 2% of the shorter screen edge) or supplied bounds touch the ignored bar are never stored or reused. Historical screenshots, unknown devices/apps, ambiguous/missing locations and invalid coordinates are not cached. Correction feedback or an open execution incident bypasses and invalidates the relevant target. A corrupt, busy or unwritable cache falls back to normal locating. Fingerprint version 2 starts with a miss for older fingerprints and relearns positions through normal locating. A location is an inference result, not proof that a subsequent tap achieved its goal; clicks still use the existing executor and verification behavior.
 
 The default database is `.cache/visual_locations.sqlite3` beside the installation's `.env`; it survives task and process restarts and is excluded from Git. Only location metadata and fingerprints are stored, not screenshots or complete model responses. Flash and direct object detection cache each target separately, including partially cached requests; Pro/Ultra reuse unambiguous single-target outcomes before image OCR or the reasoning loop.
 
@@ -98,10 +100,12 @@ The final cache and affected-routing regression run passed **150 tests in 16.82 
 
 After moving cache capacity into JSONC on 2026-10-11, the expanded regression run passed **205 tests in 17.89 s** with 11 dependency/test-mock warnings. It includes **34 cache/configuration cases**, covering SDK propagation, task-loaded settings, invalid capacity rejection, configured LRU eviction and configuration disablement. The earlier 150-test result above is retained as a separate recorded run; the live screenshot measurements were not repeated.
 
-Run the 34 cache/configuration cases locally with:
+The status-bar fingerprint update added **26 cases**; the expanded run passed **239 tests in 18.16 s**, including **60 cache/configuration cases**, with 11 dependency/test-mock warnings. Two read-only real captures had changes in both the status strip and main content and correctly missed. A controlled image combining the first capture's body with the second capture's actual status strip hit the seeded cache. This checks fingerprint behavior, not inference latency; no model request or device action was performed. The public verification JSON records this separately from the earlier measurements.
+
+Run the 60 cache/configuration cases locally with:
 
 ```bash
-python -m pytest tests/unit/utils/test_visual_location_cache.py tests/unit/agents/test_visual_location_routing.py tests/unit/config/test_visual_location_cache_config.py -q
+python -m pytest tests/unit/utils/test_visual_location_cache.py tests/unit/utils/test_visual_page_fingerprint.py tests/unit/agents/test_visual_location_routing.py tests/unit/config/test_visual_location_cache_config.py -q
 ```
 
 ### Image Input Benchmark (2026-10-10)

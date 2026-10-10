@@ -19,6 +19,12 @@ import sqlite3
 
 from PIL import Image, ImageOps
 
+from artemis.utils.visual_page_fingerprint import (
+    content_fingerprint,
+    status_bar_from_hierarchy,
+    target_outside_ignored_regions,
+)
+
 logger = logging.getLogger(__name__)
 MAX_LOCATIONS_PER_DEVICE = 2000
 
@@ -51,10 +57,14 @@ class LocationScope:
     category: str
     application: str
     page_key: str
+    image_size: tuple[int, int] = (0, 0)
+    ignored_regions: tuple[tuple[int, int, int, int], ...] = ()
 
 
-def screen_scope(device, application: str, image_bytes: bytes, hierarchy, size) -> LocationScope:
-    """Exact decoded pixels plus the full hierarchy; not a perceptual similarity hint."""
+def screen_scope(
+    device, application: str, image_bytes: bytes, hierarchy, size, status_bar_bounds=None
+) -> LocationScope:
+    """Exact main-content pixels/tree, excluding only a verified system status bar."""
     with Image.open(BytesIO(image_bytes)) as source:
         image = ImageOps.exif_transpose(source).convert("RGB")
     if image.size != tuple(size) or min(image.size) < 16:
@@ -87,14 +97,16 @@ def screen_scope(device, application: str, image_bytes: bytes, hierarchy, size) 
         "com.google.android.apps.nexuslauncher",
     }:
         category = "launcher"
-    page_key = _digest(
-        {
-            "pixels": hashlib.sha256(image.tobytes()).hexdigest(),
-            "size": image.size,
-            "hierarchy": hierarchy,
-        }
+    fingerprint = content_fingerprint(image, hierarchy, status_bar_bounds)
+    return LocationScope(
+        device_key,
+        device_info,
+        category,
+        application,
+        _digest(fingerprint),
+        image.size,
+        fingerprint["ignored_regions"],
     )
-    return LocationScope(device_key, device_info, category, application, page_key)
 
 
 async def scope_for_state(ctx, state, screenshot_path) -> LocationScope | None:
@@ -113,7 +125,8 @@ async def scope_for_state(ctx, state, screenshot_path) -> LocationScope | None:
         from artemis.agents.explorer.geometry import resolve_screen_size
         from artemis.drivers.factory import get_driver
 
-        application = await asyncio.wait_for(get_driver(ctx).get_current_package(), timeout=2)
+        driver = get_driver(ctx)
+        application = await asyncio.wait_for(driver.get_current_package(), timeout=2)
         if not isinstance(application, str) or not application.strip():
             return None
         hierarchy = getattr(state, "latest_ui_hierarchy", None)
@@ -122,9 +135,16 @@ async def scope_for_state(ctx, state, screenshot_path) -> LocationScope | None:
         if not isinstance(hierarchy, list):
             return None
         size = resolve_screen_size(ctx, state)
+        status_bar = status_bar_from_hierarchy(hierarchy, size)
+        probe = getattr(driver, "get_status_bar_bounds", None)
+        if status_bar is None and callable(probe):
+            try:
+                status_bar = await asyncio.wait_for(probe(), timeout=1)
+            except Exception:
+                logger.debug("Status-bar bounds unavailable; keeping full-screen guard")
         return await asyncio.to_thread(
             lambda: screen_scope(
-                device, application, Path(screenshot_path).read_bytes(), hierarchy, size
+                device, application, Path(screenshot_path).read_bytes(), hierarchy, size, status_bar
             )
         )
     except Exception as exc:
@@ -205,6 +225,10 @@ class VisualLocationCache:
                         key,
                     )
                     return None
+                if not target_outside_ignored_regions(
+                    value, scope.image_size, scope.ignored_regions
+                ):
+                    return None
                 db.execute(
                     """UPDATE locations SET recency=(
                     SELECT COALESCE(MAX(recency),0)+1 FROM locations WHERE device_key=?
@@ -219,6 +243,8 @@ class VisualLocationCache:
 
     def put(self, scope: LocationScope, query: str, namespace: str, location: dict):
         if not valid_location(location):
+            return
+        if not target_outside_ignored_regions(location, scope.image_size, scope.ignored_regions):
             return
         # One row holds exactly one target position; never persist raw responses.
         value = {

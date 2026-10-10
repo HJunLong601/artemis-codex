@@ -226,3 +226,45 @@ async def test_jsonc_disable_cannot_be_reenabled_by_legacy_environment_switch(
     await run(ctx, state)
     assert inference.await_count == 2
     driver.get_current_package.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_status_clock_hit_but_popup_and_target_move_miss(environment):
+    ctx, state, _, inference = environment
+    state.latest_ui_hierarchy.extend(
+        [
+            {"resource-id": "com.android.systemui:id/status_bar", "bounds": "[0,0][100,10]"},
+            {
+                "resource-id": "com.android.systemui:id/clock",
+                "text": "10:00",
+                "bounds": "[5,1][30,8]",
+            },
+        ]
+    )
+    await run(ctx, state)
+    image = Image.new("RGB", (100, 200), "white")
+    image.paste("black", (0, 0, 100, 10))
+    image.save(state.latest_screenshot)
+    state.latest_ui_hierarchy[-1]["text"] = "10:01"
+    assert (await run(ctx, state))["location_cache_hits"] == 1
+    inference.assert_awaited_once()
+    state.latest_ui_hierarchy.append({"text": "Dialog", "bounds": "[10,60][90,180]"})
+    await run(ctx, state)
+    assert inference.await_count == 2
+    state.latest_ui_hierarchy[-1]["bounds"] = "[10,80][90,190]"
+    await run(ctx, state)
+    assert inference.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_native_bounds_probe_failure_keeps_strict_guard(environment):
+    ctx, state, driver, inference = environment
+    driver.get_status_bar_bounds = AsyncMock(return_value=(0, 0, 100, 10))
+    await run(ctx, state)
+    image = Image.new("RGB", (100, 200), "white")
+    image.paste("black", (0, 0, 100, 10))
+    image.save(state.latest_screenshot)
+    assert (await run(ctx, state))["location_cache_hits"] == 1
+    driver.get_status_bar_bounds.side_effect = RuntimeError("Insets unavailable")
+    await run(ctx, state)
+    assert inference.await_count == 2
