@@ -265,12 +265,14 @@ class ModelFactory:
         elif provider == ModelProvider.CODEX:
             from artemis.llm.codex_app_server import CodexAppServerChatModel
 
-            return CodexAppServerChatModel(
-                model_name=endpoint.model_name,
-                reasoning_effort=endpoint.reasoning_effort,
-                timeout_seconds=endpoint.timeout_seconds,
-                cwd=os.getcwd(),
-            )
+            codex_kwargs = {
+                "model_name": endpoint.model_name,
+                "timeout_seconds": endpoint.timeout_seconds,
+                "cwd": os.getcwd(),
+            }
+            if endpoint.reasoning_effort is not None:
+                codex_kwargs["reasoning_effort"] = endpoint.reasoning_effort
+            return CodexAppServerChatModel(**codex_kwargs)
 
         elif provider == ModelProvider.VERTEX_AI:
             from langchain_google_vertexai import (

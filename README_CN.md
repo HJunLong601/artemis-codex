@@ -127,6 +127,38 @@ A 组有 3 次推理前的 App Server/MCP 初始化失败，发生时内存压�
 
 选择 Codex 客户端时，核心自动化功能无需 API Key。只有显式启用云 OCR，或切换至 Gemini、OpenAI API、Anthropic、OpenRouter、xAI Provider 时，才需要配置对应的 Key。通用适配层已发布为 [codex-client-provider](https://github.com/HJunLong601/codex-client-provider/blob/main/README_CN.md)，Artemis 固定依赖其 PyPI `0.1.0` 版本；协议、模型路由、配置项和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。
 
+### 模型图片识别对照（2026-10-11）
+
+在同一时段通过生产 Codex 适配器，对同样的 8 个 ARTEMIS 实机验证页面重放测试：`gpt-6.1-sol` 与 `gpt-6-luna` 都使用 `medium` 推理，相同的 720×1600 WebP Q70 图片（8 张总计 219.3 KiB）、提示词及结构化输出。每页两轮反转模型先后顺序，每个模型测量 16 次，各预热一次且不计入结果。[脱敏数据](./docs/benchmarks/models-luna-sol-2026-10-11.json) 包含逐页汇总，不包含截图、标识或原始回复。
+
+| 模型 | 请求中位数（s） | 总耗时中位数（s） | 总耗时 P90（s） | 文字区域核对 | 目标命中 | 全部核对通过 |
+|---|---:|---:|---:|---:|---:|---:|
+| `gpt-6.1-sol` | 11.95 | 12.10 | 13.17 | 48/48（100%） | 16/16（100%） | 16/16（100%） |
+| `gpt-6-luna` | 14.32 | 14.47 | 19.38 | 28/48（58.3%） | 14/16（87.5%） | 7/16（43.8%） |
+
+没有调用错误。每次核对 3 个指定区域的文字，以及目标点是否落在已确认的范围内；没有把文字答案或目标边界发送给模型。识别核对失败仍计入耗时和通过率。配对总耗时比 Luna / Sol 为 **1.251**（95% 页面聚类 bootstrap 区间 **1.179–1.351**，16 对），Luna 仅有一对更快。本次样本不支持为了视觉识别提速切换到 Luna。
+
+总耗时包含 PNG 解码、等比缩放和 WebP 编码；请求耗时包含适配器、App Server、上传、排队、推理和输出。不包含截图采集、源文件读取、报告写入和会话清理。本地视觉位置缓存已绕过。服务端提示缓存命中次数为 **Sol 3/16，Luna 16/16**，未控制冷缓存或热缓存，因此数据反映调用链路实际耗时，不能单独归因于模型计算速度。这是固定简单页面的小样本核对，不代表整条自动化任务的成功率，也没有与历史图片格式实验合并。本次没有修改生产模型配置。
+
+`scripts/benchmark_models.py` 可使用本地已验证的清单复现；`scripts/report_model_benchmark.py` 导出脱敏 JSON 和本地 HTML 报告。评分、图片策略及输入字节回归检查 **33 项通过**，有一条依赖弃用警告。
+
+### Sol 推理档位与 Astra 对照（2026-10-11）
+
+另做同一时段的 **Sol low、medium、high 和 Astra medium** 四组对照，沿用相同的 8 个已验证页面和 WebP Q70 720×1600 图片。每页轮换配置先后位置，第二轮反转；每组正式测量 16 次，各预热一次且不计入统计。重新测量 Sol medium 作为本轮基线。[脱敏数据](./docs/benchmarks/sol-efforts-astra-2026-10-11.json) 包含逐页、逐轮统计，没有混入之前 Luna 实验的耗时。
+
+| 模型 | 推理 | 请求中位数（s） | 总耗时中位数（s） | 总耗时 P90（s） | 文字核对 | 目标命中 | 全部核对通过 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| `gpt-6.1-sol` | medium | 11.53 | 11.70 | 14.60 | 48/48 | 16/16 | 16/16 |
+| `gpt-6.1-sol` | low | 10.27 | 10.40 | 12.37 | 48/48 | 16/16 | 16/16 |
+| `gpt-6.1-sol` | high | 11.65 | 11.78 | 13.70 | 48/48 | 16/16 | 16/16 |
+| `gpt-6-astra` | medium | 9.69 | 9.83 | 12.94 | 48/48 | 16/16 | 16/16 |
+
+没有调用错误或识别核对失败。与本轮 Sol medium 配对比较，总耗时比为 **Sol low 0.878**（名义 95% 页面聚类 bootstrap 区间 **0.803–0.954**，13/16 对更快）、**Sol high 0.988**（**0.897–1.081**，5/16）和 **Astra medium 0.860**（**0.797–0.927**，12/16）。本次样本中，low 和 Astra 的配对耗时约降低 **12.2% 和 14.0%**；high 的区间跨 1，未确认速度差异。区间没有对三次比较作多重校正。四组识别均达到满分，不能据此认定复杂页面上能力相同，也无法判断 high 在复杂识别中的收益。
+
+计时范围和每次 3 项文字区域、1 项目标核对与上文一致，绕过本地视觉位置缓存。服务端提示缓存命中次数依次为 medium **6/16**、low **7/16**、high **6/16**、Astra **5/16**；没有控制冷缓存或热缓存。数据包含客户端、网络和排队开销，反映调用链路耗时。本次没有修改生产配置。模型及请求推理档位先经 `model/list` 检查，再显式传给适配器；回复遥测能核对模型名称，但不返回实际生效的推理档位。
+
+`scripts/benchmark_models.py` 支持重复传入 `--profile 模型:推理档位`，第一组作为配对基线；`scripts/report_model_profiles.py` 导出脱敏数据及本地 HTML。已检查旧报告兼容、顺序均衡与反转、同一模型不同档位的统计隔离、配对汇总、脱敏及未完成/重复数据拒绝发布。评分和图片输入回归再次 **33 项通过**，有一条依赖弃用警告。
+
 <a id="model-configuration"></a>
 ### 配置模型
 
@@ -134,10 +166,12 @@ A 组有 3 次推理前的 App Server/MCP 初始化失败，发生时内存压�
 
 | 配置项 | 用途 |
 |---|---|
-| `default` | Agent 节点继承的 Provider、模型、推理强度和回退模型。仓库默认使用 Codex 客户端的 `gpt-6.1-sol`、`medium` 推理，回退到 `gpt-6-luna`；轻量节点保留 Luna 档位。 |
+| `default` | Agent 节点继承的 Provider、模型、推理强度和回退模型。仓库默认使用 Codex 客户端的 `gpt-6.1-sol`、`low` 推理，回退到 `gpt-6-luna`；轻量节点保留 Luna 档位。 |
 | `nodes` | 分别覆盖 `planner`、`operator`、`explorer`、`checker` 等角色；未指定的字段继承 `default`。 |
 | `presets` | 预设的 Provider/模型组合，用于切换模型路由。 |
 | `agent.flash` / `agent.pro` | Flash、Pro 的运行行为，包括 Explorer 档位和 Flash 步骤摘要模型。 |
+
+Planner、Operator、Explorer、Checker 继承全局默认的 `low` 推理；`codex-client` 预设、打包配置和直接实例化的 Artemis Codex 适配器也默认使用 Sol low。仍可在节点或构造参数中显式覆盖。修改后重启 ARTEMIS/MCP 进程使配置生效。
 
 例如，修改 `default.model` 可调整主模型，设置 `nodes.operator.model` 则只调整 Operator；同时检查回退模型及角色专属模型是否与所选 Provider 兼容。源码运行优先读取 `config/artemis.jsonc`，打包默认模板位于 [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc)；也可以用 `ARTEMIS_ARTEMIS_JSONC` 指向另一份已存在的模型配置。非 Codex Provider 的 API Key 应放进已被 Git 忽略的 `.env`，不要写入受版本控制的 JSONC。修改配置后需重启正在运行的 ARTEMIS 进程。
 

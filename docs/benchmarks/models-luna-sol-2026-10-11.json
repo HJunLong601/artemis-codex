@@ -1,0 +1,269 @@
+{
+  "date": "2026-10-11",
+  "models": [
+    "gpt-6.1-sol",
+    "gpt-6-luna"
+  ],
+  "reasoning_effort": "medium",
+  "pages": 8,
+  "rounds": 2,
+  "input": {
+    "format": "WEBP",
+    "dimensions": [
+      720,
+      1600
+    ],
+    "quality": 70,
+    "method": 4,
+    "lossless": false,
+    "total_bytes_8_images": 224594
+  },
+  "summary": [
+    {
+      "model": "gpt-6.1-sol",
+      "attempts": 16,
+      "successful": 16,
+      "errors": 0,
+      "text_correct": 48,
+      "text_evaluated": 48,
+      "target_hits": 16,
+      "all_checks_passed": 16,
+      "median_request_seconds": 11.953005649997067,
+      "median_total_seconds": 12.09609669999918,
+      "median_conversion_seconds": 0.14001650000136578,
+      "p90_total_seconds": 13.172714649997943,
+      "median_input_tokens": 20653.0,
+      "median_output_tokens": 144.5,
+      "requests_with_cache_telemetry": 16,
+      "requests_with_cached_input": 3,
+      "median_cache_read_tokens": 0.0
+    },
+    {
+      "model": "gpt-6-luna",
+      "attempts": 16,
+      "successful": 16,
+      "errors": 0,
+      "text_correct": 28,
+      "text_evaluated": 48,
+      "target_hits": 14,
+      "all_checks_passed": 7,
+      "median_request_seconds": 14.323750949999521,
+      "median_total_seconds": 14.466650299997127,
+      "median_conversion_seconds": 0.14148089999798685,
+      "p90_total_seconds": 19.37726029999976,
+      "median_input_tokens": 20726.0,
+      "median_output_tokens": 390.5,
+      "requests_with_cache_telemetry": 16,
+      "requests_with_cached_input": 16,
+      "median_cache_read_tokens": 20224.0
+    }
+  ],
+  "per_page": [
+    {
+      "page": "设置首页",
+      "index": 1,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "median_total_seconds": 12.124902049999946,
+          "text_correct": 6,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 2,
+          "attempts": 2
+        },
+        {
+          "model": "gpt-6-luna",
+          "median_total_seconds": 15.460363949998282,
+          "text_correct": 3,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 1,
+          "attempts": 2
+        }
+      ]
+    },
+    {
+      "page": "显示",
+      "index": 2,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "median_total_seconds": 12.601959449999413,
+          "text_correct": 6,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 2,
+          "attempts": 2
+        },
+        {
+          "model": "gpt-6-luna",
+          "median_total_seconds": 14.028591800000868,
+          "text_correct": 6,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 2,
+          "attempts": 2
+        }
+      ]
+    },
+    {
+      "page": "声音与振动",
+      "index": 3,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "median_total_seconds": 11.514096499999141,
+          "text_correct": 6,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 2,
+          "attempts": 2
+        },
+        {
+          "model": "gpt-6-luna",
+          "median_total_seconds": 19.14285860000018,
+          "text_correct": 2,
+          "text_evaluated": 6,
+          "target_hits": 1,
+          "passed": 0,
+          "attempts": 2
+        }
+      ]
+    },
+    {
+      "page": "通知与控制中心",
+      "index": 4,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "median_total_seconds": 12.198035500001424,
+          "text_correct": 6,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 2,
+          "attempts": 2
+        },
+        {
+          "model": "gpt-6-luna",
+          "median_total_seconds": 14.268337749999773,
+          "text_correct": 2,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 0,
+          "attempts": 2
+        }
+      ]
+    },
+    {
+      "page": "省电与电池",
+      "index": 5,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "median_total_seconds": 12.572054499996739,
+          "text_correct": 6,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 2,
+          "attempts": 2
+        },
+        {
+          "model": "gpt-6-luna",
+          "median_total_seconds": 14.648149199998443,
+          "text_correct": 4,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 1,
+          "attempts": 2
+        }
+      ]
+    },
+    {
+      "page": "更多设置",
+      "index": 6,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "median_total_seconds": 11.247810000000754,
+          "text_correct": 6,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 2,
+          "attempts": 2
+        },
+        {
+          "model": "gpt-6-luna",
+          "median_total_seconds": 14.200565299997834,
+          "text_correct": 3,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 1,
+          "attempts": 2
+        }
+      ]
+    },
+    {
+      "page": "系统桌面",
+      "index": 7,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "median_total_seconds": 13.501822649999667,
+          "text_correct": 6,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 2,
+          "attempts": 2
+        },
+        {
+          "model": "gpt-6-luna",
+          "median_total_seconds": 17.03162804999738,
+          "text_correct": 3,
+          "text_evaluated": 6,
+          "target_hits": 1,
+          "passed": 1,
+          "attempts": 2
+        }
+      ]
+    },
+    {
+      "page": "计算器首次使用说明",
+      "index": 8,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "median_total_seconds": 12.306734399997367,
+          "text_correct": 6,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 2,
+          "attempts": 2
+        },
+        {
+          "model": "gpt-6-luna",
+          "median_total_seconds": 16.145544099999825,
+          "text_correct": 5,
+          "text_evaluated": 6,
+          "target_hits": 2,
+          "passed": 1,
+          "attempts": 2
+        }
+      ]
+    }
+  ],
+  "paired_total_time": {
+    "geomean_ratio": 1.2506987518751909,
+    "ratio_ci95": [
+      1.1786655351095707,
+      1.3508746997501822
+    ],
+    "faster_pairs": 1,
+    "pages": 8
+  },
+  "paired_samples": 16,
+  "method": "8 fixed ARTEMIS-verified pages, paired alternating model order, 2 rounds by default. Production 720p WebP Q70 policy, identical image bytes, prompts and schema. Three exact text checks plus target-in-bounds; ground truth never sent. Request includes adapter/App Server/upload/queue/inference/output; total includes PNG decode/resize/WebP encoding. Capture, source reads, report writes, warmups and cleanup excluded. No visual cache, retries, fallback or device actions.",
+  "limitations": "Small fixed-screen sample; recognition checks are not general UI-action success or difficult-screen coverage. Provider prompt-cache hits are unequal between models; cold/warm cache was not controlled. Local visual-location cache bypassed. Timing includes queue/network/client overhead, not isolated model compute. No comparison against separately measured historical timings.",
+  "privacy": "Allowlisted aggregate only: no screenshots, device/account identifiers, raw responses, session IDs or local absolute paths.",
+  "model_reference": "https://developers.openai.com/api/docs/models/gpt-6-luna"
+}

@@ -15,6 +15,7 @@
 """Coverage for the thin Artemis integration around the reusable provider."""
 
 import json
+from pathlib import Path
 
 from langchain_core.messages import HumanMessage
 import pytest
@@ -26,11 +27,54 @@ from artemis.llm.codex_app_server import CodexAppServerChatModel
 from artemis.llm.router import ModelEndpoint, ModelFactory, ModelProvider
 
 
-def test_adapter_defaults_to_sol_61_medium_and_webp_policy():
+def test_adapter_defaults_to_sol_61_low_and_webp_policy():
     model = CodexAppServerChatModel()
     assert model.model_name == "gpt-6.1-sol"
-    assert model.reasoning_effort == "medium"
+    assert model.reasoning_effort == "low"
     assert model.image_preprocessing_enabled
+
+
+@pytest.mark.parametrize(
+    "requested,expected", [(None, "low"), ("medium", "medium"), ("high", "high")]
+)
+def test_router_uses_default_effort_and_preserves_explicit_override(requested, expected):
+    model = ModelFactory.create_model(
+        ModelEndpoint(
+            provider=ModelProvider.CODEX, model_name="gpt-6.1-sol", reasoning_effort=requested
+        )
+    )
+    assert model.reasoning_effort == expected
+
+
+@pytest.mark.parametrize(
+    "relative_path", ["config/artemis.jsonc", "artemis/resources/config/artemis.jsonc"]
+)
+def test_shipped_sol_routes_inherit_low_and_allow_node_override(relative_path):
+    from artemis.config.llm import LLMConfig, _expand_default_into_nodes
+    from third_party.mobile_use.utils.file import load_jsonc
+
+    root = Path(__file__).resolve().parents[2]
+    with (root / relative_path).open(encoding="utf-8") as stream:
+        raw = load_jsonc(stream)
+    cfg = LLMConfig.model_validate(_expand_default_into_nodes(raw))
+    routes = {
+        name: model for name, model in cfg.iter_primary_models() if model.model == "gpt-6.1-sol"
+    }
+    assert {"planner", "operator", "explorer", "checker", "utils.object_detector"}.issubset(routes)
+    for model in routes.values():
+        assert model.provider == "codex"
+        assert model.reasoning_effort == "low"
+    assert raw["presets"]["codex-client"]["reasoning_effort"] == "low"
+
+    # A later global or per-node change must reach the real expanded routes.
+    raw["default"]["reasoning_effort"] = "high"
+    raw["nodes"]["explorer"]["reasoning_effort"] = "medium"
+    overrides = LLMConfig.model_validate(_expand_default_into_nodes(raw))
+    assert overrides.planner.reasoning_effort == "high"
+    assert overrides.operator.reasoning_effort == "high"
+    assert overrides.checker.reasoning_effort == "high"
+    assert overrides.utils.object_detector.reasoning_effort == "high"
+    assert overrides.explorer.reasoning_effort == "medium"
 
 
 def test_telemetry_kill_switch(monkeypatch):

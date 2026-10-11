@@ -46,7 +46,7 @@ codex login status
   "default": {
     "provider": "codex",
     "model": "gpt-6.1-sol",
-    "reasoning_effort": "medium",
+    "reasoning_effort": "low",
     "fallback": {
       "provider": "codex",
       "model": "gpt-6-luna",
@@ -60,7 +60,7 @@ codex login status
 后，可以通过 App Server 的 `model/list` 查看实时目录。若 `codex` 不在 `PATH`，
 设置 `ARTEMIS_CODEX_BIN` 为可执行文件的绝对路径。
 
-主模型使用 6.1 Sol，轻量摘要、历史压缩和校验节点保留 6 Luna 档位。
+主模型使用 6.1 Sol、low 推理；Planner、Operator、Explorer、Checker 默认继承该档位，可在 `nodes` 中单独覆盖。轻量摘要、历史压缩和校验节点保留 6 Luna 档位。
 使用能在 `model/list` 中列出 `gpt-6.1-sol` 的新版 Codex 客户端；旧客户端可能拒绝该模型。
 
 ### 截图尺寸与压缩

@@ -53,7 +53,7 @@ class CodexAppServerChatModel(_CodexAppServerChatModel):
     """Codex App Server model carrying Artemis identity in protocol metadata."""
 
     model_name: str = Field(default="gpt-6.1-sol")
-    reasoning_effort: str | None = Field(default="medium")
+    reasoning_effort: str | None = Field(default="low")
     client_name: str = Field(default="artemis")
     client_title: str = Field(default="Artemis")
     client_version: str = Field(default="1.0")

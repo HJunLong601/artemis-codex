@@ -127,6 +127,38 @@ Request timing includes adapter work, App Server, upload, queueing, inference an
 
 Core automation does not need an API key when the Codex client is selected. Cloud OCR and alternative Gemini, OpenAI API, Anthropic, OpenRouter, or xAI providers still require their corresponding keys when explicitly enabled. The reusable adapter is published as [codex-client-provider](https://pypi.org/project/codex-client-provider/); see [Codex client provider](./docs/codex-client-provider.md) for the protocol, model routing, configuration, and limitations.
 
+### Model Recognition Benchmark (2026-10-11)
+
+A new paired comparison replayed the same eight ARTEMIS-verified pages through the production Codex adapter: `gpt-6.1-sol` versus `gpt-6-luna`, both with `medium` reasoning, identical 720×1600 WebP Q70 inputs (219.3 KiB across eight images), prompts and structured output. Two rounds reversed model order per page, giving 16 measured requests per model; one warmup per model was excluded. [Anonymized results](./docs/benchmarks/models-luna-sol-2026-10-11.json) include per-page aggregates without screenshots, identifiers or raw responses.
+
+| Model | Request median (s) | Total median (s) | Total P90 (s) | Text-region checks | Target hits | All checks passed |
+|---|---:|---:|---:|---:|---:|---:|
+| `gpt-6.1-sol` | 11.95 | 12.10 | 13.17 | 48/48 (100%) | 16/16 (100%) | 16/16 (100%) |
+| `gpt-6-luna` | 14.32 | 14.47 | 19.38 | 28/48 (58.3%) | 14/16 (87.5%) | 7/16 (43.8%) |
+
+There were no request errors. Each request checked three specified text regions and one target point against verified bounds; answers and the target bounds were not sent to either model. Recognition failures remain in latency and pass-rate statistics. The paired total-time ratio, Luna / Sol, was **1.251** (95% page-cluster bootstrap interval **1.179–1.351**, 16 pairs); Luna was faster in only one pair. This sample does not support switching visual recognition to Luna for speed.
+
+Total timing includes PNG decoding, proportional resizing and WebP encoding; request timing includes the adapter, App Server, upload, queueing, inference and output. Capture, source reads, report writes and session cleanup are excluded. Local visual location caching was bypassed. Provider prompt-cache hits were **3/16 for Sol and 16/16 for Luna**; cold/warm cache was not controlled, so these are observed call-chain timings rather than isolated model computation. This small fixed-screen sample is not an overall automation success rate and is not pooled with historical image-format measurements. The production model configuration was not changed.
+
+`scripts/benchmark_models.py` reproduces the paired experiment using a locally verified manifest; `scripts/report_model_benchmark.py` exports the aggregate JSON and local HTML report. Scoring, image-policy and payload regression checks passed **33 tests** with one dependency deprecation warning.
+
+### Sol Reasoning Efforts and Astra (2026-10-11)
+
+A separate same-run comparison tested **Sol low, medium, high and Astra medium** on the same eight verified pages and identical WebP Q70 720×1600 inputs. Two rounds rotated configuration positions per page and reversed them in round two; each configuration had 16 measured requests and one excluded warmup. Sol medium was measured again as the baseline. [Anonymized results](./docs/benchmarks/sol-efforts-astra-2026-10-11.json) include per-page and per-round statistics; earlier Luna timings are not pooled into this experiment.
+
+| Model | Effort | Request median (s) | Total median (s) | Total P90 (s) | Text checks | Target hits | All checks passed |
+|---|---|---:|---:|---:|---:|---:|---:|
+| `gpt-6.1-sol` | medium | 11.53 | 11.70 | 14.60 | 48/48 | 16/16 | 16/16 |
+| `gpt-6.1-sol` | low | 10.27 | 10.40 | 12.37 | 48/48 | 16/16 | 16/16 |
+| `gpt-6.1-sol` | high | 11.65 | 11.78 | 13.70 | 48/48 | 16/16 | 16/16 |
+| `gpt-6-astra` | medium | 9.69 | 9.83 | 12.94 | 48/48 | 16/16 | 16/16 |
+
+There were no call errors or recognition failures. Against the same-run Sol medium baseline, paired total-time ratios were **0.878 for Sol low** (nominal 95% page-cluster bootstrap interval **0.803–0.954**, faster in 13/16 pairs), **0.988 for Sol high** (**0.897–1.081**, 5/16), and **0.860 for Astra medium** (**0.797–0.927**, 12/16). Low and Astra reduced paired latency by approximately **12.2% and 14.0%** in this sample. High's interval crosses 1, so a speed difference was not established. Intervals are not adjusted for the three comparisons. All configurations reached the recognition ceiling here; the result does not establish equal performance on harder screens or a benefit from high reasoning on them.
+
+The timing boundaries and three-text-region/one-target scoring are the same as above. Local location reuse was bypassed. Provider prompt-cache hits were medium **6/16**, low **7/16**, high **6/16**, Astra **5/16**; cold/warm cache was not controlled. These are call-chain measurements, including client, network and queueing overhead. Production configuration was not changed. Model availability and requested efforts were checked against `model/list`, then explicitly passed to the adapter; response metadata verifies the model name but does not expose effective effort.
+
+Use repeated `--profile model:effort` options with `scripts/benchmark_models.py`; the first profile is the paired baseline. `scripts/report_model_profiles.py` exports aggregate data and local HTML. Compatibility, balanced/reversed scheduling, separation of efforts on the same model, paired aggregation, privacy and incomplete/duplicate publication guards were checked. The scoring and image-input regression suite again passed **33 tests**, with one dependency deprecation warning.
+
 <a id="model-configuration"></a>
 ### Configure Models
 
@@ -134,10 +166,12 @@ In a source checkout, edit [`config/artemis.jsonc`](./config/artemis.jsonc). Thi
 
 | Key | Purpose |
 |---|---|
-| `default` | Provider, model, reasoning effort, and fallback inherited by agent nodes. The checked-in default is the Codex client with `gpt-6.1-sol`, `medium` reasoning, and a `gpt-6-luna` fallback; lightweight roles keep the Luna tier. |
+| `default` | Provider, model, reasoning effort, and fallback inherited by agent nodes. The checked-in default is the Codex client with `gpt-6.1-sol`, `low` reasoning, and a `gpt-6-luna` fallback; lightweight roles keep the Luna tier. |
 | `nodes` | Override individual roles such as `planner`, `operator`, `explorer`, and `checker`; unspecified fields inherit from `default`. |
 | `presets` | Named provider/model combinations for selecting a different model route. |
 | `agent.flash` / `agent.pro` | Profile behavior, including Explorer mode and the Flash step summarizer's model. |
+
+Planner, Operator, Explorer and Checker inherit the `low` effort from the global default. The `codex-client` preset, packaged configuration and directly constructed Artemis Codex adapter also default to Sol low. Explicit node or constructor settings can override it. Reload the ARTEMIS/MCP process to apply updated configuration.
 
 For example, change `default.model` to change the main model, or set `nodes.operator.model` to change only the Operator. Keep fallback and role-specific model settings compatible with the selected provider. The source checkout resolves `config/artemis.jsonc` before the bundled template at [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc); `ARTEMIS_ARTEMIS_JSONC` can point model loading to another existing file. Put API keys for non-Codex providers in the ignored `.env`, never in a tracked JSONC file. Restart a running ARTEMIS process after changing its configuration.
 

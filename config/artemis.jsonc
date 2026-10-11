@@ -9,7 +9,7 @@
   "default": {
     "provider": "codex",
     "model": "gpt-6.1-sol",
-    "reasoning_effort": "medium",
+    "reasoning_effort": "low",
     "timeout": 180,
     "fallback": {
       "provider": "codex",
@@ -25,7 +25,7 @@
     "codex-client": {
       "provider": "codex",
       "model": "gpt-6.1-sol",
-      "reasoning_effort": "medium",
+      "reasoning_effort": "low",
       "fallback": { "provider": "codex", "model": "gpt-6-luna", "reasoning_effort": "low" }
     },
     "gemini-flagship": {
@@ -60,13 +60,10 @@
   // ------------------------------------------------------------------------------
   "nodes": {
     // 🧠 Planner: High-level goal decomposition and strategic step planning
-    "planner": {
-      "reasoning_effort": "high"
-    },
+    "planner": {},
 
     // 🎯 Operator: Screen perception, element interaction, and direct execution
     "operator": {
-      "reasoning_effort": "medium",
       "include_thoughts": true
     },
 
@@ -93,9 +90,7 @@
     // NOTE:
     //  - "flash" version delegates directly to object_detector.
     //  - "pro" / "ultra" versions run multi-turn ReAct loops (supports both Native Gemini and Universal Multi-Model LangChain engines).
-    "explorer": {
-      "reasoning_effort": "medium"
-    },
+    "explorer": {},
 
     // 📋 Summarizer: Aggregates step history and generates structured outcome
     "summarizer": {},
@@ -128,7 +123,6 @@
     // 🔎 Checker: Plan-declared checkpoint verification and exit final review.
     // Thoughts are streamed so the verifier's reasoning shows live in the timeline.
     "checker": {
-      "reasoning_effort": "medium",
       "include_thoughts": true
     },
     "history_analyzer": { "model": "gpt-6-luna", "reasoning_effort": "low", "temperature": 0.0 },
