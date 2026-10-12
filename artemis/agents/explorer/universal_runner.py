@@ -200,10 +200,12 @@ class UniversalRunnerMixin:
             ]
         )
 
-        return json.dumps(
-            {"candidates": valid_candidates, "fallback_message": fallback_message},
-            ensure_ascii=False,
-        )
+        answer = {"candidates": valid_candidates, "fallback_message": fallback_message}
+        if isinstance(args.get("common_elements"), list):
+            answer["common_elements"] = args["common_elements"]
+        if isinstance(args.get("page_name"), str):
+            answer["page_name"] = args["page_name"]
+        return json.dumps(answer, ensure_ascii=False)
 
     async def _universal_execute_tool(self, name: str, args: dict) -> dict[str, Any]:
         """Runs one perception tool by name; unknown names yield an error result."""

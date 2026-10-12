@@ -26,6 +26,7 @@ The :class:`Explorer` class combines the following modules:
 
 import asyncio
 import json
+import time
 import os
 from typing import Any, Literal
 
@@ -52,7 +53,12 @@ from artemis.data_engine.trace import trace
 from artemis.graph.state import State
 from artemis.llm.google import is_gemini_model, strip_provider_prefix
 from artemis.utils.ocr_api import is_ocr_configured
-from artemis.utils.visual_location_cache import configured_cache, scope_for_state
+from artemis.utils.visual_location_cache import (
+    cache_config_for_context,
+    configured_cache,
+    scope_for_state,
+)
+from artemis.utils.visual_page_elements import inventory_instruction, page_name_instruction
 from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -97,6 +103,7 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
         self.trace_history: list[dict[str, Any]] = []
         self.location_cache_scope = None
         self.location_cache_bypass = False
+        self.prefetch_page_elements = False
 
         # Rebuilt per ``run``: the queryable snapshot of the screen, and the
         # element behind every label the model has been shown so far.
@@ -387,6 +394,11 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
         self.global_label_idx = 1
         self.label_registry = {}
 
+        incident = getattr(state, "open_incident", None)
+        if context_feedback or (isinstance(incident, dict) and incident):
+            from artemis.utils.visual_cache_tracking import invalidate_last_cached_action
+
+            await invalidate_last_cached_action(self.ctx)
         try:
             fused_xml = await self._load_screen(screenshot_path, state, tier)
             prepass, unresolved = self._structural_prepass(query)
@@ -401,6 +413,7 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
 
             # XML/locally available OCR remains first. Only unresolved visual
             # targets reach this persistent cache; old frames never use it.
+            self.location_cache_state = state
             self.location_cache_scope = await scope_for_state(self.ctx, state, screenshot_path)
             incident = getattr(state, "open_incident", None)
             self.location_cache_bypass = bool(context_feedback) or (
@@ -409,71 +422,119 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
             scope = self.location_cache_scope
             cache = configured_cache(self.ctx) if scope else None
             namespace = f"explorer:{tier.name}"
-            single_target = len([p for p in engine_query.split("|") if p.strip()]) == 1
-            if not tier.is_oneshot and cache and single_target:
-                if self.location_cache_bypass:
-                    await asyncio.to_thread(cache.invalidate, scope, engine_query, namespace)
-                else:
-                    cached = await asyncio.to_thread(cache.get, scope, engine_query, namespace)
-                    if cached:
-                        logger.info("Explorer reused a visual location on an unchanged screen")
-                        return self._merge_prepass(
-                            prepass,
-                            json.dumps(
-                                {
-                                    "candidates": [cached],
-                                    "fallback_message": "",
-                                    "location_cache_hits": 1,
-                                }
-                            ),
-                        )
+            cache_hits = 0
+            if cache and self.location_cache_bypass and not tier.is_oneshot:
+                await asyncio.to_thread(cache.invalidate, scope, engine_query.split("|"))
+            if not tier.is_oneshot and cache and not self.location_cache_bypass:
+                targets = [p.strip() for p in engine_query.split("|") if p.strip()]
+                cached = await asyncio.to_thread(
+                    cache.get_many, scope, targets, namespace, ctx=self.ctx, frame=screenshot_path
+                )
+                prepass.extend(cached.values())
+                cache_hits = len(cached)
+                engine_query = " | ".join(p for p in targets if p not in cached)
+                if not engine_query:
+                    return json.dumps(
+                        {
+                            "candidates": prepass,
+                            "fallback_message": "",
+                            "location_cache_hits": cache_hits,
+                        },
+                        ensure_ascii=False,
+                    )
 
             if tier.is_oneshot:
                 raw = await self._run_flash(engine_query, screenshot_path)
             else:
-                # Defer any paid/image OCR until XML and the cache both miss.
+                # OCR and the model see only targets still unresolved after cache lookup.
                 fused_xml = await self._load_ocr_screen(screenshot_path, state)
-                prepass, unresolved = self._structural_prepass(query)
-                if prepass and not unresolved:
-                    raw = json.dumps({"candidates": prepass, "fallback_message": ""})
-                    if (
-                        cache
-                        and single_target
-                        and not self.location_cache_bypass
-                        and len(prepass) == 1
-                    ):
-                        await asyncio.to_thread(
-                            cache.put, scope, engine_query, namespace, prepass[0]
-                        )
-                    return raw
-                engine_query = " | ".join(unresolved) if prepass else query
-                raw = await self._run_loop(
-                    tier,
-                    engine_query,
-                    context_feedback,
-                    screenshot_path,
-                    state,
-                    minimal_list,
-                    enable_caching,
-                    fused_xml,
+                ocr_hits, unresolved = self._structural_prepass(engine_query)
+                prepass.extend(ocr_hits)
+                if ocr_hits and not unresolved:
+                    return json.dumps(
+                        {
+                            "candidates": prepass,
+                            "fallback_message": "",
+                            "location_cache_hits": cache_hits,
+                        },
+                        ensure_ascii=False,
+                    )
+                engine_query = " | ".join(unresolved) if ocr_hits else engine_query
+                lease = (
+                    await asyncio.to_thread(cache.claim_page_elements, scope)
+                    if cache
+                    and not self.location_cache_bypass
+                    and cache_config_for_context(self.ctx).batch_prefetch
+                    else None
                 )
-                if cache and single_target and not self.location_cache_bypass:
+                self.prefetch_page_elements = bool(lease)
+                started = time.perf_counter()
+                answer = None
+                try:
+                    raw = await self._run_loop(
+                        tier,
+                        engine_query,
+                        context_feedback,
+                        screenshot_path,
+                        state,
+                        minimal_list,
+                        enable_caching,
+                        fused_xml,
+                    )
                     try:
-                        answer = json.loads(raw)
-                        candidates = (
-                            answer.get("candidates", []) if isinstance(answer, dict) else []
+                        parsed = json.loads(raw)
+                        answer = parsed if isinstance(parsed, dict) else None
+                    except (TypeError, ValueError):
+                        pass
+                finally:
+                    if cache:
+                        await asyncio.to_thread(
+                            cache.record_metric,
+                            scope,
+                            "visual_batches",
+                            elapsed_ms=(time.perf_counter() - started) * 1000,
                         )
-                        if (
-                            isinstance(candidates, list)
-                            and len(candidates) == 1
-                            and not answer.get("fallback_message")
-                        ):
-                            await asyncio.to_thread(
-                                cache.put, scope, engine_query, namespace, candidates[0]
-                            )
-                    except (TypeError, ValueError, AttributeError):
-                        pass  # A malformed/uncertain answer must not enter the cache.
-            return self._merge_prepass(prepass, raw)
+                    if cache and lease:
+                        common = (answer or {}).get("common_elements")
+                        failed = not isinstance(common, list) or bool(
+                            (answer or {}).get("fallback_message")
+                        )
+                        await asyncio.to_thread(
+                            cache.put_page_elements, scope, common or [], failed=failed, lease=lease
+                        )
+                if cache and answer is not None and not self.location_cache_bypass:
+                    if not answer.get("fallback_message"):
+                        targets = [p.strip() for p in engine_query.split("|") if p.strip()]
+                        candidates = answer.get("candidates", [])
+                        if isinstance(candidates, list):
+                            for target in targets:
+                                matches = (
+                                    candidates
+                                    if len(targets) == 1
+                                    else [
+                                        c
+                                        for c in candidates
+                                        if isinstance(c, dict)
+                                        and (
+                                            c.get("description") == target
+                                            or c.get("label") == target
+                                        )
+                                    ]
+                                )
+                                if len(matches) == 1:
+                                    await asyncio.to_thread(
+                                        cache.put, scope, target, namespace, matches[0]
+                                    )
+                        await asyncio.to_thread(cache.set_page_name, scope, answer.get("page_name"))
+                    answer.pop("common_elements", None)
+                    answer.pop("page_name", None)
+                    raw = json.dumps(answer, ensure_ascii=False)
+            merged = self._merge_prepass(prepass, raw)
+            if cache_hits:
+                data = json.loads(merged)
+                data["location_cache_hits"] = cache_hits + data.get("location_cache_hits", 0)
+                merged = json.dumps(data, ensure_ascii=False)
+            return merged
         finally:
             await self._close_http_client()
 
@@ -494,6 +555,10 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
         prompt_template, prompt_error = self._build_prompt_template(tier)
         if prompt_error is not None:
             return self._failure_outcome(prompt_error)
+        if self.location_cache_scope and not self.location_cache_bypass:
+            prompt_template = (prompt_template or "") + page_name_instruction()
+        if self.prefetch_page_elements:
+            prompt_template = (prompt_template or "") + inventory_instruction()
 
         minimal_list, img_to_read = self._prepare_initial_annotation(
             fused_xml, screenshot_path, minimal_list, self.image_name

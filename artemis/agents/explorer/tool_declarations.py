@@ -22,6 +22,8 @@ LangChain path) and ``NATIVE_EXPLORER_TOOL_DECLARATIONS`` (google-genai
 
 from google.genai import types
 
+from artemis.utils.visual_page_elements import PAGE_ELEMENTS_SCHEMA, PAGE_NAME_SCHEMA
+
 UNIVERSAL_EXPLORER_TOOLS = [
     {
         "type": "function",
@@ -177,6 +179,8 @@ UNIVERSAL_EXPLORER_TOOLS = [
                             "Optional fallback explanation if target elements were not found."
                         ),
                     },
+                    "common_elements": PAGE_ELEMENTS_SCHEMA,
+                    "page_name": PAGE_NAME_SCHEMA,
                 },
                 "required": ["candidates"],
             },
@@ -353,6 +357,8 @@ NATIVE_EXPLORER_TOOL_DECLARATIONS = [
                         " observations."
                     ),
                 ),
+                "common_elements": types.Schema.model_validate(PAGE_ELEMENTS_SCHEMA),
+                "page_name": types.Schema.model_validate(PAGE_NAME_SCHEMA),
             },
             required=["candidates"],
         ),

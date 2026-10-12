@@ -1,0 +1,113 @@
+:host { display: block; min-height: 100vh; background: radial-gradient(ellipse at 75% 0%, #eaf2ff 0%, transparent 55%), #f7f9fc; color: #182638; }
+.cache-page { max-width: 1160px; margin: 0 auto; padding: 94px 32px 40px; }
+.page-heading, .status-row, .panel-heading, .bar-label { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.eyebrow { font-size: 11px; letter-spacing: 2px; font-weight: 700; color: #587399; margin: 0 0 10px; }
+h1 { font-size: 32px; letter-spacing: -1px; margin: 0; }
+.subtitle { color: #64748b; line-height: 1.6; margin: 10px 0 0; font-size: 14px; }
+.refresh-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d8e2f0; border-radius: 12px; padding: 10px 16px; background: white; color: #235daf; cursor: pointer; white-space: nowrap; font-size: 13px; }
+.refresh-button:hover { background: #edf4ff; }
+.refresh-button:disabled { opacity: .55; cursor: wait; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #1a73e8; outline-offset: 3px; }
+.status-row { margin: 26px 0 18px; justify-content: flex-start; font-size: 12px; color: #728099; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; color: #167548; background: #e8f6ee; padding: 6px 10px; border-radius: 20px; }
+.status-dot { width: 6px; height: 6px; background: currentColor; border-radius: 50%; }
+.status-pill.disabled { color: #84602c; background: #fff3dc; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.metric, .panel { background: #ffffff; border: 1px solid #e1e7f0; border-radius: 18px; box-shadow: 0 4px 20px rgba(26, 47, 77, .025); }
+.metric { padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+.metric > span { color: #68778c; font-size: 13px; }
+.metric strong { font-size: 32px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.metric small { font-size: 11px; color: #738399; line-height: 1.5; }
+.metric em { font-style: normal; font-size: 22px; color: #abb8ca; }
+.metric.accent { background: #edf4ff; border-color: #cee0ff; }
+.metric.accent strong { color: #2166cc; }
+.counting-note { display: flex; gap: 8px; margin: 16px 2px 24px; font-size: 12px; color: #6c7b90; line-height: 1.8; }
+.counting-note .material-symbols-outlined { font-size: 17px; margin-top: 2px; flex-shrink: 0; }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px; }
+.panel { padding: 24px; min-width: 0; }
+h2 { font-size: 16px; margin: 0; }
+.panel-heading > span { font-size: 12px; color: #718198; }
+.bar-item { margin-top: 23px; }
+.bar-label { font-size: 13px; align-items: flex-start; }
+.bar-label strong { font-weight: 500; overflow-wrap: anywhere; }
+.bar-label span { color: #62728b; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.bar-label small { color: #8a97aa; font-size: 10px; margin-left: 5px; }
+.bar-track { height: 7px; background: #edf1f7; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+.bar-track > div { height: 100%; background: #6c9de8; border-radius: inherit; }
+.bar-track.launcher > div { background: #8b7bda; }
+.bar-track.app > div { background: #5daf9f; }
+.bar-detail { font-size: 11px; color: #7c8ba1; margin: 7px 0 0; }
+.filters { display: flex; gap: 12px; margin: 22px 0; flex-wrap: wrap; }
+.filters label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: #67778e; min-width: 130px; }
+select, input { border: 1px solid #dce4ef; background: #fcfdff; border-radius: 9px; padding: 9px 12px; font-size: 13px; color: #33465f; max-width: 100%; box-sizing: border-box; }
+.search { flex: 1; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+th { font-size: 11px; color: #7b8ba0; font-weight: 500; background: #f7f9fc; white-space: nowrap; }
+th, td { padding: 14px 12px; border-bottom: 1px solid #eef2f7; }
+td { vertical-align: top; }
+td small { display: block; font-size: 10px; color: #8190a4; margin-top: 6px; }
+.application { font-family: ui-monospace, monospace; font-size: 12px; overflow-wrap: anywhere; min-width: 170px; }
+.activity { min-width: 160px; max-width: 240px; overflow-wrap: anywhere; font-size: 12px; }
+.unknown-activity { color: #8190a4; font-size: 11px; }
+.detail-note { font-size: 12px; color: #718198; line-height: 1.8; margin: 14px 0 0; }
+.fingerprint-details { margin-top: 10px; max-width: 290px; }
+.fingerprint-details summary { color: #2769c7; font-family: inherit; font-size: 11px; cursor: pointer; }
+.fingerprint-details summary:focus-visible { outline: 2px solid #1a73e8; outline-offset: 3px; }
+.fingerprint { padding: 10px 0; border-bottom: 1px solid #eef2f7; }
+.fingerprint code { font-size: 10px; overflow-wrap: anywhere; }
+.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+.hits { color: #2769c7; font-weight: 600; }
+.category-tag { border-radius: 6px; background: #f1f4f9; padding: 4px 8px; white-space: nowrap; font-size: 11px; }
+.empty-filter { text-align: center; color: #7a889c; padding: 30px; }
+.empty-state { text-align: center; padding: 45px 24px; }
+.empty-state > .material-symbols-outlined { font-size: 38px; color: #9cb1cf; margin-bottom: 16px; }
+.empty-state p { color: #718098; font-size: 13px; line-height: 1.8; max-width: 520px; margin: 12px auto 0; }
+.storage { display: flex; align-items: flex-start; gap: 12px; margin-top: 20px; padding: 20px 24px; }
+.storage > span { color: #8294ad; }
+.storage div { min-width: 0; }
+.storage strong { display: block; font-size: 12px; color: #60718b; margin-bottom: 8px; }
+.storage code { font-size: 12px; color: #4c6080; overflow-wrap: anywhere; }
+.storage p { font-size: 11px; color: #8593a7; margin: 8px 0 0; }
+.notice { padding: 12px 16px; background: #fff7e9; border: 1px solid #f0dcb4; border-radius: 10px; color: #8a6424; font-size: 13px; margin: 18px 0; line-height: 1.6; }
+.notice.error { background: #fff0f0; border-color: #f5cece; color: #ad4444; }
+@media (max-width: 760px) {
+  .cache-page { padding: 80px 16px 24px; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .charts { grid-template-columns: 1fr; }
+  .panel { padding: 18px; }
+  .metric { padding: 18px; }
+  .page-heading { align-items: flex-start; }
+  h1 { font-size: 27px; }
+  .subtitle { max-width: 240px; font-size: 12px; }
+  .refresh-button { padding: 9px 11px; }
+  .panel-heading { flex-wrap: wrap; }
+  .filters label { flex: 1; min-width: 120px; }
+  .filters .search { flex-basis: 100%; }
+}
+
+.page-name { min-width: 90px; max-width: 180px; overflow-wrap: anywhere; }
+
+.history, .inventory, .element-detail { margin: 20px 0; }
+.history .metrics { margin-bottom: 14px; }
+.reason-list, .detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
+.reason-list > span { padding: 6px 10px; border: 1px solid var(--border-color, #dce2ed); border-radius: 8px; font-size: 13px; }
+.inventory-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-color, #dce2ed); }
+.inventory-row small, .inventory-row code, .element-detail code { display: block; overflow-wrap: anywhere; white-space: normal; }
+.element-detail td { max-width: 360px; overflow-wrap: anywhere; white-space: normal; }
+button.danger { color: #bc3434; }
+.confirm button { margin-right: 12px; }
+.inventory summary { cursor: pointer; }
+.fingerprint button { margin-top: 8px; }
+.cache-page button:not(.refresh-button) { border: 1px solid #d8e2f0; border-radius: 8px; padding: 7px 11px; background: #fff; color: #235daf; cursor: pointer; font-size: 12px; }
+.cache-page button:not(.refresh-button):hover { background: #edf4ff; }
+.cache-page button:not(.refresh-button):disabled { opacity: .5; cursor: default; }
+.cache-page button.danger { color: #bc3434; border-color: #efcdcd; }
+.element-detail { scroll-margin-top: 80px; }
+.element-detail .table-scroll { max-height: 540px; }
+.element-detail th { position: sticky; top: 0; }
+
+.failure-cases { margin-top: 20px; }
+.failure-cases td { max-width: 280px; overflow-wrap: anywhere; }
+.failure-cases .table-scroll { max-height: 540px; }
+.failure-cases th { position: sticky; top: 0; }

@@ -873,10 +873,11 @@ class VisualLocationCacheConfig(BaseModel):
     """Persistent visual-location reuse shared by all execution profiles."""
 
     enabled: bool = True
+    batch_prefetch: bool = True
     capacity_per_device: int = Field(
-        default=2000,
+        default=10000,
         ge=1,
-        le=2000,
+        le=100000,
         description="LRU positions per device, shared across system, launcher and app groups.",
     )
 

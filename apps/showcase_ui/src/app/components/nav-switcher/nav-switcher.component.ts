@@ -43,6 +43,10 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         <span class="material-symbols-outlined tab-icon">space_dashboard</span>
         <span class="tab-label">Workspace</span>
       </a>
+      <a routerLink="/cache" routerLinkActive="active" class="nav-tab-btn" title="查看页面缓存和复用统计">
+        <span class="material-symbols-outlined tab-icon">database</span>
+        <span class="tab-label">页面缓存</span>
+      </a>
     </nav>
   `,
   changeDetection: ChangeDetectionStrategy.Eager,

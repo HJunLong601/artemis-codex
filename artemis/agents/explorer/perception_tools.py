@@ -256,12 +256,24 @@ class PerceptionToolsMixin:
             # Load object detector templates
             templates, global_timeout = load_detector_templates()
 
+            cache_state = getattr(self, "location_cache_state", None)
+            original = str(target_path) == getattr(
+                cache_state, "latest_screenshot", None
+            ) and transform == {
+                "offset_x": 0.0,
+                "offset_y": 0.0,
+                "scale_x": 1.0,
+                "scale_y": 1.0,
+            }
             result = await _run_object_detection(
                 self.ctx,
                 target_path,
                 queries,
                 templates,
                 global_timeout=global_timeout,
+                state=cache_state if original else None,
+                cache_scope=getattr(self, "location_cache_scope", None) if original else None,
+                bypass_cache=bool(getattr(self, "location_cache_bypass", False)),
             )
             try:
                 detected_items = result.get("detected", [])

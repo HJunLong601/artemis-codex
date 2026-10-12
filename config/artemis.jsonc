@@ -202,7 +202,8 @@
     // Visual grounding only: ADB/UI-tree locating remains first.
     "visual_location_cache": {
       "enabled": true,
-      "capacity_per_device": 2000 // 1–2000 positions per device; system/launcher/app groups share this quota
+      "batch_prefetch": true, // Collect up to 20 common controls during the first visual lookup
+      "capacity_per_device": 10000 // 1–100000 positions per device; all pages share this quota
     },
     // Shared step memory and history compression
     // Transcript ledger + layered compression for the Pro operator.

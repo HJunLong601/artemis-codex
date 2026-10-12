@@ -175,6 +175,10 @@ class BaseDeviceDriver(ABC):
         """Retrieves currently focused foreground application package name."""
         ...
 
+    async def get_current_app(self) -> tuple[str | None, str | None]:
+        """Return package and Activity from one observation where supported."""
+        return await self.get_current_package(), None
+
     @abstractmethod
     async def execute_shell(self, command: str, timeout_seconds: float = 15.0) -> str:
         """Executes a system shell command directly on the device."""

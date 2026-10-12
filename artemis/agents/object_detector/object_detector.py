@@ -17,6 +17,7 @@
 import asyncio
 import base64
 import json
+import time
 import os
 from pathlib import Path
 import re
@@ -25,7 +26,12 @@ from langchain_core.messages import HumanMessage, ToolMessage
 
 from artemis.llm.structured import ParseFailure, parse_structured
 from artemis.services.llm import get_llm
-from artemis.utils.visual_location_cache import configured_cache, scope_for_state
+from artemis.utils.visual_location_cache import (
+    cache_config_for_context,
+    configured_cache,
+    scope_for_state,
+)
+from artemis.utils.visual_page_elements import inventory_instruction, page_name_instruction
 from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,6 +47,9 @@ async def _detect_single_label(
     label,
     templates,
     timeout_val=None,
+    inventory=None,
+    inventory_timeout=None,
+    page_metadata=None,
 ) -> list[dict]:
     if timeout_val is None:
         timeout_val = float(os.environ.get("OBJECT_DETECTOR_TIMEOUT", "10.0"))
@@ -49,6 +58,18 @@ async def _detect_single_label(
 
     for i, template in enumerate(templates):
         prompt = template.replace("{labels_str}", label)
+        collecting = inventory is not None and i == 0
+        if collecting:
+            prompt += inventory_instruction() + (
+                '\nReturn an object {"detected": [...], "common_elements": [...]} instead of a list. '
+                "The detected list keeps the original target point convention [y,x]; "
+                "common_elements uses coords [x,y] and bounds [left,top,right,bottom]."
+            )
+        if page_metadata is not None:
+            prompt += page_name_instruction() + (
+                "\nReturn an object with detected (the original target list), page_name"
+                " and, only if requested, common_elements. Keep detected point coordinates [y,x]."
+            )
         messages = [
             HumanMessage(
                 content=[
@@ -66,7 +87,7 @@ async def _detect_single_label(
             async with _DETECTOR_SEMAPHORE:
                 response = await asyncio.wait_for(
                     llm.ainvoke(messages),
-                    timeout=timeout_val,
+                    timeout=inventory_timeout if collecting and inventory_timeout else timeout_val,
                 )
 
             output = response.content if isinstance(response.content, str) else ""
@@ -79,6 +100,15 @@ async def _detect_single_label(
             logger.info(f"Received response for '{label}' (Attempt {i + 1})")
 
             res_json = parse_structured(output)
+            if isinstance(res_json, dict) and (inventory is not None or page_metadata is not None):
+                common = res_json.get("common_elements")
+                if inventory is not None and isinstance(common, list):
+                    inventory[:] = common
+                    if page_metadata is not None:
+                        page_metadata["inventory_received"] = True
+                if page_metadata is not None:
+                    page_metadata["page_name"] = res_json.get("page_name")
+                res_json = res_json.get("detected")
             if isinstance(res_json, list):
                 valid_results = []
                 for item in res_json:
@@ -159,19 +189,22 @@ async def _run_object_detection(
     cache = configured_cache(ctx) if cache_scope and queries else None
     namespace = "detector:" + json.dumps(templates, ensure_ascii=False)
     if cache:
-        remaining = []
-        for query in queries:
-            if bypass_cache:
-                await asyncio.to_thread(cache.invalidate, cache_scope, query, namespace)
-                value = None
-            else:
-                value = await asyncio.to_thread(cache.get, cache_scope, query, namespace)
-            if value:
-                resolved.append({"label": query, "point": value["coords"]})
-                cached_hits += 1
-            else:
-                remaining.append(query)
-        queries = remaining
+        if bypass_cache:
+            await asyncio.to_thread(cache.invalidate, cache_scope, queries)
+            values = {}
+        else:
+            values = await asyncio.to_thread(
+                cache.get_many,
+                cache_scope,
+                queries,
+                namespace,
+                ctx=ctx,
+                frame=getattr(state, "latest_screenshot", None),
+            )
+        for query, value in values.items():
+            resolved.append({"label": query, "point": value["coords"]})
+        cached_hits = len(values)
+        queries = [query for query in queries if query not in values]
     if not queries:
         answer = {"detected": resolved, "failed": []}
         if cached_hits:
@@ -188,6 +221,18 @@ async def _run_object_detection(
     else:
         timeout_val = float(os.environ.get("OBJECT_DETECTOR_TIMEOUT", "10.0"))
 
+    lease = (
+        await asyncio.to_thread(cache.claim_page_elements, cache_scope)
+        if cache and not bypass_cache and cache_config_for_context(ctx).batch_prefetch
+        else None
+    )
+    inventory = [] if lease else None
+    visual_started = time.perf_counter()
+    # The longer answer may need more than the single-point default. Keep the
+    # caller's total deadline and reserve one normal attempt; retries drop the
+    # optional inventory so it cannot prevent recovering the requested target.
+    inventory_timeout = max(timeout_val, global_timeout - timeout_val)
+    page_metadata = {} if cache and not bypass_cache else None
     tasks = [
         asyncio.create_task(
             _detect_single_label(
@@ -198,12 +243,33 @@ async def _run_object_detection(
                 label=query,
                 templates=templates,
                 timeout_val=timeout_val,
+                inventory=inventory if index == 0 else None,
+                inventory_timeout=inventory_timeout,
+                page_metadata=page_metadata if index == 0 else None,
             )
         )
-        for query in queries
+        for index, query in enumerate(queries)
     ]
 
-    done, pending = await asyncio.wait(tasks, timeout=global_timeout)
+    try:
+        done, pending = await asyncio.wait(tasks, timeout=global_timeout)
+    except asyncio.CancelledError:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        if cache and lease:
+            await asyncio.to_thread(
+                cache.put_page_elements, cache_scope, [], failed=True, lease=lease
+            )
+        raise
+    finally:
+        if cache:
+            await asyncio.to_thread(
+                cache.record_metric,
+                cache_scope,
+                "visual_batches",
+                elapsed_ms=(time.perf_counter() - visual_started) * 1000,
+            )
 
     for task in pending:
         task.cancel()
@@ -231,6 +297,14 @@ async def _run_object_detection(
             item["point"] = [x_norm, y_norm]
 
     if cache and not bypass_cache:
+        if inventory is not None:
+            await asyncio.to_thread(
+                cache.put_page_elements,
+                cache_scope,
+                inventory,
+                failed=not (page_metadata or {}).get("inventory_received"),
+                lease=lease,
+            )
         for query in queries:
             matches = [
                 item
@@ -248,6 +322,11 @@ async def _run_object_detection(
                         "description": query,
                     },
                 )
+
+        if page_metadata:
+            await asyncio.to_thread(
+                cache.set_page_name, cache_scope, page_metadata.get("page_name")
+            )
 
     fused_results = [*resolved, *fused_results]
 

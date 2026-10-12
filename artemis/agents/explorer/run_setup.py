@@ -127,6 +127,7 @@ class RunSetupMixin:
                 queries,
                 templates,
                 global_timeout=global_timeout,
+                state=getattr(self, "location_cache_state", None),
                 cache_scope=self.location_cache_scope,
                 bypass_cache=self.location_cache_bypass,
             )

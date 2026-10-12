@@ -178,6 +178,7 @@ class McpActionExecutor:
         xml_list: str | None = None
         target_semantics: dict[str, Any] = {}
         target_coordinates: list[int] | None = None
+        cache_frame = getattr(state, "latest_screenshot", None)
         with span:
             try:
                 session = await self._session_or_start()
@@ -240,6 +241,10 @@ class McpActionExecutor:
             if status == "error":
                 span.status = "failed"
                 span.error = message
+
+        from artemis.utils.visual_cache_tracking import record_cached_action
+
+        await record_cached_action(self.ctx, cache_frame, target_coordinates, res.ok)
 
         return ToolExecutionResult(
             tool_call_id=tool_call_id,

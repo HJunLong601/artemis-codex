@@ -18,6 +18,7 @@ import asyncio
 import base64
 from io import BytesIO
 from pathlib import Path
+import re
 from typing import Any, Literal
 
 from adbutils import AdbClient, AdbDevice
@@ -400,31 +401,43 @@ class AndroidAdbDriver(BaseDeviceDriver):
             return False
 
     async def get_current_package(self) -> str | None:
-        try:
-            # 1. Try modern current_app from adbutils
-            if hasattr(self.device, "current_app"):
-                try:
-                    app_info = await asyncio.to_thread(self.device.current_app)
-                    if app_info and getattr(app_info, "package", None):
-                        return app_info.package
-                except Exception as e:
-                    # current_app is unsupported on some devices; use dumpsys below.
-                    logger.debug(f"current_app query failed, falling back to dumpsys: {e}")
+        return (await self.get_current_app())[0]
 
-            # 2. Structured dumpsys extraction
+    async def get_current_app(self) -> tuple[str | None, str | None]:
+        # A single window snapshot supplies both values. On recent Android versions
+        # adbutils.app_current() may traverse several slow dumpsys commands before
+        # succeeding, exceeding the visual cache's foreground-query deadline.
+        try:
             out = await asyncio.to_thread(
-                self.device.shell, "dumpsys window displays | grep -E 'mCurrentFocus|mFocusedApp'"
+                self.device.shell,
+                "dumpsys window displays | grep -E 'mCurrentFocus|mFocusedApp'",
+                timeout=2,
             )
-            for line in str(out).splitlines():
-                if "/" in line:
-                    for token in line.split():
-                        if "/" in token and "." in token:
-                            clean = token.split("/")[0].strip("{} ,")
-                            if clean and not clean.startswith("Window") and "." in clean:
-                                return clean
+            for field in ("mCurrentFocus", "mFocusedApp"):
+                for line in str(out).splitlines():
+                    match = re.search(rf"\b{field}=.*?\s([\w.]+)/([\w.$]+)", line)
+                    if match:
+                        package, activity = match.groups()
+                        return package, self._full_activity(package, activity)
         except Exception as e:
-            logger.debug(f"Error querying current package: {e}")
-        return None
+            logger.debug(f"Window focus query failed, falling back to app_current: {e}")
+
+        try:
+            if hasattr(self.device, "app_current"):
+                app_info = await asyncio.to_thread(self.device.app_current)
+                package = getattr(app_info, "package", None)
+                activity = getattr(app_info, "activity", None)
+                if isinstance(package, str) and package and isinstance(activity, str) and activity:
+                    return package, self._full_activity(package, activity)
+        except Exception as e:
+            logger.debug(f"Error querying current app: {e}")
+        return None, None
+
+    @staticmethod
+    def _full_activity(package: str, activity: str) -> str:
+        if activity.startswith("."):
+            return package + activity
+        return activity if "." in activity else f"{package}.{activity}"
 
     async def get_status_bar_bounds(self) -> tuple[int, int, int, int] | None:
         """Read the visible system status-bar inset; never guess a fixed top crop."""

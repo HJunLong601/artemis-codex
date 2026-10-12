@@ -113,3 +113,16 @@
     }
   }
 }
+
+@media (max-width: 520px) {
+  .floating-nav-switcher {
+    left: 12px;
+    max-width: calc(100vw - 24px);
+
+    .nav-tab-btn { padding: 0 10px; font-size: 12px; }
+  }
+}
+
+@media (max-width: 420px) {
+  .floating-nav-switcher .nav-tab-btn .tab-icon { display: none; }
+}
