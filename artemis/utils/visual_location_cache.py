@@ -22,7 +22,7 @@ import time
 
 from PIL import Image, ImageOps
 
-from artemis.utils.visual_cache_guards import local_guard, structure_key
+from artemis.utils.visual_cache_guards import has_local_target, local_guard, structure_key
 from artemis.utils.visual_cache_storage import CacheStorage
 from artemis.utils.visual_cache_regions import region_for_location, region_miss_reason
 from artemis.utils.visual_cache_failures import record_failure, prune_failures
@@ -245,7 +245,7 @@ class VisualLocationCache(CacheStorage):
         key = scope.structure_key if structure else scope.page_key
         cursor = db.execute(
             f"""SELECT * FROM locations WHERE device_key=? AND application=?
-            AND {column}=? ORDER BY recency DESC LIMIT 200""",
+            AND {column}=? ORDER BY recency DESC LIMIT 1000""",
             (scope.device_key, scope.application, key),
         )
         return [
@@ -380,15 +380,17 @@ class VisualLocationCache(CacheStorage):
                 matches.append((row, value))
         return matches
 
-    def _region_candidates(self, db, scope, query, namespace):
+    def _region_candidates(self, db, scope, query, namespace, *, regional_only=True):
+        # Non-regional rows require their own local target guard before reuse.
         cursor = db.execute(
             """SELECT DISTINCT l.* FROM locations l JOIN cache_aliases a
             ON l.device_key=a.device_key AND l.application=a.application AND l.page_key=a.page_key
-            AND l.target_key=a.target_key WHERE l.device_key=? AND l.application=? AND l.region_key!=''
-            AND a.query_key IN (?,?) ORDER BY l.recency DESC LIMIT 64""",
+            AND l.target_key=a.target_key WHERE l.device_key=? AND l.application=? AND (?=0 OR l.region_key!='')
+            AND a.query_key IN (?,?) ORDER BY l.recency DESC LIMIT 256""",
             (
                 scope.device_key,
                 scope.application,
+                int(regional_only),
                 self._target(query, namespace),
                 "query:" + _digest(normalized_name(query)),
             ),
@@ -436,6 +438,47 @@ class VisualLocationCache(CacheStorage):
             elif regional:
                 candidate = regional[0][0]
                 reason = region_miss_reason(scope, candidate)
+        if not matches and scope.structure_key:
+            # Only the target neighbourhood must remain unchanged. Unrelated
+            # sidebar/feed changes cannot veto a verified local control.
+            nearby = self._matches(
+                db,
+                scope,
+                self._region_candidates(db, scope, query, namespace, regional_only=False),
+                query,
+                namespace,
+                include_page,
+            )
+            matches = [
+                (row, value)
+                for row, value in nearby
+                if row["activity"] == scope.activity
+                and row["guard"]
+                and valid_location(value)
+                and has_local_target(scope, value)
+                and local_guard(scope, value) == row["guard"]
+            ]
+            if matches:
+                reason = "local_hit"
+        if not matches and reason == "page_missing":
+            # A known target on an incompatible snapshot is not a cold cache.
+            # Preserve the source for diagnosis, but never return its position.
+            known = self._matches(
+                db,
+                scope,
+                self._region_candidates(db, scope, query, namespace, regional_only=False),
+                query,
+                namespace,
+                include_page,
+            )
+            if known:
+                candidate = known[0][0]
+                if candidate["activity"] != scope.activity:
+                    reason = "activity_changed"
+                elif not scope.structure_key:
+                    reason = "structure_unavailable"
+                else:
+                    reason = "structure_changed"
         # Multiple snapshots with exactly the same result are one candidate.
         positions = {
             tuple(value.get("coords", [])) for _, value in matches if isinstance(value, dict)
@@ -476,6 +519,13 @@ class VisualLocationCache(CacheStorage):
                     self._event(db, scope, reason if match else "miss_" + reason)
                     if not match:
                         record_failure(db, scope, query, reason, candidate)
+                    logger.info(
+                        "Visual cache %s: %s (page=%s, source=%s)",
+                        "hit" if match else "miss",
+                        reason,
+                        scope.page_key[:12],
+                        (candidate or {}).get("page_key", "")[:12],
+                    )
                     if match:
                         row, value = match
                         ref = (
@@ -547,6 +597,31 @@ class VisualLocationCache(CacheStorage):
     def _write_location(self, db, scope, query, namespace, value, recency):
         target = self._target(query, namespace)
         records = self._rows(db, scope)
+        if namespace != PAGE_NAMESPACE and not value.get("bounds"):
+            # A single-target detector returns a point, while same-frame inventory
+            # knows the control bounds. Ground a new query alias only in one unique
+            # observed rectangle; overlapping controls remain exact-page-only.
+            x, y = value["coords"]
+            observed_bounds = set()
+            for row in records:
+                item = json.loads(row["location"])
+                if (
+                    not row.get("inventoried")
+                    or not isinstance(item, dict)
+                    or not valid_location(item)
+                ):
+                    continue
+                bounds = item.get("bounds")
+                if (
+                    isinstance(bounds, list)
+                    and len(bounds) == 4
+                    and all(type(n) is int and 0 <= n <= 1000 for n in bounds)
+                    and bounds[0] < x < bounds[2]
+                    and bounds[1] < y < bounds[3]
+                ):
+                    observed_bounds.add(tuple(bounds))
+            if len(observed_bounds) == 1:
+                value = {**value, "bounds": list(observed_bounds.pop())}
         for row in records:
             old = json.loads(row["location"])
             if not isinstance(old, dict):

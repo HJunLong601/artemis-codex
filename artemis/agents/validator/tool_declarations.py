@@ -179,6 +179,9 @@ async def capture_screenshot_and_parse_ui(
     if not obs.ok:
         return None, None, None
 
+    # Bind cache evidence to the screenshot returned by this observation.
+    # A new frame with a failed tree parse must not reuse the old frame's tree.
+    state.latest_ui_hierarchy = obs.ui_hierarchy if obs.hierarchy_ok else None
     if obs.hierarchy_ok:
         state.indexed_points = [el["center"] for el in obs.elements]
         state.indexed_elements = obs.elements

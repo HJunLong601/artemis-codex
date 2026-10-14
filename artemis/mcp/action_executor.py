@@ -208,6 +208,7 @@ class McpActionExecutor:
                     if obs.ok:
                         shot_path = obs.screenshot_path
                         xml_list = obs.elements_text
+                        state.latest_ui_hierarchy = obs.ui_hierarchy if obs.hierarchy_ok else None
                         if obs.hierarchy_ok:
                             state.indexed_points = [el["center"] for el in obs.elements]
                             state.indexed_elements = obs.elements

@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import traceback
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
 from artemis.config import TEST_OUTPUTS_DIR
@@ -33,9 +35,16 @@ router = APIRouter(tags=["steps"])
 
 
 @router.get("/api/sessions/{session_id}/steps")
-async def get_session_steps(session_id: str, client: str | None = None):
+async def get_session_steps(
+    session_id: str,
+    client: str | None = None,
+    limit: Annotated[int | None, Query(ge=1, le=500)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
     try:
-        return step_repo.get_session_steps(session_id, client=client)
+        return await asyncio.to_thread(
+            step_repo.get_session_steps, session_id, client=client, limit=limit, offset=offset
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

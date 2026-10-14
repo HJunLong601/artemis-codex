@@ -639,6 +639,7 @@ class FlashRunner:
         if not exec_result.screenshot_path and obs.screenshot_path:
             exec_result.screenshot_path = obs.screenshot_path
         if state is not None:
+            state.latest_ui_hierarchy = obs.ui_hierarchy if obs.hierarchy_ok else None
             if obs.hierarchy_ok:
                 state.indexed_points = [el["center"] for el in obs.elements]
                 state.indexed_elements = obs.elements

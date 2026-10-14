@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from bisect import bisect_right
 import json
 import re
 from typing import Any
@@ -284,14 +285,72 @@ class StepRepository:
         )
         return trace_dict
 
-    def get_session_steps(self, session_id: str, client: str | None = None) -> list[dict[str, Any]]:
+    def get_session_steps(
+        self,
+        session_id: str,
+        client: str | None = None,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Read a page of recorded steps; the virtual planning step is on page one.
+
+        Omitting limit retains the legacy full-list contract. Related traces are
+        fetched in batches, not once per step, inside one SQLite read snapshot.
+        """
+        if offset < 0 or (limit is not None and limit < 1):
+            raise ValueError("Invalid step pagination")
         with db_session(self.db_path) as conn:
+            conn.execute("BEGIN")
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT * FROM steps WHERE session_id = ? ORDER BY step_number ASC",
-                (session_id,),
+            # Older databases may still contain raw screenshot BLOB columns.
+            columns = [
+                '"' + row["name"].replace('"', '""') + '"'
+                for row in conn.execute("PRAGMA table_info(steps)")
+                if row["name"] not in {"pre_screenshot_bytes", "post_screenshot_bytes"}
+            ]
+            selection = (
+                "FROM steps WHERE session_id = ? "
+                "ORDER BY step_number ASC, step_id ASC LIMIT ? OFFSET ?"
             )
+            page_args = (session_id, limit if limit is not None else -1, offset)
+            cursor.execute(f"SELECT {', '.join(columns)} {selection}", page_args)
             rows = cursor.fetchall()
+            if not rows and offset:
+                return []
+
+            tools_by_step: dict[str, list[dict[str, Any]]] = {}
+            usage_by_step: dict[str, list[int]] = {}
+            if rows:
+                cursor.execute(
+                    "SELECT t1.trace_id, t1.parent_trace_id, t1.step_id,"
+                    " t1.type, t1.name, t1.timestamp, t1.duration, t1.status,"
+                    " t1.payload, t2.name as agent_name FROM traces t1 LEFT"
+                    " JOIN traces t2 ON t1.parent_trace_id = t2.trace_id WHERE"
+                    f" t1.session_id = ? AND t1.step_id IN (SELECT step_id {selection}) AND"
+                    " (t1.type = 'tool' OR t1.type = 'action' OR (t1.type ="
+                    " 'llm_call' AND t1.status IN ('failed', 'retrying')) OR (t1.type = 'log' AND"
+                    " t1.payload LIKE '%LLM Error:%Pausing execution%' AND NOT EXISTS"
+                    " (SELECT 1 FROM traces t3 WHERE t3.session_id = t1.session_id AND"
+                    " t3.type = 'llm_call' AND t3.status = 'failed' AND"
+                    " ABS(t3.timestamp - t1.timestamp) < 2))) ORDER BY t1.timestamp ASC",
+                    (session_id, *page_args),
+                )
+                for trace in cursor.fetchall():
+                    tools_by_step.setdefault(trace["step_id"], []).append(
+                        self._normalize_display_trace(dict(trace))
+                    )
+                cursor.execute(
+                    "SELECT step_id, payload FROM traces WHERE session_id = ? "
+                    f"AND step_id IN (SELECT step_id {selection}) AND type = 'llm_call'",
+                    (session_id, *page_args),
+                )
+                for trace in cursor.fetchall():
+                    usage = usage_by_step.setdefault(trace["step_id"], [0, 0, 0])
+                    for i, count in enumerate(
+                        self._extract_token_usage_from_trace(trace["payload"])
+                    ):
+                        usage[i] += count
 
             steps = []
             for r in rows:
@@ -322,39 +381,8 @@ class StepRepository:
                 # Fetch action and generic tool traces for this step
                 step_id = step_dict.get("step_id")
                 if step_id:
-                    cursor.execute(
-                        "SELECT t1.trace_id, t1.parent_trace_id, t1.step_id,"
-                        " t1.type, t1.name, t1.timestamp, t1.duration, t1.status,"
-                        " t1.payload, t2.name as agent_name FROM traces t1 LEFT"
-                        " JOIN traces t2 ON t1.parent_trace_id = t2.trace_id WHERE"
-                        " t1.step_id = ? AND (t1.type = 'tool' OR t1.type = 'action' OR (t1.type ="
-                        " 'llm_call' AND t1.status IN ('failed', 'retrying')) OR (t1.type = 'log' AND"
-                        " t1.payload LIKE '%LLM Error:%Pausing execution%' AND NOT EXISTS"
-                        " (SELECT 1 FROM traces t3 WHERE t3.session_id = t1.session_id AND"
-                        " t3.type = 'llm_call' AND t3.status = 'failed' AND"
-                        " ABS(t3.timestamp - t1.timestamp) < 2))) ORDER BY"
-                        " t1.timestamp ASC",
-                        (step_id,),
-                    )
-                    trace_rows = cursor.fetchall()
-                    generic_tools = []
-                    for tr in trace_rows:
-                        trace_dict = self._normalize_display_trace(dict(tr))
-                        generic_tools.append(trace_dict)
-                    step_dict["generic_tools"] = generic_tools
-
-                    # Compute token usage for this step from all LLM call traces
-                    cursor.execute(
-                        "SELECT payload FROM traces WHERE step_id = ? AND type = 'llm_call'",
-                        (step_id,),
-                    )
-                    llm_rows = cursor.fetchall()
-                    step_p, step_c, step_t = 0, 0, 0
-                    for lr in llm_rows:
-                        p, c, t = self._extract_token_usage_from_trace(lr["payload"])
-                        step_p += p
-                        step_c += c
-                        step_t += t
+                    step_dict["generic_tools"] = tools_by_step.get(step_id, [])
+                    step_p, step_c, step_t = usage_by_step.get(step_id, (0, 0, 0))
 
                     # If step_t is 0, also check extra_metadata for token_usage
                     if step_t == 0 and step_dict.get("extra_metadata"):
@@ -411,26 +439,30 @@ class StepRepository:
             stepless_rows = cursor.fetchall()
             if stepless_rows:
                 unassigned_tools = []
-                sorted_steps = sorted(steps, key=lambda s: s.get("timestamp") or 0)
+                # Assign orphan traces against the full timeline, not the page:
+                # otherwise a trace belonging to the next page lands on this one.
+                sorted_steps = conn.execute(
+                    "SELECT step_id, timestamp FROM steps WHERE session_id = ? "
+                    "ORDER BY COALESCE(timestamp, 0), step_number, step_id",
+                    (session_id,),
+                ).fetchall()
+                step_times = [s["timestamp"] or 0 for s in sorted_steps]
+                selected_steps = {s["step_id"]: s for s in steps}
 
                 for tr in stepless_rows:
                     trace_dict = self._normalize_display_trace(dict(tr))
 
                     tr_time = trace_dict.get("timestamp") or 0
-                    target_step = None
-                    for s in sorted_steps:
-                        s_time = s.get("timestamp") or 0
-                        if s_time <= tr_time:
-                            target_step = s
-                        else:
-                            break
-
-                    if target_step:
+                    target_index = bisect_right(step_times, tr_time) - 1
+                    if target_index >= 0:
+                        target_step = selected_steps.get(sorted_steps[target_index]["step_id"])
+                        if target_step is None:
+                            continue
                         if "generic_tools" not in target_step or not target_step["generic_tools"]:
                             target_step["generic_tools"] = []
                         target_step["generic_tools"].append(trace_dict)
                         target_step["generic_tools"].sort(key=lambda t: t.get("timestamp") or 0)
-                    else:
+                    elif offset == 0:
                         unassigned_tools.append(trace_dict)
 
                 if unassigned_tools:
@@ -438,9 +470,7 @@ class StepRepository:
                     first_timestamp = unassigned_tools[0].get("timestamp") or 0
 
                     # Calculate token usage ONLY for pre-planning LLM calls (before first step)
-                    first_recorded_step_time = (
-                        sorted_steps[0].get("timestamp") if sorted_steps else float("inf")
-                    )
+                    first_recorded_step_time = step_times[0] if sorted_steps else float("inf")
                     cursor.execute(
                         "SELECT payload FROM traces WHERE session_id = ? AND (step_id IS NULL OR step_id = '') AND timestamp < ? AND type = 'llm_call'",
                         (session_id, first_recorded_step_time),

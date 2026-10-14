@@ -60,7 +60,8 @@ async def observe(
             await asyncio.sleep(settle_ms / 1000.0)
         else:
             logger.info("Retrieving screen data directly (skip settling)...")
-        device_data = await controller.get_screen_data()
+        # This layer owns settling, including an explicit zero-delay observation.
+        device_data = await controller.get_screen_data(skip_settling=True)
         screenshot_bytes = base64.b64decode(device_data.base64)
     except Exception as e:
         logger.error(f"Failed to capture screen state: {e}")
@@ -77,6 +78,7 @@ async def observe(
     xml_hierarchy = None
     ocr_results = ocr_results or []
     elements: list[dict] = []
+    fused_xml: list[dict] = []
     hierarchy_ok = True
     width = height = None
     try:
@@ -127,6 +129,7 @@ async def observe(
             height=height,
             elements_text=minimal_list_str,
             elements=elements,
+            ui_hierarchy=fused_xml if hierarchy_ok else [],
             hierarchy_ok=hierarchy_ok,
         ),
         screenshot_bytes,

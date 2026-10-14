@@ -81,6 +81,9 @@ class ObserveResult(BaseModel):
     height: int | None = None
     elements_text: str | None = None
     elements: list[dict[str, Any]] = Field(default_factory=list)
+    ui_hierarchy: list[dict[str, Any]] = Field(default_factory=list)
+    """Full fused hierarchy in pixel coordinates from this observation. The
+    clickable index omits containers and attributes needed for cache guards."""
     hierarchy_ok: bool = True
     """False when the screenshot succeeded but the UI hierarchy parse failed; callers
     must then keep their previous element index rather than clobbering it."""

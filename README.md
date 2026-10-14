@@ -12,6 +12,7 @@
   <a href="#workflow-showcase">Workflow Showcase</a> •
   <a href="#codex-client-integration">Codex Client</a> •
   <a href="#model-configuration">Model Configuration</a> •
+  <a href="#visual-location-cache">Cache Dashboard</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#ios-simulator">iOS Simulator</a> •
   <a href="#mcp-setup">MCP for IDEs</a> •
@@ -41,7 +42,7 @@ This fork can use the ChatGPT session from the locally installed **Codex CLI** a
 | Key-free Codex provider | Planner, Operator, Checker, Explorer, Outputter, summaries, and history compression use the signed-in Codex client. |
 | Multimodal input | Screenshots are sent as local image inputs through Codex App Server. |
 | Screenshot size control | Local and embedded images use lossy WebP quality 70/100 with proportional 720p bounds before Codex calls; original captures remain available for device coordinates. |
-| Visual location reuse | After UI-tree locating fails, reuse positions from a persistent per-device LRU when main-content pixels and the hierarchy match; verified status-bar changes are ignored. |
+| Visual location reuse | After UI-tree locating fails, reuse positions from a local per-device LRU with page, local-target and fixed-region guards, backed by a cache dashboard. |
 | Isolated execution | Every model call uses a temporary Codex thread with a read-only sandbox and no approval prompts; Artemis remains responsible for device actions. |
 | First-run bootstrap | Startup scripts install or locate ADB, scrcpy, FFmpeg, Codex CLI, `uv`/Python, Node.js, and project dependencies; `--with-ios` opts in to Appium/XCUITest setup on macOS. |
 | Cross-platform setup | Windows, Apple Silicon macOS, Intel macOS, and Linux use the same dependency and readiness workflow. |
@@ -59,29 +60,43 @@ ARTEMIS_CODEX_IMAGE_WEBP_QUALITY=70
 
 The short edge is capped at 720 pixels and the long edge at 1600, without upscaling: a 1080×2400 portrait becomes 720×1600, and a 1920×1080 landscape becomes 1280×720. Quality 70 is an encoder setting, not a guaranteed 70% reduction in file size. Images exceeding the byte budget are further resized at the same quality. Remote image URLs remain with the provider. Set `ARTEMIS_CODEX_IMAGE_PREPROCESSING=0` to restore the generic provider's policy.
 
-### Visual Location Cache
+### Recent Improvements
 
-Locating follows **ADB/UI hierarchy → local visual location cache → image OCR/model**. Normal ADB actions and XML matches never query this cache. Each device has its own persistent **10,000-position LRU**, shared across its system, launcher and application groups; package, page fingerprint, screen dimensions, target and locating strategy further distinguish entries. Reading a position refreshes its recency; unused prefetched elements are evicted first, then recency decides retention. One entry contains one position, not an entire action sequence.
+| Area | Current behavior |
+|---|---|
+| Cache reuse | Guarded page, local-target and fixed-region reuse with wider candidate searches; dashboard page details, learning state, hit metrics and failure cases. |
+| Capture reliability | Failures return errors. Capture runs off the event loop, callers wait at most 30 seconds, and an unfinished capture cannot overlap the next on the same driver. |
+| Observation waits | The observation entry point owns settling, avoiding duplicate controller/driver waits and honoring explicit zero-wait requests. |
+| History loading | The console loads 200 steps per request with batched related-record queries; live events survive loading, and failed loads preserve the existing snapshot. |
 
-The cache dashboard also shows and searches a short page name inferred during visual locating. Names are display metadata, never part of the fingerprint or extra cache entries. Legacy/uncertain pages remain unnamed until a later visual lookup; naming does not trigger separate model requests.
+<a id="visual-location-cache"></a>
+### Visual Location Cache and Dashboard
 
-On visual lookup, Flash and Pro/Ultra collect up to 20 common visible controls in the same request: name, up to three initial aliases, type, bounds and coordinates. This can increase output tokens and response latency without adding a separate inventory request. Only unique exact normalized names/aliases are reused. On-demand results sharing the same bounds, or a name and a point inside existing bounds, merge with the existing element.
+Locating follows **ADB/UI hierarchy → local visual location cache → OCR/model**. Each device retains **10,000 positions** by default. A visual request can learn up to 20 additional visible controls in the same call; multi-target lookups send only unresolved targets to the model. A cache entry reuses a position, not a complete action sequence.
 
-Inventory states distinguish learning, complete, partially evicted, empty, failed and invalidated pages. Refilling accompanies a later necessary visual request: partial inventories have a 30-second cooldown, empty/failed inventories 60 seconds. Learning leases expire after 120 seconds; late responses cannot overwrite newer leases. Unused prefetch is limited to `min(capacity, max(20, capacity // 5))` per device (2000 by default); a hit promotes an element to the protected pool. The overall default remains 10,000 and explicit legacy capacities remain respected. `batch_prefetch: false` stops collection but keeps existing reuse.
+Alongside exact-page matching, guarded local-target and fixed-region reuse reduce misses from status-bar changes, unrelated lists and minor image compression artifacts. Device, app, Activity, dimensions and target evidence still have to pass validation; dialogs, keyboards, moved targets and ambiguity prevent unsafe reuse. Page/structure searches now inspect up to 1000 candidates instead of 200; region and cross-structure searches inspect up to 256 instead of 64.
 
-The unchanged-UI guard compares exact decoded **main-content** pixels and the UI hierarchy, rather than a perceptual hash. A status bar identified by explicit UI nodes or a visible Android system inset is masked, so its clock, battery and icon changes do not invalidate an otherwise unchanged page. Status-bar nodes and dump-only node indices are excluded from the hierarchy fingerprint. There is no guessed fixed-percentage top crop; unknown, hidden, conflicting or oversized boundaries fall back to full-screen comparison. App controls at the top prevent masking when they may overlap the bar.
+Open **Page Cache / 页面缓存** (`/cache`) in the Web console to inspect:
 
-Device/app/Activity changes, scrolling, popups, keyboards, rotation and layout changes prevent reuse. After an exact fingerprint miss, cross-snapshot candidates require identical nonempty UI structure, dimensions and device/app/Activity. A candidate must have explicit bounds, identical local pixels with an 8-pixel or 2.5%-short-edge margin, identical intersecting UI nodes including text, and unique coordinates. Empty trees, uniform patches and targets without bounds remain exact-only. Page names and Activity alone never authorize reuse. Targets whose point neighborhood (at least 4 pixels, otherwise 2% of the shorter screen edge) or supplied bounds touch the ignored bar are never stored or reused. Historical screenshots, unknown devices/apps, ambiguous/missing locations and invalid coordinates are not cached. Correction feedback or an open execution incident invalidates the page, related structural snapshots and pages containing the same target across locating modes. Feedback linked to a preceding cached action also invalidates its source page. Device generations reject writes from requests started before invalidation. A corrupt, busy or unwritable cache falls back to normal locating. Fingerprint version 3 includes the package and Android Activity, starts with a miss for older fingerprints, and relearns positions through normal locating. Android observations without a known Activity bypass reuse; other platforms retain their existing package/pixel/tree guards. A location is an inference result, not proof that a subsequent tap achieved its goal; clicks still use the existing executor and verification behavior.
+- Retained elements and pages, per-device capacity and page-learning state.
+- Cumulative queries, hit rate, prefetch utilization, locating timings and miss reasons.
+- Device/app/page-name/Activity details, element aliases, coordinates, bounds and reuse scope.
+- Paginated failure cases and single-page clearing with confirmation.
 
-The console’s **Page Cache / 页面缓存** tab (`/cache`) groups positions by device, package and Activity. Expand a group to inspect fingerprints and paginated element names, aliases, geometry, last use and retention state. Confirmed clearing targets one exact device/app/page. Durable query counts, hit rate, miss reasons, prefetch utilization, locating timings and dispatch/failure counts survive eviction and clearing. History starts with this version; legacy telemetry is not invented. Dispatch success is not semantic goal verification; only the next action with identical coordinates on the same frame can be attributed. Dashboard reads neither alter LRU nor migrate the schema. Older records show an unknown Activity; it is not reconstructed from a package name. Activity alone is not a page identifier: Flutter and other single-Activity apps still distinguish internal pages by content pixels and UI hierarchy.
+<details>
+<summary>Cache dashboard example: overview, metrics and learning state</summary>
 
-The default database is `.cache/visual_locations.sqlite3` beside the installation's `.env`; it survives task and process restarts and is excluded from Git. Only location metadata and fingerprints are stored, not screenshots or complete model responses. Flash, Pro/Ultra and direct detection support partial multi-target hits; only unresolved targets reach OCR/models. Nested detection on the original frame can reuse the cache; crops, transforms and annotations cannot borrow its scope. SQLite uses WAL and batches multi-target lookup/counters in short transactions. Normal locating remains available during database failure; telemetry may be incomplete under severe contention or storage errors.
+<p align="center">
+  <img src="./docs/assets/visual-cache-dashboard.jpg" alt="ARTEMIS cache dashboard showing retained entries, cumulative metrics and page-learning state" width="640" />
+</p>
 
-Fixed-region reuse handles dynamic page content without app-specific rules. Supported evidence includes bottom navigation, top toolbars, side navigation, and aligned, separated bottom rows with at least two labeled clickable controls. A guessed bottom-screen percentage alone never authorizes reuse. Candidates require the same device/app/Activity/dimensions, stable container identity/bounds, and exact pixels plus nodes/states inside the region. Unrelated feed nodes, images, text and aggregated ancestor labels can change. Dialogs, keyboards, foreign windows, crossing nodes and scrollable ancestors block reuse. Selected states, badges and themes can still cause conservative misses. Canvas pages without UI evidence retain existing guards. Legacy entries gain region metadata only through subsequent learning; regional hits reuse existing rows instead of duplicating them per snapshot.
+Dashboard interface example. Device identifiers, business app names and local paths are excluded. The displayed values illustrate the interface and are not benchmark results.
 
-The dashboard displays each element's reuse scope, region identity and pixel bounds, plus separate regional hit counts. Failure cases support device/app/reason filters and pagination. Records contain a bounded target description, current/source fingerprints, Activity, scope, first/last occurrence and count; matching cases merge, with at most 1000 recent groups per device. Reasons distinguish missing candidates, regional node/state or pixel changes, layout changes, obstruction, correction invalidation and cache-attributed action failure. Cases remain local and contain no screenshots/full UI trees. Element clearing preserves cases; case eviction preserves cumulative counters. Historical failures from older versions cannot be reconstructed.
+</details>
 
-Set the shared cache options in `config/artemis.jsonc` (the wheel includes the same defaults):
+The database defaults to `.cache/visual_locations.sqlite3` beside the installation's `.env`. It remains local and Git-ignored; the location cache stores no screenshots or full model responses. Dashboard reads do not change LRU order, and clearing elements does not reset cumulative statistics. See [cache behavior, guards and failure records](./docs/visual-location-cache.md).
+
+Configure [`config/artemis.jsonc`](./config/artemis.jsonc), then restart ARTEMIS/MCP:
 
 ```jsonc
 {
@@ -95,82 +110,9 @@ Set the shared cache options in `config/artemis.jsonc` (the wheel includes the s
 }
 ```
 
-Capacity is per device and accepts integers from 1 to 100000; invalid values fail configuration validation. Flash, Pro, direct detection and SDK-built tasks share this setting. Set `enabled` to `false` to disable reuse; the existing `.env` switch `ARTEMIS_VISUAL_LOCATION_CACHE=0` can also force it off. The old `ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY` environment variable is no longer read; move its value to `capacity_per_device` in JSONC. An optional `.env` `ARTEMIS_VISUAL_LOCATION_CACHE_PATH` still overrides the database path. Restart the ARTEMIS/MCP process after changing configuration. This skips repeated visual grounding, while the main agent's decision-making and device execution continue normally.
-
-#### Cache verification results (2026-10-10)
-
-A real `gpt-6.1-sol` verification used one ARTEMIS-explored Settings screenshot, with `medium` reasoning and the default WebP Q70 / 720p input policy. The same original screenshot and hierarchy were replayed for both visual requests; the XML check used a label present in the hierarchy.
-
-| Locating path | Time (s) | Visual model calls | Cache hits | Target check |
-|---|---:|---:|---:|---|
-| XML-resolvable label | Not timed | 0 | 0 | Resolved from the hierarchy |
-| Initial visual request | 15.8241 | 1 | 0 | Point inside verified target bounds |
-| Repeated visual request | 0.1272 | 0 | 1 | Point inside verified target bounds |
-
-Timing covers the Explorer locating call, including cache lookup and, on a miss, the model request; screenshot capture and device actions are excluded. This is one fixed-screenshot replay, not an end-to-end task speed benchmark or an estimate of cache hit rate on changing screens. [Anonymized verification data](./docs/benchmarks/visual-location-cache-2026-10-10.json) contains measurements and validation scope without screenshots, device identifiers or raw responses.
-
-The final cache and affected-routing regression run passed **150 tests in 16.82 s**, including **25 cache-specific cases**. Coverage includes a device receiving 2001 positions and retaining 2000 while another retains its own three; read-based LRU promotion across system/launcher/app groups; persistence after reopening the database; and 60 writes from four concurrent instances across two devices with a 10-position quota each. Routing checks cover XML-first behavior, partial multi-target hits, unchanged coordinates, device/app/pixel/tree changes, old frames, correction feedback, open execution incidents, ambiguous/invalid results, and corrupt or locked databases. The run emitted 11 dependency/test-mock warnings and no failures. These are unit/regression checks; only the screenshot replay above used a live model.
-
-After moving cache capacity into JSONC on 2026-10-11, the expanded regression run passed **205 tests in 17.89 s** with 11 dependency/test-mock warnings. It includes **34 cache/configuration cases**, covering SDK propagation, task-loaded settings, invalid capacity rejection, configured LRU eviction and configuration disablement. The earlier 150-test result above is retained as a separate recorded run; the live screenshot measurements were not repeated.
-
-The status-bar fingerprint update added **26 cases**; the expanded run passed **239 tests in 18.16 s**, including **60 cache/configuration cases**, with 11 dependency/test-mock warnings. Two read-only real captures had changes in both the status strip and main content and correctly missed. A controlled image combining the first capture's body with the second capture's actual status strip hit the seeded cache. This checks fingerprint behavior, not inference latency; no model request or device action was performed. The public verification JSON records this separately from the earlier measurements.
-
-Run the 60 cache/configuration cases locally with:
-
-```bash
-python -m pytest tests/unit/utils/test_visual_location_cache.py tests/unit/utils/test_visual_page_fingerprint.py tests/unit/agents/test_visual_location_routing.py tests/unit/config/test_visual_location_cache_config.py -q
-```
-
-### Image Input Benchmark (2026-10-10)
-
-An anonymized benchmark used eight ARTEMIS-verified Android pages (settings, display, sound, notifications, battery, additional settings, launcher, and a calculator consent screen). Both experiments used `gpt-6.1-sol`, `medium` reasoning, two rounds, paired order reversal, identical prompts and structured output, and excluded warmups. [Public aggregate results](./docs/benchmarks/image-input-2026-10-10.json) contain no screenshots, device identifiers, account data, local paths, session identifiers or raw model responses.
-
-| Experiment | Input | Total size of 8 images (KiB) | Conversion median (ms) | Request median (s) | Total median (s) | Successful / attempted |
-|---|---|---:|---:|---:|---:|---:|
-| A: format only | PNG, 1080×2400 | 2889.7 | 0.0 | 15.26 | 15.26 | 15 / 16 |
-| A: format only | WebP Q70, 1080×2400 | 350.4 | 205.8 | 13.08 | 13.28 | 14 / 16 |
-| B: resolution | WebP Q70, 1080×2400 | 350.4 | 196.8 | 14.71 | 14.89 | 16 / 16 |
-| B: resolution | WebP Q70, 720×1600 | 219.3 | 124.2 | 14.33 | 14.45 | 16 / 16 |
-
-Native WebP was **87.9% smaller than PNG**. Resizing to 720×1600 cut another **37.4%**, making the final input **92.4% smaller than PNG**. All successful requests passed three text checks and one target-location check; experiment B passed 48/48 text checks and 16/16 target checks for each variant. These checks cover this small sample, not all UI text or coordinate accuracy.
-
-Experiment A had three App Server/MCP initialization failures before inference under memory pressure; they are excluded from timing and recognition scores. Four recovery requests on the affected pages passed separately and are not pooled into the table. Experiment B had no errors. The geometric mean of paired total-time ratios was 0.919 (95% page-cluster bootstrap interval 0.823–1.034; 14 pairs) for A and 0.956 (0.902–1.021; 16 pairs) for B. Both intervals include 1: **smaller payloads are confirmed; a stable inference speedup is not**. Do not compare timings across experiments as if they were one simultaneous run.
-
-Request timing includes adapter work, App Server, upload, queueing, inference and output; total additionally includes PNG decoding, resizing, WebP encoding and base64 preparation. Capture, source-file reads, report writes and session cleanup are excluded. Historical native comparisons explicitly bypass Artemis preprocessing and raise generic adapter limits, preserving actual submitted bytes. Benchmark scripts in `scripts/benchmark_png_webp.py` and `scripts/benchmark_webp_720p.py` require locally verified screenshots; raw artifacts remain local.
+Capacity accepts 1–100000. `enabled: false` disables reuse; `batch_prefetch: false` only stops new batch learning. The legacy `ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY` variable is no longer read; use JSONC instead. `ARTEMIS_VISUAL_LOCATION_CACHE_PATH` can still override the database path.
 
 Core automation does not need an API key when the Codex client is selected. Cloud OCR and alternative Gemini, OpenAI API, Anthropic, OpenRouter, or xAI providers still require their corresponding keys when explicitly enabled. The reusable adapter is published as [codex-client-provider](https://pypi.org/project/codex-client-provider/); see [Codex client provider](./docs/codex-client-provider.md) for the protocol, model routing, configuration, and limitations.
-
-### Model Recognition Benchmark (2026-10-11)
-
-A new paired comparison replayed the same eight ARTEMIS-verified pages through the production Codex adapter: `gpt-6.1-sol` versus `gpt-6-luna`, both with `medium` reasoning, identical 720×1600 WebP Q70 inputs (219.3 KiB across eight images), prompts and structured output. Two rounds reversed model order per page, giving 16 measured requests per model; one warmup per model was excluded. [Anonymized results](./docs/benchmarks/models-luna-sol-2026-10-11.json) include per-page aggregates without screenshots, identifiers or raw responses.
-
-| Model | Request median (s) | Total median (s) | Total P90 (s) | Text-region checks | Target hits | All checks passed |
-|---|---:|---:|---:|---:|---:|---:|
-| `gpt-6.1-sol` | 11.95 | 12.10 | 13.17 | 48/48 (100%) | 16/16 (100%) | 16/16 (100%) |
-| `gpt-6-luna` | 14.32 | 14.47 | 19.38 | 28/48 (58.3%) | 14/16 (87.5%) | 7/16 (43.8%) |
-
-There were no request errors. Each request checked three specified text regions and one target point against verified bounds; answers and the target bounds were not sent to either model. Recognition failures remain in latency and pass-rate statistics. The paired total-time ratio, Luna / Sol, was **1.251** (95% page-cluster bootstrap interval **1.179–1.351**, 16 pairs); Luna was faster in only one pair. This sample does not support switching visual recognition to Luna for speed.
-
-Total timing includes PNG decoding, proportional resizing and WebP encoding; request timing includes the adapter, App Server, upload, queueing, inference and output. Capture, source reads, report writes and session cleanup are excluded. Local visual location caching was bypassed. Provider prompt-cache hits were **3/16 for Sol and 16/16 for Luna**; cold/warm cache was not controlled, so these are observed call-chain timings rather than isolated model computation. This small fixed-screen sample is not an overall automation success rate and is not pooled with historical image-format measurements. The production model configuration was not changed.
-
-`scripts/benchmark_models.py` reproduces the paired experiment using a locally verified manifest; `scripts/report_model_benchmark.py` exports the aggregate JSON and local HTML report. Scoring, image-policy and payload regression checks passed **33 tests** with one dependency deprecation warning.
-
-### Sol Reasoning Efforts and Astra (2026-10-11)
-
-A separate same-run comparison tested **Sol low, medium, high and Astra medium** on the same eight verified pages and identical WebP Q70 720×1600 inputs. Two rounds rotated configuration positions per page and reversed them in round two; each configuration had 16 measured requests and one excluded warmup. Sol medium was measured again as the baseline. [Anonymized results](./docs/benchmarks/sol-efforts-astra-2026-10-11.json) include per-page and per-round statistics; earlier Luna timings are not pooled into this experiment.
-
-| Model | Effort | Request median (s) | Total median (s) | Total P90 (s) | Text checks | Target hits | All checks passed |
-|---|---|---:|---:|---:|---:|---:|---:|
-| `gpt-6.1-sol` | medium | 11.53 | 11.70 | 14.60 | 48/48 | 16/16 | 16/16 |
-| `gpt-6.1-sol` | low | 10.27 | 10.40 | 12.37 | 48/48 | 16/16 | 16/16 |
-| `gpt-6.1-sol` | high | 11.65 | 11.78 | 13.70 | 48/48 | 16/16 | 16/16 |
-| `gpt-6-astra` | medium | 9.69 | 9.83 | 12.94 | 48/48 | 16/16 | 16/16 |
-
-There were no call errors or recognition failures. Against the same-run Sol medium baseline, paired total-time ratios were **0.878 for Sol low** (nominal 95% page-cluster bootstrap interval **0.803–0.954**, faster in 13/16 pairs), **0.988 for Sol high** (**0.897–1.081**, 5/16), and **0.860 for Astra medium** (**0.797–0.927**, 12/16). Low and Astra reduced paired latency by approximately **12.2% and 14.0%** in this sample. High's interval crosses 1, so a speed difference was not established. Intervals are not adjusted for the three comparisons. All configurations reached the recognition ceiling here; the result does not establish equal performance on harder screens or a benefit from high reasoning on them.
-
-The timing boundaries and three-text-region/one-target scoring are the same as above. Local location reuse was bypassed. Provider prompt-cache hits were medium **6/16**, low **7/16**, high **6/16**, Astra **5/16**; cold/warm cache was not controlled. These are call-chain measurements, including client, network and queueing overhead. Production configuration was not changed. Model availability and requested efforts were checked against `model/list`, then explicitly passed to the adapter; response metadata verifies the model name but does not expose effective effort.
-
-Use repeated `--profile model:effort` options with `scripts/benchmark_models.py`; the first profile is the paired baseline. `scripts/report_model_profiles.py` exports aggregate data and local HTML. Compatibility, balanced/reversed scheduling, separation of efforts on the same model, paired aggregation, privacy and incomplete/duplicate publication guards were checked. The scoring and image-input regression suite again passed **33 tests**, with one dependency deprecation warning.
 
 <a id="model-configuration"></a>
 ### Configure Models

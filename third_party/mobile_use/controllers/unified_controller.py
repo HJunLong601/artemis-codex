@@ -160,9 +160,9 @@ class UnifiedMobileControllerBase:
         screen_data = await self._driver.get_screen_data()
         return screen_data.ui_elements or []
 
-    async def get_screen_data(self) -> "ScreenDataResponse":
+    async def get_screen_data(self, skip_settling: bool = False) -> "ScreenDataResponse":
         """Get screen data including screenshot, UI hierarchy, dimensions, and platform."""
-        data = await self._driver.get_screen_data()
+        data = await self._driver.get_screen_data(skip_settling=skip_settling)
         return ScreenDataResponse(
             base64=data.screenshot_base64,
             elements=data.ui_elements or [],

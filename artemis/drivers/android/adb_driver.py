@@ -35,6 +35,8 @@ from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+SCREEN_CAPTURE_TIMEOUT_SECONDS = 30.0
+
 # KeyCode mapping from string name to Android keycode integer
 ANDROID_KEYCODE_MAP: dict[str, int] = {
     "home": 3,
@@ -89,6 +91,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
         self._device: AdbDevice | None = None
         self._recording_process: asyncio.subprocess.Process | None = None
         self._recording_output_path: Path | None = None
+        self._capture_task: asyncio.Task[ScreenData] | None = None
 
     @property
     def device_id(self) -> str:
@@ -120,10 +123,34 @@ class AndroidAdbDriver(BaseDeviceDriver):
             await asyncio.to_thread(self._ui_adb_client.disconnect)
 
     async def get_screen_data(self, skip_settling: bool = False) -> ScreenData:
-        """Captures screenshot and XML hierarchy concurrently."""
+        """Capture without blocking the event loop, with a bounded caller wait.
+
+        Cancelling/timing out a caller cannot kill synchronous device I/O. Keep
+        that capture owned until it finishes and reject overlapping captures;
+        a late result must never become the next caller's screen observation.
+        """
         if not skip_settling:
             await asyncio.sleep(0.3)
+        if self._capture_task is not None and not self._capture_task.done():
+            raise RuntimeError("Previous screen capture is still running")
+        task = asyncio.create_task(self._capture_screen_data())
+        self._capture_task = task
+        task.add_done_callback(self._capture_finished)
+        return await asyncio.wait_for(asyncio.shield(task), SCREEN_CAPTURE_TIMEOUT_SECONDS)
 
+    def _capture_finished(self, task: asyncio.Task[ScreenData]) -> None:
+        if self._capture_task is task:
+            self._capture_task = None
+        if not task.cancelled():
+            task.exception()  # Retrieve errors even when the caller has already left.
+
+    def _capture_adb_screenshot(self) -> tuple[bytes, tuple[int, int]]:
+        image = self.device.screenshot()
+        buf = BytesIO()
+        image.save(buf, format="PNG")
+        return buf.getvalue(), image.size
+
+    async def _capture_screen_data(self) -> ScreenData:
         # 1. Capture raw screenshot
         screenshot_bytes: bytes = b""
         screenshot_base64: str = ""
@@ -133,14 +160,19 @@ class AndroidAdbDriver(BaseDeviceDriver):
         # Check if ui_adb_client has direct screen data support
         if self._ui_adb_client and hasattr(self._ui_adb_client, "get_screen_data"):
             try:
-                raw_ui_data = self._ui_adb_client.get_screen_data()
+                raw_ui_data = await asyncio.to_thread(self._ui_adb_client.get_screen_data)
+                if asyncio.iscoroutine(raw_ui_data):
+                    raw_ui_data = await raw_ui_data
                 if (
                     hasattr(raw_ui_data, "base64")
                     and isinstance(raw_ui_data.base64, str)
                     and raw_ui_data.base64
                 ):
+                    decoded = base64.b64decode(raw_ui_data.base64, validate=True)
+                    if not decoded:
+                        raise ValueError("Empty screenshot")
+                    screenshot_bytes = decoded
                     screenshot_base64 = raw_ui_data.base64
-                    screenshot_bytes = base64.b64decode(screenshot_base64)
                 if hasattr(raw_ui_data, "width") and isinstance(raw_ui_data.width, int):
                     self._width = raw_ui_data.width
                 if hasattr(raw_ui_data, "height") and isinstance(raw_ui_data.height, int):
@@ -160,26 +192,20 @@ class AndroidAdbDriver(BaseDeviceDriver):
 
         if not screenshot_base64 or not isinstance(screenshot_base64, str):
             try:
-                pil_img = await asyncio.to_thread(self.device.screenshot)
-                if hasattr(pil_img, "save"):
-                    buf = BytesIO()
-                    pil_img.save(buf, format="PNG")
-                    screenshot_bytes = buf.getvalue()
-                    self._width, self._height = pil_img.size
-                    screenshot_base64 = base64.b64encode(screenshot_bytes).decode("utf-8")
+                screenshot_bytes, size = await asyncio.to_thread(self._capture_adb_screenshot)
+                self._width, self._height = size
+                screenshot_base64 = base64.b64encode(screenshot_bytes).decode("utf-8")
             except Exception as e:
                 logger.warning(f"Device screenshot capture failed on {self._device_id}: {e}")
 
-        if not screenshot_base64 or not isinstance(screenshot_base64, str):
-            # Fallback for headless testing environments
-            screenshot_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-            screenshot_bytes = base64.b64decode(screenshot_base64)
+        if not screenshot_bytes:
+            raise RuntimeError("Failed to capture device screenshot")
 
         # 2. Capture UI Hierarchy via UIAutomator
         if self._ui_adb_client and not ui_elements:
             try:
                 if hasattr(self._ui_adb_client, "get_hierarchy"):
-                    res = self._ui_adb_client.get_hierarchy()
+                    res = await asyncio.to_thread(self._ui_adb_client.get_hierarchy)
                     hierarchy = await res if asyncio.iscoroutine(res) else res
                     if isinstance(hierarchy, str):
                         ui_hierarchy_xml = hierarchy
@@ -187,7 +213,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
                     else:
                         ui_elements = hierarchy
                 elif hasattr(self._ui_adb_client, "get_ui_elements"):
-                    res = self._ui_adb_client.get_ui_elements()
+                    res = await asyncio.to_thread(self._ui_adb_client.get_ui_elements)
                     ui_elements = await res if asyncio.iscoroutine(res) else res
             except Exception as e:
                 logger.debug(f"UI hierarchy extraction failed: {e}")
@@ -206,20 +232,9 @@ class AndroidAdbDriver(BaseDeviceDriver):
             screen_width=w,
             screen_height=h,
         )
-        clean_b64 = (
-            screenshot_base64
-            if isinstance(screenshot_base64, str) and screenshot_base64
-            else "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-        )
-        clean_bytes = (
-            screenshot_bytes
-            if isinstance(screenshot_bytes, bytes) and screenshot_bytes
-            else base64.b64decode(clean_b64)
-        )
-
         return ScreenData(
-            screenshot_bytes=clean_bytes,
-            screenshot_base64=clean_b64,
+            screenshot_bytes=screenshot_bytes,
+            screenshot_base64=screenshot_base64,
             ui_hierarchy_xml=ui_hierarchy_xml,
             ui_elements=clean_ui_elements,
             width=w,

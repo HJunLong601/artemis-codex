@@ -1219,41 +1219,59 @@ export class AgentService {
   private backfillSessionSteps(sessionId: string, loadGeneration = this.sessionLoadGeneration): void {
     const requestId = ++this.sessionSnapshotRequestId;
     this.pendingSnapshotRequests.add(requestId);
-    this.http.get<StepItemData[]>(`/api/sessions/${sessionId}/steps`).subscribe({
-      next: (steps) => {
-        this.pendingSnapshotRequests.delete(requestId);
-        if (
-          this.currentSessionId() !== sessionId
-          || loadGeneration !== this.sessionLoadGeneration
-          || requestId < this.sessionSnapshotAppliedId
-        ) return;
-        this.sessionSnapshotAppliedId = requestId;
-        const historicalLogs = steps.map((step) => ({
-          type: 'step_updated',
-          session_id: sessionId,
-          timestamp: new Date((step.timestamp || Date.now() / 1000) * 1000).toISOString(),
-          data: step,
-          history_snapshot: true
-        }));
+    const pageSize = 200;
+    const allSteps: StepItemData[] = [];
+    const loadPage = (offset: number): void => {
+      this.http.get<StepItemData[]>(`/api/sessions/${sessionId}/steps`, {
+        params: { limit: pageSize, offset }
+      }).subscribe({
+        next: (steps) => {
+          if (
+            this.currentSessionId() !== sessionId
+            || loadGeneration !== this.sessionLoadGeneration
+            || requestId < this.sessionSnapshotAppliedId
+          ) {
+            this.pendingSnapshotRequests.delete(requestId);
+            return;
+          }
+          allSteps.push(...steps);
+          // The virtual planning step is additional to the recorded-step limit.
+          const recordedCount = steps.filter((step) => step.step_id !== 'pre-planning').length;
+          if (recordedCount === pageSize) {
+            loadPage(offset + recordedCount);
+            return;
+          }
+          this.pendingSnapshotRequests.delete(requestId);
+          this.sessionSnapshotAppliedId = requestId;
+          const historicalLogs = allSteps.map((step) => ({
+            type: 'step_updated',
+            session_id: sessionId,
+            timestamp: new Date((step.timestamp || Date.now() / 1000) * 1000).toISOString(),
+            data: step,
+            history_snapshot: true
+          }));
 
-        this.sessionLogs.update((logs) => [
-          ...historicalLogs,
-          ...logs.filter((log) => !log.history_snapshot)
-        ]);
-        this.isSessionContentLoading.set(false);
-      },
-      error: (err) => {
-        this.pendingSnapshotRequests.delete(requestId);
-        console.error('Failed to backfill session steps:', err);
-        if (
-          this.currentSessionId() === sessionId
-          && loadGeneration === this.sessionLoadGeneration
-          && this.pendingSnapshotRequests.size === 0
-        ) {
+          // Publish only a complete snapshot; preserve SSE events received between pages.
+          this.sessionLogs.update((logs) => [
+            ...historicalLogs,
+            ...logs.filter((log) => !log.history_snapshot)
+          ]);
           this.isSessionContentLoading.set(false);
+        },
+        error: (err) => {
+          this.pendingSnapshotRequests.delete(requestId);
+          console.error('Failed to backfill session steps:', err);
+          if (
+            this.currentSessionId() === sessionId
+            && loadGeneration === this.sessionLoadGeneration
+            && this.pendingSnapshotRequests.size === 0
+          ) {
+            this.isSessionContentLoading.set(false);
+          }
         }
-      }
-    });
+      });
+    };
+    loadPage(0);
 
     this.http.get<StartupProgressEvent[]>(`/api/sessions/${sessionId}/startup_progress`).subscribe({
       next: (events) => {

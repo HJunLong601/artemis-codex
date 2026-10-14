@@ -504,7 +504,9 @@ async def stream_events(session_id: str = "active", client: str | None = None):
                 try:
                     from apps.admin_console.database.repositories.step_repository import step_repo
 
-                    recorded_steps = step_repo.get_session_steps(str(active_sid))
+                    recorded_steps = await asyncio.to_thread(
+                        step_repo.get_session_steps, str(active_sid)
+                    )
                     for step_dict in recorded_steps:
                         yield (
                             f"event: step_recorded\ndata: {json.dumps(step_dict, default=str)}\n\n"
