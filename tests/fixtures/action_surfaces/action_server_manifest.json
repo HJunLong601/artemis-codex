@@ -1383,6 +1383,14 @@
           "title": "Elements",
           "type": "array"
         },
+        "ui_hierarchy": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Ui Hierarchy",
+          "type": "array"
+        },
         "hierarchy_ok": {
           "default": true,
           "title": "Hierarchy Ok",

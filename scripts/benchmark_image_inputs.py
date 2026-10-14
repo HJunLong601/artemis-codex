@@ -276,7 +276,9 @@ def score(case, decision):
 async def infer(args, manifest, report):
     llm = CodexAppServerChatModel(
         image_preprocessing_enabled=False,  # Preserve the explicit benchmark variants.
-        model_name=args.model, reasoning_effort=args.effort, timeout_seconds=args.timeout
+        model_name=args.model,
+        reasoning_effort=args.effort,
+        timeout_seconds=args.timeout,
     ).bind_tools([ScreenRead], tool_choice="required")
     selected = [v for v in VARIANTS if v.name in args.variants]
     all_rows = report.setdefault("inference", [])

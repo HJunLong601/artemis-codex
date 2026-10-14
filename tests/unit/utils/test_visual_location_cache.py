@@ -61,18 +61,12 @@ def test_persistent_lru_is_shared_across_groups_but_each_device_has_its_own_quot
     assert {r["category"] for r in rows} == {"system", "app"}
 
 
-def test_maximum_2000_positions_applies_per_device_even_if_larger_capacity_is_requested(tmp_path):
-    cache = VisualLocationCache(tmp_path / "locations.sqlite3", capacity=99999)
-    first, second = scope(), scope("phone-b")
-    for i in range(MAX_LOCATIONS_PER_DEVICE + 1):
-        cache.put(first, str(i), "flash", LOCATION)
-    for i in range(3):
-        cache.put(second, str(i), "flash", LOCATION)
-    assert cache.get(first, "0", "flash") is None
-    assert cache.get(first, "2000", "flash") == LOCATION
-    assert cache.get(second, "0", "flash") == LOCATION
-    counts = {r["device_key"]: r["positions"] for r in cache.summary()}
-    assert counts == {first.device_key: 2000, second.device_key: 3}
+def test_supported_maximum_clamps_oversized_capacity_without_mass_insertion(tmp_path):
+    # Per-device eviction is exercised above with three rows. Testing the public
+    # upper bound must not insert 100,001 records through individual transactions.
+    assert MAX_LOCATIONS_PER_DEVICE == 100000
+    cache = VisualLocationCache(tmp_path / "locations.sqlite3", capacity=100001)
+    assert cache.capacity == 100000
 
 
 def test_identical_pixels_ignore_png_metadata_but_any_pixel_or_tree_change_misses(tmp_path):

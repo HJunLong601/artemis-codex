@@ -34,7 +34,9 @@ def environment(tmp_path, monkeypatch):
         execution_setup=None,
         data_engine=None,
     )
-    driver = SimpleNamespace(get_current_package=AsyncMock(return_value="com.android.settings"))
+    driver = SimpleNamespace(
+        get_current_app=AsyncMock(return_value=("com.android.settings", ".MainSettings"))
+    )
     monkeypatch.setattr("artemis.drivers.factory.get_driver", lambda _: driver)
     monkeypatch.setattr(Explorer, "_resolve_image_record", lambda *_: (None, None))
     monkeypatch.setattr(detector, "get_llm", lambda *_, **__: object())
@@ -58,7 +60,7 @@ async def test_xml_first_never_queries_the_cache_device_or_visual_model(environm
     ctx, state, driver, inference = environment
     result = await run(ctx, state, query="Settings")
     assert result["candidates"][0]["source"] == "xml"
-    driver.get_current_package.assert_not_awaited()
+    driver.get_current_app.assert_not_awaited()
     inference.assert_not_awaited()
 
 
@@ -94,7 +96,7 @@ async def test_tree_pixels_application_and_device_changes_each_require_new_infer
     image.putpixel((50, 100), (254, 255, 255))
     image.save(state.latest_screenshot)
     await run(ctx, state)
-    driver.get_current_package.return_value = "test.application"
+    driver.get_current_app.return_value = ("test.application", ".Main")
     await run(ctx, state)
     ctx.device.device_id = "phone-b"
     await run(ctx, state)
@@ -144,7 +146,7 @@ async def test_disabled_unknown_device_and_unavailable_package_each_bypass_cache
     await run(ctx, state)
     await run(ctx, state)
     ctx.device.device_id = "phone-a"
-    driver.get_current_package.return_value = None
+    driver.get_current_app.return_value = (None, None)
     await run(ctx, state)
     await run(ctx, state)
     assert inference.await_count == 6
@@ -190,7 +192,7 @@ async def test_direct_detector_tool_retains_xml_before_cache_or_model(environmen
         ctx, state.latest_screenshot, ["Settings"], state=state
     )
     assert answer["detected"][0]["source"] == "xml"
-    driver.get_current_package.assert_not_awaited()
+    driver.get_current_app.assert_not_awaited()
     inference.assert_not_awaited()
 
 
@@ -225,7 +227,7 @@ async def test_jsonc_disable_cannot_be_reenabled_by_legacy_environment_switch(
     await run(ctx, state)
     await run(ctx, state)
     assert inference.await_count == 2
-    driver.get_current_package.assert_not_awaited()
+    driver.get_current_app.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -267,4 +269,15 @@ async def test_native_bounds_probe_failure_keeps_strict_guard(environment):
     assert (await run(ctx, state))["location_cache_hits"] == 1
     driver.get_status_bar_bounds.side_effect = RuntimeError("Insets unavailable")
     await run(ctx, state)
+    assert inference.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("activity", [None, "", ".OtherScreen"])
+async def test_unknown_or_changed_activity_never_reuses_android_location(environment, activity):
+    ctx, state, driver, inference = environment
+    await run(ctx, state)
+    driver.get_current_app.return_value = ("com.android.settings", activity)
+    result = await run(ctx, state)
+    assert result.get("location_cache_hits", 0) == 0
     assert inference.await_count == 2

@@ -169,9 +169,15 @@ async def test_task_that_never_acquires_queue_does_not_create_trace_session():
     agent._ui_adb_client = MagicMock()
     agent._prepare_tracing = MagicMock()
 
-    with patch(
-        "artemis.runtime.DeviceExecutionLock.acquire",
-        side_effect=DeviceBusyError("queue cancelled"),
+    with (
+        patch(
+            "artemis.llm.model_preflight.require_available_models",
+            AsyncMock(return_value={"ok": True}),
+        ),
+        patch(
+            "artemis.runtime.DeviceExecutionLock.acquire",
+            side_effect=DeviceBusyError("queue cancelled"),
+        ),
     ):
         with pytest.raises(DeviceBusyError, match="queue cancelled"):
             await agent.run_task(goal="queued task", profile="flash")

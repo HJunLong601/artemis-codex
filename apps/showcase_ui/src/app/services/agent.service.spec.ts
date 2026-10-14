@@ -1,5 +1,5 @@
 import { signal, computed } from '@angular/core';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 
 import { AgentService } from './agent.service';
 
@@ -123,6 +123,72 @@ describe('AgentService live LLM retry timeline', () => {
     expect(logs[0].data.step_id).toBe('step-1');
     expect(logs[1].data.trace_id).toBe('live-retry');
     expect(service.isSessionContentLoading()).toBeFalse();
+  });
+
+  it('loads every history page and publishes one complete snapshot while retaining SSE events', () => {
+    const service = createServiceWithoutPolling();
+    (service as any).currentSessionId = signal<string | null>('session-1');
+    const pages = [new Subject<any[]>(), new Subject<any[]>()];
+    const requests: any[] = [];
+    (service as any).http = {
+      get: (url: string, options: any) => {
+        if (!url.endsWith('/steps')) return of([]);
+        requests.push(options.params);
+        return pages[requests.length - 1];
+      }
+    };
+    service.sessionLogs.set([{ history_snapshot: true, data: { step_id: 'old' } }]);
+    service.isSessionContentLoading.set(true);
+    (service as any).backfillSessionSteps('session-1');
+    const first = Array.from({ length: 200 }, (_, i) => ({ step_id: `step-${i}`, timestamp: 100 + i }));
+    pages[0].next([{ step_id: 'pre-planning', timestamp: 99 }, ...first]);
+    expect(requests).toEqual([{ limit: 200, offset: 0 }, { limit: 200, offset: 200 }]);
+    expect(service.sessionLogs()[0].data.step_id).toBe('old');
+    expect(service.isSessionContentLoading()).toBeTrue();
+    service.sessionLogs.update(logs => [...logs, { type: 'trace_recorded', data: { trace_id: 'live' } }]);
+    pages[1].next([{ step_id: 'step-200', timestamp: 300 }]);
+    const logs = service.sessionLogs();
+    expect(logs.filter(log => log.history_snapshot).length).toBe(202);
+    expect(logs.filter(log => log.data.step_id === 'pre-planning').length).toBe(1);
+    expect(logs[logs.length - 1].data.trace_id).toBe('live');
+    expect(service.isSessionContentLoading()).toBeFalse();
+  });
+
+  it('discards stale pages when the user switches sessions', () => {
+    const service = createServiceWithoutPolling();
+    (service as any).currentSessionId = signal<string | null>('session-1');
+    const page = new Subject<any[]>();
+    const get = jasmine.createSpy('get').and.callFake((url: string) => url.endsWith('/steps') ? page : of([]));
+    (service as any).http = { get };
+    (service as any).backfillSessionSteps('session-1');
+    (service as any).currentSessionId.set('session-2');
+    page.next(Array.from({ length: 200 }, (_, i) => ({ step_id: `step-${i}` })));
+    expect(get.calls.allArgs().filter(args => args[0].endsWith('/steps')).length).toBe(1);
+    expect(service.sessionLogs()).toEqual([]);
+    expect((service as any).pendingSnapshotRequests.size).toBe(0);
+  });
+
+  it('retains the previous snapshot if a later history page fails', () => {
+    const service = createServiceWithoutPolling();
+    (service as any).currentSessionId = signal<string | null>('session-1');
+    const second = new Subject<any[]>();
+    (service as any).http = {
+      get: (url: string, options: any) => {
+        if (!url.endsWith('/steps')) return of([]);
+        return options.params.offset === 0
+          ? of(Array.from({ length: 200 }, (_, i) => ({ step_id: `step-${i}` })))
+          : second;
+      }
+    };
+    spyOn(console, 'error');
+    service.sessionLogs.set([{ history_snapshot: true, data: { step_id: 'previous' } }]);
+    service.isSessionContentLoading.set(true);
+    (service as any).backfillSessionSteps('session-1');
+    second.error(new Error('page failed'));
+    expect(service.sessionLogs()[0].data.step_id).toBe('previous');
+    expect(service.sessionLogs().length).toBe(1);
+    expect(service.isSessionContentLoading()).toBeFalse();
+    expect((service as any).pendingSnapshotRequests.size).toBe(0);
   });
 
   it('attaches the persisted checker transcript to the attempt it belongs to', () => {

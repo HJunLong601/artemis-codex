@@ -47,7 +47,7 @@ def test_task_loaded_config_is_preserved_when_global_file_changes(monkeypatch):
     assert configured_cache(SimpleNamespace(agent_config=cfg)).capacity == 23
 
 
-@pytest.mark.parametrize("capacity", [0, 2001, 2.5, "invalid"])
+@pytest.mark.parametrize("capacity", [0, 100001, 2.5, "invalid"])
 def test_invalid_capacity_is_rejected_before_task_execution(capacity):
     with pytest.raises(ValidationError):
         AgentGlobalConfig.model_validate(
@@ -62,5 +62,14 @@ def test_source_and_bundled_configs_have_matching_cache_defaults():
         root / "artemis/resources/config/artemis.jsonc"
     ).visual_location_cache
     assert source == bundled
-    assert source.enabled and source.capacity_per_device == 2000
+    assert source.enabled and source.capacity_per_device == 10000
     assert AgentGlobalConfig().visual_location_cache == source
+
+
+@pytest.mark.parametrize("capacity", [1, 2001, 10000, 100000])
+def test_supported_capacity_range_reaches_the_cache(capacity):
+    cfg = AgentGlobalConfig.model_validate(
+        {"visual_location_cache": {"capacity_per_device": capacity}}
+    )
+    cache = configured_cache(SimpleNamespace(agent_config=cfg))
+    assert cache.capacity == capacity
