@@ -43,6 +43,10 @@ except Exception:
 
 from artemis.context import DevicePlatform
 from artemis.runtime import device_registry, normalize_device_request, trace_store
+from artemis.runtime.device_selection import (
+    automatic_device_candidates,
+    is_emulator_serial,
+)
 from mcp_server.notifiers import notify
 from mcp_server.utils import device_utils
 
@@ -197,13 +201,21 @@ async def run_task(
                     )
                     if not target_serial:
                         try:
-                            # Optional path: pool-based selection falls back to the
-                            # first connected device on any import or query failure.
                             from artemis.runtime import device_pool
 
                             target_serial = device_pool.select_device()
                         except Exception:
-                            target_serial = connected_devices[0]
+                            target_serial = None
+                        if not target_serial:
+                            candidates = automatic_device_candidates(
+                                connected_devices, is_emulator=is_emulator_serial
+                            )
+                            if not candidates:
+                                raise RuntimeError(
+                                    "No eligible Android device. Automatic emulator discovery is disabled; "
+                                    "connect a physical device or specify a device serial."
+                                )
+                            target_serial = candidates[0]
                     print(
                         f"✅ Detected active connected device(s): {connected_devices}. "
                         f"Auto-selected device: '{target_serial}'."

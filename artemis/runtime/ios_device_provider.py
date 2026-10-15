@@ -40,7 +40,7 @@ class IosDeviceProvider:
         runner: CommandRunner | None = None,
         timeout: float = 15.0,
     ):
-        self._xcrun_path = xcrun_path or shutil.which("xcrun") or "/usr/bin/xcrun"
+        self._xcrun_path = xcrun_path or shutil.which("xcrun")
         self._runner = runner
         self._timeout = timeout
 
@@ -57,7 +57,7 @@ class IosDeviceProvider:
         )
 
     def _run_json(self, arguments: list[str]) -> Mapping[str, Any]:
-        command = [self._xcrun_path, "simctl", *arguments, "--json"]
+        command = [self._xcrun_path or "xcrun", "simctl", *arguments, "--json"]
         try:
             result = self._run(command)
         except (OSError, subprocess.SubprocessError) as exc:
@@ -133,6 +133,8 @@ class IosDeviceProvider:
         return result
 
     def list_devices(self) -> list[DeviceDescriptor]:
+        if self._xcrun_path is None and self._runner is None:
+            return []  # This host has no Xcode toolchain; do not break Android discovery.
         runtimes = self.parse_runtime_versions(self._run_json(["list", "runtimes"]))
         devices = self._run_json(["list", "devices", "available"])
         return self.parse_devices_payload(devices, runtime_versions=runtimes)

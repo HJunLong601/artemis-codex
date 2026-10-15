@@ -64,8 +64,8 @@ class ToolchainResolver:
         # Tier 1: Explicit environment variable override (e.g. ARTEMIS_ADB_PATH)
         env_var = f"ARTEMIS_{desc.name.upper()}_PATH"
         env_override = os.getenv(env_var)
-        if env_override and Path(env_override).exists():
-            resolved = str(Path(env_override).resolve())
+        if env_override and Path(env_override).expanduser().exists():
+            resolved = str(Path(env_override).expanduser().resolve())
             self._cache[key] = resolved
             return resolved
 
@@ -74,7 +74,7 @@ class ToolchainResolver:
             for sdk_env in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
                 sdk_dir = os.getenv(sdk_env)
                 if sdk_dir:
-                    candidate = Path(sdk_dir) / desc.sdk_relative_path
+                    candidate = Path(sdk_dir).expanduser() / desc.sdk_relative_path
                     if platform.os_type == OSType.WINDOWS:
                         candidate = candidate.with_suffix(".exe")
                     if candidate.exists():
@@ -82,7 +82,14 @@ class ToolchainResolver:
                         self._cache[key] = resolved
                         return resolved
 
-        # Tier 3: Common OS default installation paths
+        # Prefer the user's SDK tools on PATH over fallback installation directories.
+        if desc.sdk_relative_path:
+            sdk_tool = shutil.which(binary_name) or shutil.which(desc.name)
+            if sdk_tool and Path(sdk_tool).is_file():
+                self._cache[key] = str(Path(sdk_tool).resolve())
+                return self._cache[key]
+
+        # Tier 3: SDK inferred from adb, then common OS installation paths.
         common_candidates = self._get_os_common_paths(desc)
         for cand in common_candidates:
             if cand.exists():

@@ -45,6 +45,10 @@ from artemis.clients.screen_client_factory import create_screen_client
 from artemis.context import ArtemisContext, DeviceContext, DevicePlatform
 from artemis.controllers.unified_controller import UnifiedMobileController
 from artemis.platform import platform
+from artemis.runtime.device_selection import (
+    automatic_device_candidates,
+    is_emulator_serial,
+)
 from third_party.mobile_use.utils.app_launch_utils import launch_app_with_retries
 
 
@@ -124,11 +128,11 @@ def _get_controller(device_serial: str | None = None):
     )
     if target_serial and target_serial in _CONTROLLERS:
         return _CONTROLLERS[target_serial]
-    if not target_serial and _GLOBAL_CONTROLLER is not None:
-        return _GLOBAL_CONTROLLER
 
     logger.info("Initializing lazy device controller...")
     if os.environ.get("ARTEMIS_CLOUD_MODE") == "1":
+        if not target_serial and _GLOBAL_CONTROLLER is not None:
+            return _GLOBAL_CONTROLLER
         logger.info(
             "GCP CLOUD MODE active: initializing CloudMobileDeviceController via UnifiedMobileController..."
         )
@@ -168,8 +172,18 @@ def _get_controller(device_serial: str | None = None):
             )
         device = matched[0]
     else:
-        device = devices[0]
+        candidates = automatic_device_candidates(
+            devices, is_emulator=lambda item: is_emulator_serial(item.serial)
+        )
+        if not candidates:
+            raise RuntimeError(
+                "No eligible Android device. Automatic emulator discovery is disabled; "
+                "connect a physical device or specify a device serial."
+            )
+        device = candidates[0]
     device_id = device.serial
+    if device_id in _CONTROLLERS:
+        return _CONTROLLERS[device_id]
 
     # Observer path: the helper is used only when it is already installed and
     # running; nothing is installed from here (that happens inside a task's

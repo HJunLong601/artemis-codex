@@ -21,6 +21,8 @@ import sys
 import time
 
 from artemis.toolchain import toolchain
+from artemis.toolchain.emulators import list_installed_avds
+from artemis.runtime.device_selection import emulator_discovery_enabled
 
 
 def resolve_adb_path() -> str:
@@ -177,6 +179,8 @@ def ensure_emulator_serial(
     Multiple installed AVDs require an explicit name or ARTEMIS_AVD_NAME. Callers
     must surface the selection error so the user can choose before device actions.
     """
+    if not emulator_discovery_enabled():
+        return None
     adb = adb_path or resolve_adb_path()
     selected_avd = (avd_name or os.getenv("ARTEMIS_AVD_NAME") or "").strip() or None
     existing_serial = find_emulator_serial(adb, selected_avd)
@@ -187,20 +191,7 @@ def ensure_emulator_serial(
     if not emu_exe or not os.path.exists(emu_exe):
         return None
 
-    try:
-        listed = subprocess.run(
-            [emu_exe, "-list-avds"],
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=True,
-        )
-    except (subprocess.SubprocessError, OSError):
-        return None
-    installed_avds = list(
-        dict.fromkeys(line.strip() for line in listed.stdout.splitlines() if line.strip())
-    )
+    installed_avds = list_installed_avds(emu_exe)
     if selected_avd is None:
         if not installed_avds:
             raise RuntimeError(

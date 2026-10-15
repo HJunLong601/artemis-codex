@@ -985,6 +985,27 @@ def test_launch_avd_starts_installed_emulator_and_reports_compact_state(temp_tra
     assert not any("mobile_diagnose(attempt_fix=true)" in s for s in steps)
 
 
+def test_explicit_launch_queries_avds_when_auto_discovery_disabled(temp_trace_env):
+    probes = _no_device_probes([])
+    adb = next(probe for probe in probes if probe.id == "android_adb")
+    adb.metadata["emulator_discovery_enabled"] = False
+    launch = AsyncMock(return_value=_emulator_state(EmulatorLaunchStage.STARTING))
+    with (
+        patch(
+            "artemis.core.diagnostics.probes.adb_probe.AdbDeviceProbe._locate_emulator",
+            return_value="custom-sdk/emulator",
+        ),
+        patch(
+            "artemis.core.diagnostics.probes.adb_probe.AdbDeviceProbe._list_installed_avds",
+            return_value=["Pixel_8"],
+        ) as discover,
+    ):
+        result = _run(probes, launch=launch, launch_avd="Pixel_8")
+    discover.assert_called_once_with("custom-sdk/emulator")
+    launch.assert_awaited_once_with("Pixel_8")
+    assert result["emulator"]["status"] == "starting"
+
+
 def test_launch_avd_rejects_uninstalled_avd_without_launching(temp_trace_env):
     launch = AsyncMock()
     result = _run(_no_device_probes(["Pixel_8", "Tablet_API_35"]), launch=launch, launch_avd="Nope")

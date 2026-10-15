@@ -160,6 +160,14 @@ async def execute_task(
                 target_serial = device_pool.select_device()
             except Exception:
                 target_serial = None
+            if not target_serial:
+                from artemis.runtime.device_selection import emulator_discovery_enabled
+
+                if not emulator_discovery_enabled():
+                    raise RuntimeError(
+                        "No eligible Android device. Automatic emulator discovery is disabled; "
+                        "connect a physical device or specify --device-serial."
+                    )
 
     if target_serial:
         os.environ["ARTEMIS_DEVICE_ID"] = target_serial

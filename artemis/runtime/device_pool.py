@@ -26,6 +26,7 @@ import time
 from typing import Any
 
 from artemis.runtime.device_lock import DeviceExecutionLock
+from artemis.runtime.device_selection import automatic_device_candidates
 from artemis.toolchain import toolchain
 from third_party.mobile_use.utils.logger import get_logger
 
@@ -435,7 +436,7 @@ class DevicePool:
         If `preferred_serial` is provided:
             Returns preferred_serial if it is present or online.
         Otherwise:
-            Selects the first idle/unlocked ready device. If all are busy,
+            Prefers idle physical devices, then eligible idle emulators. If all are busy,
             selects the first ready device so the task will queue on it.
             Returns None if no devices are attached.
         """
@@ -448,8 +449,6 @@ class DevicePool:
     def _pick_device(
         self, all_devs: list[DeviceStatus], preferred_serial: str | None
     ) -> str | None:
-        ready_devs = [d for d in all_devs if d.state == "device"]
-
         if preferred_serial:
             # Check if preferred is available or exists
             for dev in all_devs:
@@ -457,6 +456,9 @@ class DevicePool:
                     return dev.serial
             # If not detected by ADB, still return it so ADB can attempt connection
             return preferred_serial
+
+        all_devs = automatic_device_candidates(all_devs, is_emulator=lambda dev: dev.is_emulator)
+        ready_devs = [d for d in all_devs if d.state == "device"]
 
         # Pick first idle device
         for dev in ready_devs:

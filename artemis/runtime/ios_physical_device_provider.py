@@ -30,7 +30,7 @@ class IosPhysicalDeviceProvider:
         runner: CommandRunner | None = None,
         timeout: float = 20.0,
     ) -> None:
-        self._xcrun_path = xcrun_path or shutil.which("xcrun") or "/usr/bin/xcrun"
+        self._xcrun_path = xcrun_path or shutil.which("xcrun")
         self._runner = runner
         self._timeout = timeout
 
@@ -86,7 +86,16 @@ class IosPhysicalDeviceProvider:
         return devices
 
     def list_devices(self) -> list[DeviceDescriptor]:
-        command = [self._xcrun_path, "devicectl", "list", "devices", "--json-output", "-"]
+        if self._xcrun_path is None and self._runner is None:
+            return []
+        command = [
+            self._xcrun_path or "xcrun",
+            "devicectl",
+            "list",
+            "devices",
+            "--json-output",
+            "-",
+        ]
         try:
             completed = (
                 self._runner(command)

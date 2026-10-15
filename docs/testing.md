@@ -45,10 +45,29 @@ not establish real-device acceptance or live model availability.
 
 ## Android emulator without a physical device
 
+`ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true` is the default. Automatic Android
+selection prefers an idle physical device, falls back to an idle emulator, then
+queues on a ready device (physical first) when all are busy. Set it to `false`
+in `.env` to disable automatic emulator selection, installed-AVD discovery and
+standalone emulator startup. Restart MCP/daemon after changing the setting.
+Connected emulators remain visible in inventory; an explicitly selected serial
+or a manual diagnostics launch still works. Offline or locked physical devices
+do not displace a usable emulator, and multiple AVDs still require a choice.
+When selecting across platforms without an explicit platform, eligible physical
+devices take precedence, followed by Android emulators, then iOS Simulators.
+An explicit platform or device remains authoritative.
+
 Use an existing Android SDK emulator, system image and AVD. Tool discovery checks
-`ARTEMIS_EMULATOR_PATH`, Android SDK environment variables, the SDK containing
-the resolved `platform-tools/adb`, common SDK directories and `PATH`. A custom
+`ARTEMIS_EMULATOR_PATH`, Android SDK environment variables, tools on `PATH`, the SDK
+containing the resolved `platform-tools/adb`, then common SDK directories. A custom
 SDK does not need `ANDROID_HOME` when its SDK ADB is already discoverable.
+Installed AVDs come from that emulator's `-list-avds` output. If the tool is
+unavailable, directory fallback uses `ANDROID_AVD_HOME`, `ANDROID_EMULATOR_HOME`,
+`ANDROID_USER_HOME`, legacy `ANDROID_SDK_HOME`, and the current user's home;
+it does not embed a developer's SDK drive or username. See the
+[Android environment-variable reference](https://developer.android.com/tools/variables).
+iOS inventory uses `xcrun simctl` from the host toolchain, inheriting its Xcode
+selection and `DEVELOPER_DIR`; it does not assume a particular Xcode app path.
 
 1. Run `adb devices -l` and list AVDs using the resolved emulator executable's
    `-list-avds` option. Confirm the target when several AVDs or devices exist.

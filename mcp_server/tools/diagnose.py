@@ -346,6 +346,16 @@ async def _handle_launch_avd(
     installed = list((adb_result.metadata.get("installed_avds") if adb_result else None) or [])
     current = _emulator_status()
 
+    if adb_result and adb_result.metadata.get("emulator_discovery_enabled") is False:
+        # An explicit launch request may query inventory even when automatic
+        # discovery is disabled; it still validates the name before booting.
+        from artemis.core.diagnostics.probes.adb_probe import AdbDeviceProbe
+
+        discovery = AdbDeviceProbe()
+        installed = await asyncio.to_thread(
+            discovery._list_installed_avds, discovery._locate_emulator()
+        )
+
     if name not in installed:
         listing = ", ".join(installed) or "none"
         advice = (

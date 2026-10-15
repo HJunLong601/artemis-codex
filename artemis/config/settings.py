@@ -113,6 +113,10 @@ class Settings(BaseSettings):
     ADB_HOST: str | None = Field(default=DEFAULT_ADB_HOST)
     ADB_PORT: int | None = Field(default=DEFAULT_ADB_PORT)
     ADB_DEVICE_SERIAL: str | None = None
+    ARTEMIS_EMULATOR_DISCOVERY_ENABLED: bool = Field(
+        default=True,
+        description="Discover and automatically use local virtual devices when no physical device is available.",
+    )
     # UI hierarchy backend: "auto" = Accessibility Helper with UIAutomator2
     # fallback, "helper" = helper only, "uiautomator" = UIAutomator2 only.
     ARTEMIS_HIERARCHY_BACKEND: str = Field(default="auto")

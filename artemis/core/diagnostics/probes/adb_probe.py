@@ -32,7 +32,13 @@ from artemis.core.diagnostics.schema import (
     ProbeStatus,
 )
 from artemis.platform import OSType, platform
+from artemis.runtime.device_selection import (
+    automatic_device_candidates,
+    emulator_discovery_enabled,
+    is_emulator_serial,
+)
 from artemis.toolchain import toolchain
+from artemis.toolchain.emulators import list_installed_avds
 from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -79,18 +85,7 @@ class AdbDeviceProbe(BaseProbe):
         return toolchain.resolve("emulator")
 
     def _list_installed_avds(self, emulator_path: str | None = None) -> list[str]:
-        """Discover all locally created Android Virtual Devices (AVDs)."""
-        avd_names: list[str] = []
-
-        # Method 1: Scan ~/.android/avd/*.ini
-        avd_dir = Path.home() / ".android" / "avd"
-        if avd_dir.is_dir():
-            for ini_file in avd_dir.glob("*.ini"):
-                name = ini_file.stem
-                if name and name not in avd_names:
-                    avd_names.append(name)
-
-        return avd_names
+        return list_installed_avds(emulator_path)
 
     async def _get_adb_version(self, adb_path: str) -> str:
         """Query ADB version string."""
@@ -365,6 +360,10 @@ class AdbDeviceProbe(BaseProbe):
             )
 
         ready_serials = [serial for serial, state in device_states if state == "device"]
+        if not target_serial:
+            ready_serials = automatic_device_candidates(
+                ready_serials, is_emulator=is_emulator_serial
+            )
         if not ready_serials:
             states = {state for _, state in device_states}
             summary = "Device Unauthorized" if "unauthorized" in states else "No Device Found"
@@ -390,6 +389,7 @@ class AdbDeviceProbe(BaseProbe):
             if target_serial and target_serial in ready_serials
             else self._target_serial
             if self._target_serial in ready_serials
+            and is_emulator_serial(self._target_serial) == is_emulator_serial(ready_serials[0])
             else ready_serials[0]
         )
 
@@ -401,7 +401,7 @@ class AdbDeviceProbe(BaseProbe):
         )
 
         # If preferred device is locked or unknown, check remaining ready devices for an unlocked one
-        if is_locked is not False and len(ready_serials) > 1:
+        if not target_serial and is_locked is not False and len(ready_serials) > 1:
             for candidate in ready_serials:
                 if candidate == preferred:
                     continue
@@ -564,8 +564,9 @@ class AdbDeviceProbe(BaseProbe):
     async def probe(self) -> ProbeResult:
         """Run complete ADB, device, and local AVD connectivity probe."""
         adb_path = self._locate_adb()
-        emulator_path = self._locate_emulator()
-        installed_avds = self._list_installed_avds(emulator_path)
+        discovery_enabled = emulator_discovery_enabled()
+        emulator_path = self._locate_emulator() if discovery_enabled else None
+        installed_avds = self._list_installed_avds(emulator_path) if discovery_enabled else []
 
         # 1. ADB binary check
         if not adb_path:
@@ -638,7 +639,7 @@ class AdbDeviceProbe(BaseProbe):
         key_status = inspect_adb_keys()
 
         # Normalize emulator command display
-        is_emu_in_path = shutil.which("emulator") is not None
+        is_emu_in_path = discovery_enabled and shutil.which("emulator") is not None
         emu_display_cmd = "emulator" if is_emu_in_path else (emulator_path or "emulator")
 
         metadata: dict[str, Any] = {
@@ -649,6 +650,7 @@ class AdbDeviceProbe(BaseProbe):
             "emulator_path": emulator_path,
             "is_emulator_in_path": is_emu_in_path,
             "installed_avds": installed_avds,
+            "emulator_discovery_enabled": discovery_enabled,
             "device_count": len(devices),
             "devices": [d.model_dump() for d in devices],
         }
@@ -713,6 +715,21 @@ class AdbDeviceProbe(BaseProbe):
 
         # 3. Check for authorized and ready devices
         ready_devices = [d for d in devices if d.state == "device"]
+        if not any(device.serial == self._target_serial for device in ready_devices):
+            ready_devices = automatic_device_candidates(
+                ready_devices, is_emulator=lambda device: device.is_emulator
+            )
+            if not ready_devices and any(device.state == "device" for device in devices):
+                return ProbeResult(
+                    id=self.probe_id,
+                    category=self.category,
+                    title="Device / Emulator Connected",
+                    status=ProbeStatus.WARN,
+                    is_blocker=self.is_blocker,
+                    summary="No Eligible Device",
+                    description="Automatic emulator discovery is disabled. Connect a physical device or explicitly select an emulator.",
+                    metadata=metadata,
+                )
         unauthorized_devices = [d for d in devices if d.state == "unauthorized"]
 
         if not ready_devices:

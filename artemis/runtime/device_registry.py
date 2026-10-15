@@ -14,7 +14,8 @@ import asyncio
 from collections.abc import Iterable
 
 from artemis.context import DevicePlatform
-from artemis.runtime.device_provider import DeviceDescriptor, DeviceProvider
+from artemis.runtime.device_provider import DeviceDescriptor, DeviceKind, DeviceProvider
+from artemis.runtime.device_selection import automatic_device_candidates
 
 
 class DeviceRegistryError(RuntimeError):
@@ -170,8 +171,18 @@ class DeviceRegistry:
             return selected
 
         ready = [device for device in devices if device.is_ready]
+        ready = automatic_device_candidates(
+            ready,
+            is_emulator=lambda device: device.kind != DeviceKind.PHYSICAL,
+        )
         available = [device for device in ready if device.is_available]
         candidates = available or ready
+        physical = [device for device in candidates if device.kind == DeviceKind.PHYSICAL]
+        if physical:
+            candidates = physical
+        elif platform is None:
+            android = [device for device in candidates if device.platform == DevicePlatform.ANDROID]
+            candidates = android or candidates
         if not candidates:
             platform_name = platform.value if platform else "requested"
             raise DeviceNotReadyError(f"No ready {platform_name} device was discovered.")

@@ -6,11 +6,21 @@ from unittest.mock import MagicMock
 import pytest
 
 from mcp_server.utils import device_utils
+from artemis.config.settings import settings
 
 
 @pytest.fixture
-def emulator_host(monkeypatch):
+def emulator_host(monkeypatch, tmp_path):
     """Model ADB enumeration, AVD identity and boot readiness independently."""
+    monkeypatch.setattr(settings, "ARTEMIS_EMULATOR_DISCOVERY_ENABLED", True)
+    monkeypatch.setattr("artemis.toolchain.emulators.Path.home", lambda: tmp_path)
+    for name in (
+        "ANDROID_AVD_HOME",
+        "ANDROID_EMULATOR_HOME",
+        "ANDROID_USER_HOME",
+        "ANDROID_SDK_HOME",
+    ):
+        monkeypatch.delenv(name, raising=False)
     state = SimpleNamespace(
         avds=["TestAVD"],
         devices={},
