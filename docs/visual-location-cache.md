@@ -22,6 +22,12 @@ After an exact fingerprint miss, candidates remain scoped to the same device, ap
 
 The console’s **Page Cache / 页面缓存** tab (`/cache`) groups positions by device, package and Activity. Expand a group to inspect fingerprints and paginated element names, aliases, geometry, last use and retention state. Confirmed clearing targets one exact device/app/page. Durable query counts, hit rate, miss reasons, prefetch utilization, locating timings and dispatch/failure counts survive eviction and clearing. History starts with this version; legacy telemetry is not invented. Dispatch success is not semantic goal verification; only the next action with identical coordinates on the same frame can be attributed. Dashboard reads neither alter LRU nor migrate the schema. Older records show an unknown Activity; it is not reconstructed from a package name. Activity alone is not a page identifier: Flutter and other single-Activity apps still distinguish internal pages by content pixels and UI hierarchy.
 
+### Estimated time savings
+
+The dashboard groups measurements by device and app. For each group, it multiplies cache hits by the average visual locating batch duration, subtracts all cache lookup duration (including misses), and clamps the result to zero before summing. Only groups with both visual and lookup timing samples contribute. The UI shows covered hits alongside total hits and an unavailable estimate when no usable sample exists.
+
+This is an equivalent visual-model-call duration, not a measured reduction in whole-task wall-clock time or API cost. Parallel targets, batch size, initial learning, and other model/device operations affect actual speedups.
+
 ## Local storage
 
 The default database is `.cache/visual_locations.sqlite3` beside the installation's `.env`; it survives task and process restarts and is excluded from Git. Only location metadata and fingerprints are stored, not screenshots or complete model responses. Flash, Pro/Ultra and direct detection support partial multi-target hits; only unresolved targets reach OCR/models. Nested detection on the original frame can reuse the cache; crops, transforms and annotations cannot borrow its scope. SQLite uses WAL and batches multi-target lookup/counters in short transactions. Normal locating remains available during database failure; telemetry may be incomplete under severe contention or storage errors.

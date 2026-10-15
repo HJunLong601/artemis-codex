@@ -97,7 +97,7 @@ $env:ARTEMIS_CODEX_IMAGE_WEBP_QUALITY = "70"
 
 设置 `ARTEMIS_CODEX_IMAGE_PREPROCESSING=0` 并重启，或构造
 `CodexAppServerChatModel(..., image_preprocessing_enabled=False)` 可恢复通用图片策略，
-也用于格式/原尺寸基准对照。脱敏实测和测量限制见 [中文 README](../README_CN.md#图片输入基准测试2026-10-10)。
+也用于格式/原尺寸基准对照。图片输入对比见 [2026-10-10 原始基准数据](./benchmarks/image-input-2026-10-10.json)，调用耗时与样本限制见 [耗时记录](./model-call-performance.md)。
 
 ## 哪些功能还可能需要 Key
 

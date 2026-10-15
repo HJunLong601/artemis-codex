@@ -10,11 +10,12 @@
   <a href="./README.md"><b>English</b></a> •
   <a href="./README_CN.md">中文文档</a> •
   <a href="#workflow-showcase">Workflow Showcase</a> •
-  <a href="#codex-client-integration">Codex Client</a> •
+  <a href="#fork-features">Fork Features</a> •
   <a href="#model-configuration">Model Configuration</a> •
   <a href="#visual-location-cache">Cache Dashboard</a> •
   <a href="#quick-start">Quick Start</a> •
-  <a href="#ios-simulator">iOS Simulator</a> •
+  <a href="#device-selection">Device Selection</a> •
+  <a href="#ios-simulator">iOS Support</a> •
   <a href="#mcp-setup">MCP for IDEs</a> •
   <a href="#benchmarks">Benchmarks</a> •
   <a href="https://discord.gg/wF2FN4WHGY">Discord Community</a>
@@ -29,148 +30,20 @@
   <a href="https://github.com/google-research/android_world"><img src="https://img.shields.io/badge/AndroidWorld-99%25%2B%20SOTA-success.svg" alt="AndroidWorld SOTA"></a>
 </p>
 
+<a id="fork-features"></a>
 <a id="codex-client-integration"></a>
-## Fork-Specific Features
+## Fork Additions and Enhancements
 
 > [!NOTE]
-> This repository is a community fork of the open-source [google/artemis](https://github.com/google/artemis) project. The section below describes the capabilities added by this fork; the original ARTEMIS documentation follows afterward. Upstream authorship and the Apache 2.0 license are preserved.
+> This repository is a community fork of [google/artemis](https://github.com/google/artemis), retaining upstream authorship and the Apache 2.0 license. The table below covers this fork's extensions; the later highlights, Flash/Pro profiles, and AndroidWorld results describe ARTEMIS's general capabilities.
 
-This fork can use the ChatGPT session from the locally installed **Codex CLI** as its default model provider. Artemis starts `codex app-server`, communicates over JSONL/stdio, and routes model requests through the models available to the signed-in account. It does not read or copy `~/.codex/auth.json`, and the default path does not require `OPENAI_API_KEY`.
-
-| Addition | Behavior |
+| Area | Main capabilities |
 |---|---|
-| Key-free Codex provider | Planner, Operator, Checker, Explorer, Outputter, summaries, and history compression use the signed-in Codex client. |
-| Multimodal input | Screenshots are sent as local image inputs through Codex App Server. |
-| Screenshot size control | Local and embedded images use lossy WebP quality 70/100 with proportional 720p bounds before Codex calls; original captures remain available for device coordinates. |
-| Visual location reuse | After UI-tree locating fails, reuse positions from a local per-device LRU with page, local-target and fixed-region guards, backed by a cache dashboard. |
-| Isolated execution | Every model call uses a temporary Codex thread with a read-only sandbox and no approval prompts; Artemis remains responsible for device actions. |
-| First-run bootstrap | Startup scripts install or locate ADB, scrcpy, FFmpeg, Codex CLI, `uv`/Python, Node.js, and project dependencies; `--with-ios` opts in to Appium/XCUITest setup on macOS. |
-| Cross-platform setup | Windows, Apple Silicon macOS, Intel macOS, and Linux use the same dependency and readiness workflow. |
-| iOS control | Simulator uses Appium/XCUITest; physical iPhone defaults to Xcode Device Hub plus CoreDevice for visual taps, swipes, screenshots, app launch, and recording. Appium is an opt-in fallback for physical devices. |
-| Integrated diagnostics | `artemis init`, `artemis doctor`, the Web console, and CLI errors report Codex installation and login state with recovery commands. |
+| **Codex integration** | Reuse the local ChatGPT login for core workflows without a separate model API key. Prefer the desktop client's bundled Codex and configure models by role. [Setup and configuration](#model-configuration) |
+| **Cache and runtime improvements** | Reuse visual positions to reduce repeated locating, with dashboard search, failure cases, and estimated savings; add image compression, deferred Flash summaries, and capture/history loading improvements. [Cache guide](#visual-location-cache) · [Timing records](./docs/model-call-performance.md) |
+| **Platforms and devices** | Shared Windows/macOS/Linux setup and diagnostics, physical-first selection, AVD discovery and reuse, plus iOS Simulator and physical-device drivers. Live automated iPhone tap acceptance remains pending. [Setup](#quick-start) · [Devices](#device-selection) · [iOS](#ios-simulator) |
 
-The default image limits can be changed in `.env`:
-
-```dotenv
-ARTEMIS_CODEX_IMAGE_SHORT_EDGE=720
-ARTEMIS_CODEX_IMAGE_MAX_EDGE=1600
-ARTEMIS_CODEX_IMAGE_MAX_BYTES=786432
-ARTEMIS_CODEX_IMAGE_WEBP_QUALITY=70
-```
-
-The short edge is capped at 720 pixels and the long edge at 1600, without upscaling: a 1080×2400 portrait becomes 720×1600, and a 1920×1080 landscape becomes 1280×720. Quality 70 is an encoder setting, not a guaranteed 70% reduction in file size. Images exceeding the byte budget are further resized at the same quality. Remote image URLs remain with the provider. Set `ARTEMIS_CODEX_IMAGE_PREPROCESSING=0` to restore the generic provider's policy.
-
-### Recent Improvements
-
-| Area | Current behavior |
-|---|---|
-| Cache reuse | Guarded page, local-target and fixed-region reuse with wider candidate searches; dashboard page details, learning state, hit metrics and failure cases. |
-| Capture reliability | Failures return errors. Capture runs off the event loop, callers wait at most 30 seconds, and an unfinished capture cannot overlap the next on the same driver. |
-| Observation waits | The observation entry point owns settling, avoiding duplicate controller/driver waits and honoring explicit zero-wait requests. |
-| History loading | The console loads 200 steps per request with batched related-record queries; live events survive loading, and failed loads preserve the existing snapshot. |
-
-<a id="visual-location-cache"></a>
-### Visual Location Cache and Dashboard
-
-Locating follows **ADB/UI hierarchy → local visual location cache → OCR/model**. Each device retains **10,000 positions** by default. A visual request can learn up to 20 additional visible controls in the same call; multi-target lookups send only unresolved targets to the model. A cache entry reuses a position, not a complete action sequence.
-
-Alongside exact-page matching, guarded local-target and fixed-region reuse reduce misses from status-bar changes, unrelated lists and minor image compression artifacts. Device, app, Activity, dimensions and target evidence still have to pass validation; dialogs, keyboards, moved targets and ambiguity prevent unsafe reuse. Page/structure searches now inspect up to 1000 candidates instead of 200; region and cross-structure searches inspect up to 256 instead of 64.
-
-Open **Page Cache / 页面缓存** (`/cache`) in the Web console to inspect:
-
-- Retained elements and pages, per-device capacity and page-learning state.
-- Cumulative queries, hit rate, prefetch utilization, locating timings and miss reasons.
-- Device/app/page-name/Activity details, element aliases, coordinates, bounds and reuse scope.
-- Paginated failure cases and single-page clearing with confirmation.
-
-<details>
-<summary>Cache dashboard example: overview, metrics and learning state</summary>
-
-<p align="center">
-  <img src="./docs/assets/visual-cache-dashboard.jpg" alt="ARTEMIS cache dashboard showing retained entries, cumulative metrics and page-learning state" width="640" />
-</p>
-
-Dashboard interface example. Device identifiers, business app names and local paths are excluded. The displayed values illustrate the interface and are not benchmark results.
-
-</details>
-
-The database defaults to `.cache/visual_locations.sqlite3` beside the installation's `.env`. It remains local and Git-ignored; the location cache stores no screenshots or full model responses. Dashboard reads do not change LRU order, and clearing elements does not reset cumulative statistics. See [cache behavior, guards and failure records](./docs/visual-location-cache.md).
-
-Configure [`config/artemis.jsonc`](./config/artemis.jsonc), then restart ARTEMIS/MCP:
-
-```jsonc
-{
-  "agent": {
-    "visual_location_cache": {
-      "enabled": true,
-      "batch_prefetch": true,
-      "capacity_per_device": 10000
-    }
-  }
-}
-```
-
-Capacity accepts 1–100000. `enabled: false` disables reuse; `batch_prefetch: false` only stops new batch learning. The legacy `ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY` variable is no longer read; use JSONC instead. `ARTEMIS_VISUAL_LOCATION_CACHE_PATH` can still override the database path.
-
-Core automation does not need an API key when the Codex client is selected. Cloud OCR and alternative Gemini, OpenAI API, Anthropic, OpenRouter, or xAI providers still require their corresponding keys when explicitly enabled. The reusable adapter is published as [codex-client-provider](https://pypi.org/project/codex-client-provider/); see [Codex client provider](./docs/codex-client-provider.md) for the protocol, model routing, configuration, and limitations.
-
-<a id="model-configuration"></a>
-### Configure Models
-
-In a source checkout, edit [`config/artemis.jsonc`](./config/artemis.jsonc). This tracked JSONC file contains model names and routing, not credentials:
-
-| Key | Purpose |
-|---|---|
-| `default` | Provider, model, reasoning effort, and fallback inherited by agent nodes. The checked-in default is the Codex client with `gpt-6.1-sol`, `low` reasoning, and a `gpt-6-luna` fallback; lightweight roles keep the Luna tier. |
-| `nodes` | Override individual roles such as `planner`, `operator`, `explorer`, and `checker`; unspecified fields inherit from `default`. |
-| `presets` | Named provider/model combinations for selecting a different model route. |
-| `agent.flash` / `agent.pro` | Profile behavior, including Explorer mode and the Flash step summarizer's model. |
-
-Planner, Operator, Explorer and Checker inherit the `low` effort from the global default. The `codex-client` preset, packaged configuration and directly constructed Artemis Codex adapter also default to Sol low. Explicit node or constructor settings can override it. Reload the ARTEMIS/MCP process to apply updated configuration.
-
-For example, change `default.model` to change the main model, or set `nodes.operator.model` to change only the Operator. Keep fallback and role-specific model settings compatible with the selected provider. The source checkout resolves `config/artemis.jsonc` before the bundled template at [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc); `ARTEMIS_ARTEMIS_JSONC` can point model loading to another existing file. Put API keys for non-Codex providers in the ignored `.env`, never in a tracked JSONC file. Restart a running ARTEMIS process after changing its configuration.
-
-Verify the complete local environment with:
-
-```bash
-codex login status
-adb devices -l
-uv run artemis doctor
-```
-
-### Refresh an Existing Global Installation
-
-From an up-to-date checkout, remove the previous global tool environment and install
-the current branch again:
-
-```bash
-git pull --ff-only origin main
-uv tool uninstall artemis
-uv tool install -e .
-artemis doctor
-```
-
-The installation resolves `codex-client-provider==0.1.0` from PyPI. Use
-`uv tool list` to confirm the global Artemis installation.
-
-### Verified Without API Keys
-
-The key-free Codex path was revalidated on 2026-09-19 against a connected Xiaomi
-Android device. A Pro run opened Xiaohongshu, searched for `秋日穿搭`, confirmed several
-matching results, and stayed on the results page without liking, saving, following,
-commenting, or publishing.
-
-| Capability | Result |
-|---|---|
-| Planner and Operator | Passed using the signed-in Codex client |
-| Screenshot understanding and step summaries | Passed through Codex image input |
-| Checkpoint and final Checker | 4/4 assertions passed |
-| Outputter report | Passed |
-| OpenAI, Google, Gemini, Anthropic, OpenRouter, xAI keys | Not configured |
-| Cloud OCR key | Not configured; Accessibility Helper, UI hierarchy, and Codex vision handled this task |
-
-Cloud OCR remains an optional external service and still requires `OCR_API_KEY` when
-explicitly enabled. It is not required for the default XML-plus-Codex-vision path.
+Codex requires a signed-in client with access to the selected models; cloud OCR and other API providers still need their own keys. Cache savings are estimates based on historical timings. Configuration and acceptance limits are detailed below and in the [provider guide](./docs/codex-client-provider.md).
 
 <!-- Demo Showcase -->
 <p align="center">
@@ -227,7 +100,7 @@ Ensure an Android device (with **USB Debugging** enabled) or emulator is connect
 - **Install System Toolchains**: Detect and install ADB, scrcpy, FFmpeg, Codex CLI, Python (`uv`), Node.js, and project dependencies.
 - **Mount Global MCP Server & AI Agent Rules**: Prompt to automatically install global MCP configurations and the **Artemis Mobile Testing Mindset (`rules.md`)** into your AI IDEs (**Antigravity**, **Cursor**, **Claude Code**, **Codex**, **Windsurf**, **VS Code**, **Cline/Roo**, **OpenClaw**).
 
-This fork defaults to the locally signed-in **Codex client**. The first launch installs Codex CLI; follow the prompt to run `codex login` once. Artemis then uses Codex App Server without an OpenAI API key. See [Codex client provider](./docs/codex-client-provider.md) and [macOS support](./docs/macos-support.md).
+This fork defaults to the locally signed-in **Codex client**, preferring the desktop client's bundled Codex before the CLI on PATH. Follow the first-use prompt to run `codex login`. Artemis uses Codex App Server without an OpenAI API key. See [Codex client provider](./docs/codex-client-provider.md) and [macOS support](./docs/macos-support.md).
 
 ### macOS and Linux
 
@@ -254,8 +127,125 @@ cd artemis-codex
 
 > **Tip**: Opens `http://localhost:8000` in your default browser with a device connection wizard, live screen mirroring, prompt sandbox, and execution replays. You can also run directly from CLI: `uv run artemis run "Open Settings, find Battery and tell me current level" --profile flash`.
 
+### Refresh an Existing Global Installation
+
+From an up-to-date checkout, remove the previous global tool environment and install
+the current branch again:
+
+```bash
+git pull --ff-only origin main
+uv tool uninstall artemis
+uv tool install -e .
+artemis doctor
+```
+
+The installation resolves `codex-client-provider==0.1.0` from PyPI. Use
+`uv tool list` to confirm the global Artemis installation.
+
+<a id="device-selection"></a>
+## Device Selection and Android Emulators
+
+Automatic Android selection prefers idle physical devices, then idle emulators, and queues on a ready device when all are busy. Cross-platform registry selection without a platform prefers eligible physical devices, then Android emulators, then iOS Simulators. CLI/MCP tasks still default to Android when no platform is supplied. Pass an explicit serial when multiple devices are present.
+
+```dotenv
+# .env: automatic virtual-device discovery/selection, enabled by default
+ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
+# Optional AVD for standalone MCP tasks with no connected Android device
+# ARTEMIS_AVD_NAME=YOUR_INSTALLED_AVD
+```
+
+- Disabling discovery keeps connected emulators visible in inventory; explicit serial selection and manual diagnostics launches remain available.
+- SDK/AVD discovery uses explicit paths, Android environment variables, PATH, the SDK containing resolved ADB, and common directories. Relocated SDKs and custom AVD directories are supported through settings such as `ARTEMIS_EMULATOR_PATH`, `ANDROID_HOME`, and `ANDROID_AVD_HOME`.
+- Standalone MCP tasks with no connected device can reuse or boot a selected AVD. Without a configured name, automatic startup requires exactly one installed AVD. Multiple AVDs require a choice; never assume an AVD name or `emulator-5554`.
+- Use `mobile_diagnose(launch_avd="YOUR_INSTALLED_AVD")` to launch in the background or reuse a running instance of that name. Poll diagnostics without `launch_avd` until `emulator.status` is `ready`, then submit tasks with its actual serial. With the daemon scheduler, launch through diagnostics before submitting.
+- Readiness requires completed system boot and a working Android package service. Follow with `mobile_diagnose(device_serial="SERIAL", probe_device=true)` to check screenshots and UI hierarchy. AVD inventory uses a short cache with concurrent scan coalescing; explicit readiness refreshes clear it.
+
+Restart ARTEMIS/MCP after editing `.env`. See [device and emulator details](./docs/testing.md#android-emulator-without-a-physical-device) for selection, discovery, and acceptance steps.
+
+<a id="model-configuration"></a>
+## Model and Image Configuration
+
+Edit [`config/artemis.jsonc`](./config/artemis.jsonc), then restart ARTEMIS/MCP. Keep model/runtime settings here and alternative provider credentials in the Git-ignored `.env`.
+
+| Key | Purpose |
+|---|---|
+| `default` | Main provider, model, reasoning effort, and fallback. The checked-in default is Codex `gpt-6.1-sol` / `low`, falling back to `gpt-6-luna`. |
+| `nodes` | Override roles such as Planner, Operator, Explorer, and Checker; unspecified fields inherit defaults. Lightweight summaries and history compression retain the Luna tier. |
+| `presets` | Named provider/model combinations. |
+| `agent.flash` / `agent.pro` | Profile behavior, including Explorer tiers and step summaries. |
+
+Source checkouts prefer this configuration over the bundled template at [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc). Use `ARTEMIS_ARTEMIS_JSONC` to select another existing file. Main, fallback, and role-specific models must match the selected provider.
+
+Model images default to proportional short-edge 720 / long-edge 1600 bounds, WebP quality 70, and a 768 KiB budget. Oversized images are resized further without upscaling small images. Original captures and coordinate dimensions remain unchanged. Environment variables, executable precedence, and adapter details live in the [Codex provider guide](./docs/codex-client-provider.md).
+
+Check the local environment:
+
+```bash
+codex login status
+adb devices -l
+uv run artemis doctor
+```
+
+<details>
+<summary>Acceptance record: key-free Android workflow, 2026-09-19</summary>
+
+The key-free Codex path was revalidated on 2026-09-19 against a connected Xiaomi
+Android device. A Pro run opened Xiaohongshu, searched for `秋日穿搭`, confirmed several
+matching results, and stayed on the results page without liking, saving, following,
+commenting, or publishing.
+
+| Capability | Result |
+|---|---|
+| Planner and Operator | Passed using the signed-in Codex client |
+| Screenshot understanding and step summaries | Passed through Codex image input |
+| Checkpoint and final Checker | 4/4 assertions passed |
+| Outputter report | Passed |
+| OpenAI, Google, Gemini, Anthropic, OpenRouter, xAI keys | Not configured |
+| Cloud OCR key | Not configured; Accessibility Helper, UI hierarchy, and Codex vision handled this task |
+
+Cloud OCR remains an optional external service and still requires `OCR_API_KEY` when
+explicitly enabled. It is not required for the default XML-plus-Codex-vision path.
+
+</details>
+
+<a id="visual-location-cache"></a>
+## Visual Location Cache and Dashboard
+
+Locating follows **ADB/UI hierarchy → local visual location cache → OCR/model**. Each device retains 10,000 positions by default. One visual request can learn up to 20 extra visible controls; multi-target queries send only unresolved targets to the model.
+
+Reuse supports exact pages, guarded local targets, and fixed regions. Device, app, Activity, dimensions, and target evidence must match; obstructions, moved targets, and ambiguity prevent reuse. Entries reuse positions; actions and result verification still use the normal execution flow.
+
+The Web console's **Page Cache / 页面缓存** (`/cache`) provides page/element search, learning state, hit rates, timings, failure cases, and single-page clearing. New time-savings estimates multiply hits by average visual locating duration for the same device/app, then subtract all cache lookup overhead. Missing samples display an unavailable estimate; this is not a measured reduction in total task time.
+
+Only position metadata and fingerprints are stored locally, with no screenshots or full model responses. Configure the cache in `config/artemis.jsonc`:
+
+```jsonc
+{
+  "agent": {
+    "visual_location_cache": {
+      "enabled": true,
+      "batch_prefetch": true,
+      "capacity_per_device": 10000
+    }
+  }
+}
+```
+
+See the [cache guide](./docs/visual-location-cache.md) for limits, legacy variable migration, database paths, reuse guards, and metric definitions.
+
+<details>
+<summary>Cache dashboard example</summary>
+
+<p align="center">
+  <img src="./docs/assets/visual-cache-dashboard.jpg" alt="ARTEMIS cache dashboard: overview, metrics, and learning state" width="640" />
+</p>
+
+Device identifiers, business app names, and local paths are excluded. Values illustrate the interface and are not benchmark results.
+
+</details>
+
 <a id="ios-simulator"></a>
-## iOS Simulator Support (macOS)
+## iOS Support (macOS)
 
 The fully validated ARTEMIS iOS target is an **iOS Simulator**. This path requires a Mac with full Xcode, an installed iOS Simulator runtime, Node.js/npm, Appium 3, and a compatible XCUITest driver. The default Android startup path is unchanged. Opt in with `./start.sh --with-ios` or `bash scripts/install_deps.sh --with-ios` to install missing Node.js/Appium/XCUITest components; Xcode and the iOS runtime still require manual installation. Run `bash scripts/setup_ios.sh --check` for a read-only prerequisite check. See the [XCUITest driver compatibility requirements](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/system-requirements/).
 

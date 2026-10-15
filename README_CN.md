@@ -10,11 +10,12 @@
   <a href="./README.md">English</a> •
   <a href="./README_CN.md"><b>中文文档</b></a> •
   <a href="#workflow-showcase">全流程演示</a> •
-  <a href="#codex-client-integration">Codex 客户端</a> •
+  <a href="#fork-features">Fork 特性</a> •
   <a href="#model-configuration">模型配置</a> •
   <a href="#visual-location-cache">缓存后台</a> •
   <a href="#quick-start">快速上手</a> •
-  <a href="#ios-simulator">iOS 模拟器</a> •
+  <a href="#device-selection">设备选择</a> •
+  <a href="#ios-simulator">iOS 支持</a> •
   <a href="#mcp-setup">MCP 接入 IDE</a> •
   <a href="#benchmarks">基准评测</a> •
   <a href="https://discord.gg/wF2FN4WHGY">Discord 社区</a>
@@ -29,146 +30,20 @@
   <a href="https://github.com/google-research/android_world"><img src="https://img.shields.io/badge/AndroidWorld-99%25%2B%20SOTA-success.svg" alt="AndroidWorld SOTA"></a>
 </p>
 
+<a id="fork-features"></a>
 <a id="codex-client-integration"></a>
-## 本 Fork 的新增特性
+## 本 Fork 的新增与增强
 
 > [!NOTE]
-> 本仓库是开源项目 [google/artemis](https://github.com/google/artemis) 的社区 Fork。以下内容专门说明本 Fork 新增的能力，后续章节保留原 ARTEMIS 的功能介绍与使用文档；上游作者署名和 Apache 2.0 许可证保持不变。
+> 本仓库是 [google/artemis](https://github.com/google/artemis) 的社区 Fork，保留上游作者署名与 Apache 2.0 许可证。下表集中介绍本 Fork 的扩展；后续核心亮点、Flash/Pro 与 AndroidWorld 介绍说明 ARTEMIS 的通用能力。
 
-本 Fork 可以把本机 **Codex CLI** 的 ChatGPT 登录态作为默认模型 Provider。Artemis 启动 `codex app-server`，通过 JSONL/stdio 调用当前账号可用的模型；不会读取或复制 `~/.codex/auth.json`，默认运行路径也不需要配置 `OPENAI_API_KEY`。
-
-| 新增内容 | 具体行为 |
+| 方向 | 主要能力 |
 |---|---|
-| 免 API Key 的 Codex Provider | Planner、Operator、Checker、Explorer、Outputter、步骤摘要和历史压缩统一复用已登录的 Codex 客户端。 |
-| 多模态输入 | 截图通过 Codex App Server 的本地图片输入发送给模型。 |
-| 截图尺寸控制 | Codex 调用前将本地和内嵌图片等比缩到 720p 边界，编码为 WebP 有损质量 70/100；保留原始截图用于设备坐标计算。 |
-| 视觉定位复用 | UI 树无法定位时查询本地设备级 LRU；支持整页、局部控件和固定区域校验，并提供缓存后台。 |
-| 隔离执行 | 每次模型调用使用临时 Codex thread、只读沙箱和无审批模式；真机操作仍由 Artemis 执行。 |
-| 首次运行引导 | 启动脚本自动安装或定位 ADB、scrcpy、FFmpeg、Codex CLI、`uv`/Python、Node.js 和项目依赖；macOS 可用 `--with-ios` 显式准备 Appium/XCUITest。 |
-| 跨平台安装 | Windows、Apple Silicon macOS、Intel macOS 与 Linux 共用一致的依赖检查和就绪流程。 |
-| iOS 控制 | 模拟器使用 Appium/XCUITest；iPhone 真机默认使用 Xcode Device Hub + CoreDevice 完成可视点击、滑动、截图、应用启动与录屏。Appium 是真机的显式备选。 |
-| 集成诊断 | `artemis init`、`artemis doctor`、Web 控制台和 CLI 错误会展示 Codex 安装、登录状态及修复命令。 |
+| **Codex 接入** | 复用本机 ChatGPT 登录态，核心流程无需额外模型 API Key；优先使用桌面客户端内置 Codex，支持按角色配置模型。[接入与配置](#model-configuration) |
+| **缓存与运行优化** | 视觉位置缓存减少重复定位，后台提供查询、失败案例和节省时间估算；结合图片压缩、Flash 延迟摘要及截图与历史加载优化。[缓存说明](#visual-location-cache) · [耗时记录](./docs/model-call-performance.md) |
+| **跨平台与设备支持** | 统一 Windows/macOS/Linux 安装与诊断，完善真机优先选择、AVD 发现与复用；扩展 iOS 模拟器和真机驱动，真机自动点击仍待验收。[安装](#quick-start) · [设备](#device-selection) · [iOS](#ios-simulator) |
 
-可以在 `.env` 中调整默认截图限制：
-
-```dotenv
-ARTEMIS_CODEX_IMAGE_SHORT_EDGE=720
-ARTEMIS_CODEX_IMAGE_MAX_EDGE=1600
-ARTEMIS_CODEX_IMAGE_MAX_BYTES=786432
-ARTEMIS_CODEX_IMAGE_WEBP_QUALITY=70
-```
-
-默认短边最多 720 像素、长边最多 1600，不放大小图：1080×2400 竖屏变为 720×1600，1920×1080 横屏变为 1280×720。质量 70 是编码参数，不代表文件大小固定减少 70%。超过字节预算时保持质量参数并继续缩小尺寸。远程图片 URL 仍交给 Provider 处理。设置 `ARTEMIS_CODEX_IMAGE_PREPROCESSING=0` 可恢复通用适配器的图片策略。
-
-### 近期改进
-
-| 方向 | 当前行为 |
-|---|---|
-| 缓存复用 | 支持整页、局部控件和固定区域校验，扩大候选检索范围；后台提供页面明细、学习状态、命中统计和失败案例。 |
-| 截图可靠性 | 失败明确报错；采集移出事件循环，调用方最多等待 30 秒，同一驱动中的未完成采集不会与下一次重叠。 |
-| 观察等待 | 观察入口统一安排稳定等待，移除控制器和驱动的重复等待，显式零等待生效。 |
-| 历史加载 | 按每批 200 条加载步骤，关联记录批量查询；保留实时事件，加载失败时保留已有快照。 |
-
-<a id="visual-location-cache"></a>
-### 视觉定位缓存与后台
-
-定位顺序为 **ADB/UI 树 → 本地视觉位置缓存 → OCR/模型**。每台设备默认保留 **10,000 条位置**；首次视觉定位可在同一次请求中额外学习最多 20 个可见控件。多目标查询只把未命中的目标交给模型。复用的是位置，不会自动重放整条操作链路。
-
-整页精确匹配之外，还支持受保护的局部控件和固定区域复用，减少状态栏、无关列表或轻微图片压缩变化造成的未命中。设备、应用、Activity、尺寸及目标证据仍需通过校验；弹窗、键盘、目标移动或歧义会阻止不安全的复用。整页/结构候选上限已从 200 扩到 1000，区域及跨结构候选从 64 扩到 256。
-
-打开 Web 控制台顶部的 **页面缓存**（`/cache`），可以查看：
-
-- 当前元素与页面数量、设备容量和页面学习状态。
-- 累计查询、命中率、预缓存使用率、定位耗时及未命中原因。
-- 按设备、应用、页面名称或 Activity 查询的明细，以及元素别名、坐标、边界和复用范围。
-- 分页失败案例，以及需要二次确认的单页缓存清理。
-
-<details>
-<summary>缓存后台示例：总览、统计与学习状态</summary>
-
-<p align="center">
-  <img src="./docs/assets/visual-cache-dashboard.jpg" alt="ARTEMIS 页面缓存后台：缓存总览、累计效果和页面学习状态" width="640" />
-</p>
-
-后台界面示例，已裁去设备标识、业务应用名称和本地路径。图中数值仅用于展示界面，不作为性能评测结果。
-
-</details>
-
-缓存数据库默认位于安装环境 `.env` 同目录下的 `.cache/visual_locations.sqlite3`，仅保存在本地并被 Git 忽略。位置缓存不保存截图或完整模型回复；后台读取不改变 LRU，清理元素不会重置累计统计。详见 [缓存机制、保护边界与故障记录](./docs/visual-location-cache_CN.md)。
-
-在 [`config/artemis.jsonc`](./config/artemis.jsonc) 中配置，修改后重启 ARTEMIS/MCP：
-
-```jsonc
-{
-  "agent": {
-    "visual_location_cache": {
-      "enabled": true,
-      "batch_prefetch": true,
-      "capacity_per_device": 10000
-    }
-  }
-}
-```
-
-容量支持 1–100000；`enabled: false` 关闭复用，`batch_prefetch: false` 只关闭新增批量学习。旧环境变量 `ARTEMIS_VISUAL_LOCATION_CACHE_CAPACITY` 已停用，请改用 JSONC；数据库路径仍可用 `ARTEMIS_VISUAL_LOCATION_CACHE_PATH` 覆盖。
-
-选择 Codex 客户端时，核心自动化功能无需 API Key。只有显式启用云 OCR，或切换至 Gemini、OpenAI API、Anthropic、OpenRouter、xAI Provider 时，才需要配置对应的 Key。通用适配层已发布为 [codex-client-provider](https://github.com/HJunLong601/codex-client-provider/blob/main/README_CN.md)，Artemis 固定依赖其 PyPI `0.1.0` 版本；协议、模型路由、配置项和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。
-
-<a id="model-configuration"></a>
-### 配置模型
-
-在源码仓库中编辑 [`config/artemis.jsonc`](./config/artemis.jsonc)。这是纳入版本控制的 JSONC 文件，只放模型名称与路由，不放密钥：
-
-| 配置项 | 用途 |
-|---|---|
-| `default` | Agent 节点继承的 Provider、模型、推理强度和回退模型。仓库默认使用 Codex 客户端的 `gpt-6.1-sol`、`low` 推理，回退到 `gpt-6-luna`；轻量节点保留 Luna 档位。 |
-| `nodes` | 分别覆盖 `planner`、`operator`、`explorer`、`checker` 等角色；未指定的字段继承 `default`。 |
-| `presets` | 预设的 Provider/模型组合，用于切换模型路由。 |
-| `agent.flash` / `agent.pro` | Flash、Pro 的运行行为，包括 Explorer 档位和 Flash 步骤摘要模型。 |
-
-Planner、Operator、Explorer、Checker 继承全局默认的 `low` 推理；`codex-client` 预设、打包配置和直接实例化的 Artemis Codex 适配器也默认使用 Sol low。仍可在节点或构造参数中显式覆盖。修改后重启 ARTEMIS/MCP 进程使配置生效。
-
-例如，修改 `default.model` 可调整主模型，设置 `nodes.operator.model` 则只调整 Operator；同时检查回退模型及角色专属模型是否与所选 Provider 兼容。源码运行优先读取 `config/artemis.jsonc`，打包默认模板位于 [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc)；也可以用 `ARTEMIS_ARTEMIS_JSONC` 指向另一份已存在的模型配置。非 Codex Provider 的 API Key 应放进已被 Git 忽略的 `.env`，不要写入受版本控制的 JSONC。修改配置后需重启正在运行的 ARTEMIS 进程。
-
-可以使用以下命令检查完整本地环境：
-
-```bash
-codex login status
-adb devices -l
-uv run artemis doctor
-```
-
-### 刷新已有的全局安装
-
-在已更新到最新提交的仓库中，先移除旧的全局工具环境，再安装当前分支：
-
-```bash
-git pull --ff-only origin main
-uv tool uninstall artemis
-uv tool install -e .
-artemis doctor
-```
-
-安装过程会从 PyPI 获取 `codex-client-provider==0.1.0`。可通过 `uv tool list`
-确认全局 Artemis 已正确安装。
-
-### 无 API Key 实机验证
-
-2026-09-19 已在连接的小米 Android 真机上重新验证零 Key Codex 路径。Pro 模式成功
-打开小红书、搜索“秋日穿搭”、确认多条相关结果并停留在结果页，全程未点赞、收藏、
-关注、评论或发布内容。
-
-| 能力 | 验证结果 |
-|---|---|
-| Planner 与 Operator | 通过，复用已登录的 Codex 客户端 |
-| 截图理解与步骤摘要 | 通过，使用 Codex 图片输入 |
-| Checkpoint 与最终 Checker | 4/4 检查通过 |
-| Outputter 报告 | 通过 |
-| OpenAI、Google、Gemini、Anthropic、OpenRouter、xAI Key | 均未配置 |
-| 云 OCR Key | 未配置；本次由 Accessibility Helper、UI 层级和 Codex 视觉完成 |
-
-云 OCR 仍是可选的外部服务，显式启用时依然需要 `OCR_API_KEY`。默认的 UI XML
-加 Codex 视觉路径不依赖该 Key。
+Codex 需要已登录且可访问所选模型的客户端；云 OCR 和其他 API Provider 仍需各自的 Key。缓存节省时间为历史耗时估算。详细配置与验收边界见下文及 [Provider 文档](./docs/codex-client-provider.md)。
 
 <!-- 演示效果图 -->
 <p align="center">
@@ -227,7 +102,7 @@ artemis doctor
 - **安装系统环境依赖**：自动检测并安装 ADB、scrcpy、FFmpeg、Codex CLI、Python（`uv`）运行时、Node.js 及项目依赖。
 - **全局挂载 MCP 服务与测试准则 (Rules)**：主动引导并自动将全局 MCP 服务与 **Artemis 移动端测试思维准则 (`rules.md`)** 挂载至你使用的 AI IDE（支持 **Antigravity**、**Cursor**、**Claude Code**、**Codex**、**Windsurf**、**VS Code**、**Cline/Roo**、**OpenClaw**）。
 
-当前分支默认复用本机已登录的 **Codex 客户端**。首次启动会自动安装 Codex CLI；安装后按提示执行一次 `codex login`，Artemis 随后通过 Codex App Server 调用模型，无需配置 OpenAI API Key。配置方式和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。macOS 的兼容性、权限和旧系统限制见 [macOS 运行说明](./docs/macos-support.md)。
+当前分支默认复用本机已登录的 **Codex 客户端**，模型调用优先使用桌面客户端内置 Codex，再回退到 PATH 中的 CLI。首次使用按提示执行 `codex login`；Artemis 通过 Codex App Server 调用模型，无需配置 OpenAI API Key。配置方式和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。macOS 的兼容性、权限和旧系统限制见 [macOS 运行说明](./docs/macos-support.md)。
 
 ### macOS 与 Linux
 
@@ -254,8 +129,123 @@ cd artemis-codex
 
 > **提示**：启动后将自动在默认浏览器中打开 Web 控制台（`http://localhost:8000`），提供设备连接向导、实时投屏、任务演练与状态回放面板。你也可以通过命令行直接运行：`uv run artemis run "打开系统设置，找到电池选项并告诉我当前电量" --profile flash`。
 
+### 刷新已有的全局安装
+
+在已更新到最新提交的仓库中，先移除旧的全局工具环境，再安装当前分支：
+
+```bash
+git pull --ff-only origin main
+uv tool uninstall artemis
+uv tool install -e .
+artemis doctor
+```
+
+安装过程会从 PyPI 获取 `codex-client-provider==0.1.0`。可通过 `uv tool list`
+确认全局 Artemis 已正确安装。
+
+<a id="device-selection"></a>
+## 设备选择与 Android 模拟器
+
+自动 Android 选择优先使用空闲真机，其次是空闲模拟器；全部繁忙时在就绪设备上排队。跨平台注册表未指定平台时优先选择可用真机，再考虑 Android 模拟器和 iOS 模拟器；CLI/MCP 任务未指定平台时仍默认 Android。多设备场景应显式传入序列号。
+
+```dotenv
+# .env：是否自动发现并选择虚拟设备，默认开启
+ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
+# 无已连接 Android 设备时，独立 MCP 任务使用的 AVD 名称（可选）
+# ARTEMIS_AVD_NAME=YOUR_INSTALLED_AVD
+```
+
+- 关闭自动发现后，已连接模拟器仍在设备清单中可见，仍可显式指定序列号或通过诊断手动启动。
+- SDK/AVD 从显式路径、Android 环境变量、PATH、已解析 ADB 所在 SDK 及常见目录发现，支持迁移后的 SDK 和自定义 AVD 目录。需要时配置 `ARTEMIS_EMULATOR_PATH`、`ANDROID_HOME` 或 `ANDROID_AVD_HOME`。
+- 无已连接设备的独立 MCP 任务可复用或启动指定 AVD；未配置名称时仅在已安装 AVD 唯一时自动启动。多个 AVD 需要选择，不能假定名称或 `emulator-5554`。
+- 通过 `mobile_diagnose(launch_avd="YOUR_INSTALLED_AVD")` 可在后台启动或复用同名运行实例；随后不带 `launch_avd` 轮询诊断，待 `emulator.status` 为 `ready`，使用实际序列号提交任务。使用 daemon 调度器时，先通过诊断启动，再提交任务。
+- 启动就绪同时要求系统启动完成和 Android 包服务可用；再用 `mobile_diagnose(device_serial="SERIAL", probe_device=true)` 检查截图与 UI 层级。AVD 清单短时缓存并合并并发扫描，显式就绪刷新会清除缓存。
+
+修改 `.env` 后重启 ARTEMIS/MCP。详细选择规则、路径发现和验收步骤见 [设备与模拟器说明](./docs/testing.md#android-emulator-without-a-physical-device)。
+
+<a id="model-configuration"></a>
+## 模型与图片配置
+
+编辑 [`config/artemis.jsonc`](./config/artemis.jsonc)，修改后重启 ARTEMIS/MCP。配置文件只放模型与运行设置，其他 Provider 的密钥放在被 Git 忽略的 `.env`。
+
+| 配置项 | 用途 |
+|---|---|
+| `default` | 主模型、Provider、推理强度与回退；当前仓库为 Codex `gpt-6.1-sol` / `low`，回退 `gpt-6-luna`。 |
+| `nodes` | 单独覆盖 Planner、Operator、Explorer、Checker 等角色，未指定字段继承默认值；轻量摘要和历史压缩保留 Luna 档位。 |
+| `presets` | 预设的 Provider/模型组合。 |
+| `agent.flash` / `agent.pro` | Flash/Pro 行为，包括 Explorer 档位与步骤摘要设置。 |
+
+源码优先读取上述配置，打包模板位于 [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc)。可用 `ARTEMIS_ARTEMIS_JSONC` 指定另一份已存在的配置；主模型、回退和各角色必须与所选 Provider 兼容。
+
+图片默认等比缩至短边最多 720、长边最多 1600 像素，以 WebP 质量 70 编码，字节预算 768 KiB；超出预算时继续缩小，不放大小图。原始截图和坐标尺寸保持不变。环境变量、客户端路径优先级与适配层说明集中在 [Codex Provider 文档](./docs/codex-client-provider.md)。
+
+检查本地环境：
+
+```bash
+codex login status
+adb devices -l
+uv run artemis doctor
+```
+
+<details>
+<summary>验证记录：2026-09-19 无 API Key Android 真机流程</summary>
+
+2026-09-19 已在连接的小米 Android 真机上重新验证零 Key Codex 路径。Pro 模式成功
+打开小红书、搜索“秋日穿搭”、确认多条相关结果并停留在结果页，全程未点赞、收藏、
+关注、评论或发布内容。
+
+| 能力 | 验证结果 |
+|---|---|
+| Planner 与 Operator | 通过，复用已登录的 Codex 客户端 |
+| 截图理解与步骤摘要 | 通过，使用 Codex 图片输入 |
+| Checkpoint 与最终 Checker | 4/4 检查通过 |
+| Outputter 报告 | 通过 |
+| OpenAI、Google、Gemini、Anthropic、OpenRouter、xAI Key | 均未配置 |
+| 云 OCR Key | 未配置；本次由 Accessibility Helper、UI 层级和 Codex 视觉完成 |
+
+云 OCR 仍是可选的外部服务，显式启用时依然需要 `OCR_API_KEY`。默认的 UI XML
+加 Codex 视觉路径不依赖该 Key。
+
+</details>
+
+<a id="visual-location-cache"></a>
+## 视觉定位缓存与后台
+
+定位顺序为 **ADB/UI 树 → 本地视觉位置缓存 → OCR/模型**。每台设备默认保留 10,000 条位置；一次视觉请求可额外学习最多 20 个可见控件，多目标查询只将未命中部分交给模型。
+
+缓存支持整页精确匹配、局部控件校验与固定区域复用。设备、应用、Activity、尺寸和目标证据仍需匹配；遮挡、目标移动或歧义会阻止复用。复用的是位置，点击与结果验证仍由正常执行流程完成。
+
+Web 控制台的 **页面缓存**（`/cache`）提供页面/元素查询、学习状态、命中率、耗时、失败案例与单页清理。新增的节省时间按同设备、同应用的平均视觉定位耗时折算命中收益，再扣除全部缓存查询开销；缺少样本时显示“暂无估算”，不代表任务总耗时实测差值。
+
+缓存仅在本地保存位置元数据和指纹，不保存截图或完整模型回复。配置统一放在 `config/artemis.jsonc`：
+
+```jsonc
+{
+  "agent": {
+    "visual_location_cache": {
+      "enabled": true,
+      "batch_prefetch": true,
+      "capacity_per_device": 10000
+    }
+  }
+}
+```
+
+配置范围、旧变量迁移、数据库路径、复用保护和统计口径见 [缓存专题文档](./docs/visual-location-cache_CN.md)。
+
+<details>
+<summary>缓存后台示例</summary>
+
+<p align="center">
+  <img src="./docs/assets/visual-cache-dashboard.jpg" alt="ARTEMIS 页面缓存后台：总览、统计与学习状态" width="640" />
+</p>
+
+图中已裁去设备标识、业务应用名称和本地路径，数值仅展示界面，不作为性能评测结果。
+
+</details>
+
 <a id="ios-simulator"></a>
-## iOS 模拟器支持（macOS）
+## iOS 支持（macOS）
 
 目前通过 ARTEMIS 完整验收的 iOS 目标是 **iOS 模拟器**。需要 macOS、完整 Xcode、已安装的 iOS Simulator Runtime、Node.js/npm、Appium 3 及兼容的 XCUITest Driver。Android 默认启动流程不变；显式运行 `./start.sh --with-ios` 或 `bash scripts/install_deps.sh --with-ios`，才会安装缺失的 Node.js/Appium/XCUITest 组件。Xcode 与 iOS Runtime 仍需自行安装。只读检查可运行 `bash scripts/setup_ios.sh --check`。请按目标 iOS Runtime 选择兼容组合，参见 [XCUITest Driver 兼容要求](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/system-requirements/)。
 
