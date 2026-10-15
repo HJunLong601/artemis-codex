@@ -75,31 +75,8 @@ class AdbDeviceProbe(BaseProbe):
         return toolchain.resolve("adb")
 
     def _locate_emulator(self) -> str | None:
-        """Find the emulator binary path from PATH or standard SDK environments."""
-        emu_path = shutil.which("emulator")
-        if emu_path:
-            return emu_path
-
-        sdk_candidates = [
-            os.environ.get("ANDROID_HOME"),
-            os.environ.get("ANDROID_SDK_ROOT"),
-            str(Path.home() / "Android" / "Sdk"),
-            str(Path.home() / "Android" / "sdk"),
-            str(Path.home() / "Library" / "Android" / "sdk"),
-            os.getenv("LOCALAPPDATA", "") + "/Android/Sdk" if os.getenv("LOCALAPPDATA") else None,
-            "/usr/lib/android-sdk",
-            "/opt/android-sdk",
-        ]
-        for base in sdk_candidates:
-            if base:
-                cand = (
-                    Path(base)
-                    / "emulator"
-                    / ("emulator.exe" if platform.os_type == OSType.WINDOWS else "emulator")
-                )
-                if cand.is_file():
-                    return str(cand)
-        return None
+        """Resolve the emulator from the same SDK used by ADB."""
+        return toolchain.resolve("emulator")
 
     def _list_installed_avds(self, emulator_path: str | None = None) -> list[str]:
         """Discover all locally created Android Virtual Devices (AVDs)."""

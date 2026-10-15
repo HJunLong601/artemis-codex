@@ -17,8 +17,6 @@
 import asyncio
 from collections import deque
 from enum import Enum
-import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -28,7 +26,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from artemis.platform import OSType, platform
 from artemis.toolchain import toolchain
 from third_party.mobile_use.utils.logger import get_logger
 
@@ -90,35 +87,8 @@ class EmulatorManager:
         return {"start_new_session": True}
 
     def _locate_emulator(self) -> str | None:
-        """Find the emulator binary path from PATH or standard SDK environments."""
-        resolved = toolchain.resolve("emulator")
-        if resolved:
-            return resolved
-
-        emu_path = shutil.which("emulator")
-        if emu_path:
-            return emu_path
-
-        sdk_candidates = [
-            os.environ.get("ANDROID_HOME"),
-            os.environ.get("ANDROID_SDK_ROOT"),
-            str(Path.home() / "Android" / "Sdk"),
-            str(Path.home() / "Android" / "sdk"),
-            str(Path.home() / "Library" / "Android" / "sdk"),
-            os.getenv("LOCALAPPDATA", "") + "/Android/Sdk" if os.getenv("LOCALAPPDATA") else None,
-            "/usr/lib/android-sdk",
-            "/opt/android-sdk",
-        ]
-        for base in sdk_candidates:
-            if base:
-                cand = (
-                    Path(base)
-                    / "emulator"
-                    / ("emulator.exe" if platform.os_type == OSType.WINDOWS else "emulator")
-                )
-                if cand.is_file():
-                    return str(cand)
-        return None
+        """Use the same SDK resolution as diagnostics and MCP task startup."""
+        return toolchain.resolve("emulator")
 
     def _locate_adb(self) -> str:
         """Find the adb binary path."""

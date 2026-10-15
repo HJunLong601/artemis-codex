@@ -70,6 +70,13 @@ TOOLS: dict[str, ToolDescriptor] = {
         embedded_fallback=_get_embedded_adb,
         description="Android Debug Bridge client",
     ),
+    "emulator": ToolDescriptor(
+        name="emulator",
+        binary_name="emulator",
+        win_binary_name="emulator.exe",
+        sdk_relative_path="emulator/emulator",
+        description="Android Virtual Device emulator",
+    ),
     "ffmpeg": ToolDescriptor(
         name="ffmpeg",
         binary_name="ffmpeg",

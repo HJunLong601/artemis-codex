@@ -120,17 +120,28 @@ class ToolchainResolver:
         candidates: list[Path] = []
         home = Path.home()
 
+        # An SDK can live outside the OS defaults without ANDROID_HOME being
+        # set. A resolved SDK adb provides evidence of that installation;
+        # standalone or Python-bundled adb binaries do not identify an SDK.
+        if desc.sdk_relative_path and desc.name != "adb":
+            adb = self.resolve("adb")
+            if adb and Path(adb).parent.name == "platform-tools":
+                candidate = Path(adb).parent.parent / desc.sdk_relative_path
+                if platform.os_type == OSType.WINDOWS:
+                    candidate = candidate.with_suffix(".exe")
+                candidates.append(candidate)
+
         if platform.os_type == OSType.WINDOWS:
             local_appdata = os.getenv("LOCALAPPDATA", "")
             program_files = os.getenv("ProgramFiles", "C:\\Program Files")
             program_data = os.getenv("ProgramData", "C:\\ProgramData")
 
-            if desc.name == "adb":
+            if desc.sdk_relative_path:
                 if local_appdata:
-                    candidates.append(
-                        Path(local_appdata) / "Android" / "Sdk" / "platform-tools" / "adb.exe"
-                    )
-                candidates.append(Path(program_files) / "Android" / "platform-tools" / "adb.exe")
+                    candidate = Path(local_appdata) / "Android" / "Sdk" / desc.sdk_relative_path
+                    candidates.append(candidate.with_suffix(".exe"))
+                candidate = Path(program_files) / "Android" / desc.sdk_relative_path
+                candidates.append(candidate.with_suffix(".exe"))
             elif desc.name == "scrcpy":
                 candidates.append(Path(program_data) / "chocolatey" / "bin" / "scrcpy.exe")
                 if local_appdata:
@@ -145,8 +156,9 @@ class ToolchainResolver:
                     )
 
         elif platform.os_type == OSType.MACOS:
+            if desc.sdk_relative_path:
+                candidates.append(home / "Library" / "Android" / "sdk" / desc.sdk_relative_path)
             if desc.name == "adb":
-                candidates.append(home / "Library" / "Android" / "sdk" / "platform-tools" / "adb")
                 candidates.append(Path("/opt/homebrew/bin/adb"))
                 candidates.append(Path("/usr/local/bin/adb"))
             elif desc.name in ("ffmpeg", "scrcpy"):
@@ -154,9 +166,12 @@ class ToolchainResolver:
                 candidates.append(Path(f"/usr/local/bin/{desc.name}"))
 
         elif platform.os_type == OSType.LINUX:
+            if desc.sdk_relative_path:
+                candidates.append(home / "Android" / "Sdk" / desc.sdk_relative_path)
+                candidates.append(home / "Android" / "sdk" / desc.sdk_relative_path)
+                candidates.append(Path("/usr/lib/android-sdk") / desc.sdk_relative_path)
+                candidates.append(Path("/opt/android-sdk") / desc.sdk_relative_path)
             if desc.name == "adb":
-                candidates.append(home / "Android" / "Sdk" / "platform-tools" / "adb")
-                candidates.append(Path("/usr/lib/android-sdk/platform-tools/adb"))
                 candidates.append(Path("/usr/bin/adb"))
             elif desc.name in ("ffmpeg", "scrcpy"):
                 candidates.append(Path(f"/usr/bin/{desc.name}"))

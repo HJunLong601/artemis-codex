@@ -20,6 +20,8 @@ import subprocess
 import sys
 import time
 
+from artemis.toolchain import toolchain
+
 
 def resolve_adb_path() -> str:
     """Resolves the absolute path to the adb binary across platforms."""
@@ -71,26 +73,8 @@ def resolve_adb_path() -> str:
 
 
 def resolve_emulator_path() -> str | None:
-    """Resolves the path to the Android emulator executable."""
-    which_emulator = shutil.which("emulator")
-    if which_emulator:
-        return which_emulator
-
-    candidates = [
-        os.path.expanduser("~/Android/Sdk/emulator/emulator"),
-        os.path.expanduser("~/Library/Android/sdk/emulator/emulator"),
-    ]
-    if sys.platform == "win32":
-        local_appdata = os.getenv("LOCALAPPDATA", "")
-        if local_appdata:
-            candidates.append(
-                os.path.join(local_appdata, "Android", "Sdk", "emulator", "emulator.exe")
-            )
-
-    for cand in candidates:
-        if os.path.exists(cand):
-            return cand
-    return None
+    """Use the shared SDK resolver, including custom SDKs discovered via adb."""
+    return toolchain.resolve("emulator")
 
 
 def get_connected_devices(adb_path: str | None = None) -> list[str]:
