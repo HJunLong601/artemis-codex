@@ -39,6 +39,7 @@ export interface CacheStats {
   probation_limit?: number;
   history?: {
     since: number | null; queries: number; hits: number; hit_rate: number | null;
+    estimated_saved_ms?: number | null; estimated_hits?: number;
     metrics: Record<string, { count: number; total_ms: number }>;
     misses: Record<string, number>; inventory: InventoryState[]; inventory_counts: Record<string, number>;
   };
@@ -165,6 +166,18 @@ export class VisualCacheComponent {
   }
 
   count(metric: string): number { return this.stats()?.history?.metrics[metric]?.count ?? 0; }
+  savedTime(value: number | null | undefined): string {
+    if (value == null || !Number.isFinite(value)) return '暂无估算';
+    if (value <= 0) return '约 0 秒';
+    if (value < 1000) return '约不到 1 秒';
+    const seconds = Math.round(value / 1000);
+    if (seconds < 60) return `约 ${seconds} 秒`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    if (minutes < 60) return `约 ${minutes} 分${remainder ? ` ${remainder} 秒` : ''}`;
+    const hours = Math.floor(minutes / 60);
+    return `约 ${hours} 小时${minutes % 60 ? ` ${minutes % 60} 分` : ''}`;
+  }
   average(metric: string): number | null {
     const value = this.stats()?.history?.metrics[metric];
     return value?.count ? value.total_ms / value.count : null;

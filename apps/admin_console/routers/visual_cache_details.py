@@ -3,16 +3,45 @@
 import json
 
 
+def estimate_saved_time(db):
+    """Model-call time equivalent, grouped to avoid mixing device/app latencies.
+
+    Each hit substitutes one average visual batch. Subtract all lookup overhead,
+    including misses. Parallel targets mean this is not task wall-clock savings.
+    """
+    groups = {}
+    for device, app, name, count, total_ms in db.execute(
+        "SELECT device_key,application,metric,count,total_ms FROM cache_metrics"
+    ):
+        groups.setdefault((device, app), {})[name] = (count, total_ms)
+    saved_ms = 0.0
+    covered_hits = 0
+    sampled = False
+    for metrics in groups.values():
+        visual_count, visual_ms = metrics.get("visual_batches", (0, 0))
+        lookup_count, lookup_ms = metrics.get("lookup_batches", (0, 0))
+        if visual_count <= 0 or visual_ms <= 0 or lookup_count <= 0:
+            continue
+        sampled = True
+        hits = sum(metrics.get(name, (0, 0))[0] for name in ("exact_hit", "local_hit", "region_hit"))
+        covered_hits += hits
+        saved_ms += max(0.0, hits * visual_ms / visual_count - lookup_ms)
+    return (round(saved_ms, 1) if sampled else None), covered_hits
+
+
 def read_history(db):
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     metrics = {}
     since = None
+    estimated_saved_ms = None
+    estimated_hits = 0
     if "cache_metrics" in tables:
         for name, count, total_ms, first in db.execute(
             "SELECT metric,SUM(count),SUM(total_ms),MIN(since) FROM cache_metrics GROUP BY metric"
         ):
             metrics[name] = {"count": count, "total_ms": total_ms}
             since = min(since, first) if since else first
+        estimated_saved_ms, estimated_hits = estimate_saved_time(db)
     hits = sum(metrics.get(n, {}).get("count", 0) for n in ("exact_hit", "local_hit", "region_hit"))
     misses = {
         k.removeprefix("miss_"): v["count"] for k, v in metrics.items() if k.startswith("miss_")
@@ -58,6 +87,8 @@ def read_history(db):
         queries=queries,
         hits=hits,
         hit_rate=hits / queries if queries else None,
+        estimated_saved_ms=estimated_saved_ms,
+        estimated_hits=estimated_hits,
         misses=misses,
         inventory=inventory,
         inventory_counts=counts,

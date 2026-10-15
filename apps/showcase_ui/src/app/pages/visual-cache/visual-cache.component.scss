@@ -89,7 +89,18 @@ td small { display: block; font-size: 10px; color: #8190a4; margin-top: 6px; }
 .page-name { min-width: 90px; max-width: 180px; overflow-wrap: anywhere; }
 
 .history, .inventory, .element-detail { margin: 20px 0; }
-.history .metrics { margin-bottom: 14px; }
+.history .metrics { grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 20px 0 14px; }
+.history .metric { grid-column: span 2; min-width: 0; }
+.history .metric:nth-last-child(-n + 2) { grid-column: span 3; }
+.time-saved strong { font-size: 28px; overflow-wrap: anywhere; }
+@media (max-width: 1000px) {
+  .history .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .history .metric, .history .metric:nth-last-child(-n + 2) { grid-column: auto; }
+  .history .time-saved { grid-column: 1 / -1; }
+}
+@media (max-width: 480px) {
+  .history .metrics { grid-template-columns: minmax(0, 1fr); }
+}
 .reason-list, .detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
 .reason-list > span { padding: 6px 10px; border: 1px solid var(--border-color, #dce2ed); border-radius: 8px; font-size: 13px; }
 .inventory-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-color, #dce2ed); }

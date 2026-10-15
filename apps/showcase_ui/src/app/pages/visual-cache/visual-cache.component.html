@@ -35,11 +35,13 @@
       <section class="panel history" aria-label="累计缓存效果">
         <div class="panel-heading"><h2>累计缓存效果</h2><span>{{ history.since ? '开始于 ' + (history.since * 1000 | date:'MM-dd HH:mm') : '等待首次查询' }}</span></div>
         <div class="metrics">
+          <article class="metric accent time-saved"><span>节省时间</span><strong>{{ savedTime(history.estimated_saved_ms) }}</strong><small>基于 {{ history.estimated_hits ?? 0 }} / {{ history.hits }} 次命中的历史耗时估算</small></article>
           <article class="metric"><span>查询 / 命中率</span><strong>{{ history.queries | number }} <em>/</em> {{ history.hit_rate === null ? '—' : (history.hit_rate * 100 | number:'1.0-1') + '%' }}</strong><small>精确命中 {{ count('exact_hit') }} · 局部校验复用 {{ count('local_hit') }} · 固定区域复用 {{ count('region_hit') }}</small></article>
           <article class="metric"><span>预缓存使用率</span><strong>{{ count('prefetch_stored_elements') ? (percent(count('prefetch_used_elements'), count('prefetch_stored_elements')) | number:'1.0-1') + '%' : '—' }}</strong><small>已使用 {{ count('prefetch_used_elements') }} / 累计存入 {{ count('prefetch_stored_elements') }} 个</small></article>
           <article class="metric"><span>缓存查询平均耗时</span><strong>{{ average('lookup_batches') === null ? '—' : (average('lookup_batches') | number:'1.0-1') + ' ms' }}</strong><small>每批目标查询，包含坐标校验</small></article>
           <article class="metric"><span>视觉定位平均耗时</span><strong>{{ average('visual_batches') === null ? '—' : (average('visual_batches')! / 1000 | number:'1.0-2') + ' s' }}</strong><small>每批实际视觉定位，包含失败与重试</small></article>
         </div>
+        <p class="detail-note">节省时间按同设备、同应用的平均视觉定位耗时折算缓存命中收益，并扣除全部缓存查询开销。仅统计有耗时样本的命中；多目标并行等会影响实际提速。</p>
         <p class="detail-note">缓存坐标对应的设备动作：已下发 {{ count('action_dispatched') }} 次，执行失败 {{ count('action_failed') }} 次。下发成功不代表页面跳转或任务目标已验证。仅关联同一截图下坐标完全匹配的下一次动作。</p>
         <div class="reason-list">@for (reason of history.misses | keyvalue; track reason.key) { <span>{{ missNames[reason.key] || reason.key }} <strong>{{ reason.value | number }}</strong></span> } @empty { <span>暂无未命中记录</span> }</div>
         <p class="detail-note">纠错失效 {{ count('corrections') }} 次 · 执行失败失效 {{ count('execution_invalidations') }} 次 · 元素去重 {{ count('deduplicated_writes') }} 次</p>

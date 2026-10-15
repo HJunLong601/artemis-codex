@@ -48,6 +48,8 @@ def get_visual_cache_stats():
             "queries": 0,
             "hits": 0,
             "hit_rate": None,
+            "estimated_saved_ms": None,
+            "estimated_hits": 0,
             "misses": {},
             "inventory": [],
             "inventory_counts": {},

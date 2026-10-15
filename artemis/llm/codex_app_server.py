@@ -31,7 +31,7 @@ from uuid import uuid4
 
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from pydantic import Field
+from pydantic import Field, field_validator
 
 import codex_client_provider.langchain as provider
 from codex_client_provider.langchain import (
@@ -42,10 +42,9 @@ from codex_client_provider.langchain import (
     CodexAppServerChatModel as _CodexAppServerChatModel,
     CodexAppServerClient,
     CodexAppServerError,
-    codex_client_status,
-    find_codex_binary,
 )
 
+from artemis.llm.codex_binary import codex_client_status, find_codex_binary
 from artemis.llm.image_inputs import prepare_image_messages
 
 
@@ -58,12 +57,20 @@ class CodexAppServerChatModel(_CodexAppServerChatModel):
     client_title: str = Field(default="Artemis")
     client_version: str = Field(default="1.0")
     service_name: str = Field(default="artemis")
+    codex_binary: str | None = Field(default=None, validate_default=True)
     telemetry_enabled: bool = Field(
         default_factory=lambda: os.getenv("ARTEMIS_CODEX_TELEMETRY", "1") != "0"
     )
     image_preprocessing_enabled: bool = Field(
         default_factory=lambda: os.getenv("ARTEMIS_CODEX_IMAGE_PREPROCESSING", "1") != "0"
     )
+
+    @field_validator("codex_binary")
+    @classmethod
+    def _resolve_codex_binary(cls, value: str | None) -> str | None:
+        # Preserve invalid explicit paths so the provider reports them instead of
+        # silently falling back to a different installation.
+        return find_codex_binary(value) or value
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
         started = time.monotonic()
