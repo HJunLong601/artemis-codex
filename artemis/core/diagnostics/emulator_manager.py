@@ -97,6 +97,20 @@ class EmulatorManager:
             return resolved
         return shutil.which("adb") or "adb"
 
+    async def _adb_output(self, adb_path: str, *args: str) -> str:
+        """Bound every boot-time ADB query so an unresponsive device cannot stall tracking."""
+        proc = await asyncio.create_subprocess_exec(
+            adb_path, *args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+        except (TimeoutError, asyncio.CancelledError):
+            if proc.returncode is None:
+                proc.kill()
+            await proc.communicate()
+            raise
+        return stdout.decode(errors="replace").strip() if proc.returncode == 0 else ""
+
     def get_status(self) -> EmulatorLaunchState:
         """Return current launch progress state snapshot."""
         state = self._current_state.model_copy()
@@ -278,23 +292,25 @@ class EmulatorManager:
 
                 # Check adb devices for emulator serial
                 try:
-                    p = await asyncio.create_subprocess_exec(
-                        adb_path,
-                        "devices",
-                        "-l",
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                    )
-                    stdout, _ = await p.communicate()
-                    out_text = stdout.decode(errors="replace")
+                    out_text = await self._adb_output(adb_path, "devices", "-l")
 
                     # Scan for emulator-*
                     for line in out_text.splitlines():
                         line = line.strip()
                         if line.startswith("emulator-"):
                             parts = line.split()
-                            if parts:
-                                detected_serial = parts[0]
+                            if len(parts) < 2 or parts[1] != "device":
+                                continue
+                            serial = parts[0]
+                            name = await self._adb_output(
+                                adb_path, "-s", serial, "shell", "getprop", "ro.boot.qemu.avd_name"
+                            )
+                            if not name:
+                                name = await self._adb_output(
+                                    adb_path, "-s", serial, "emu", "avd", "name"
+                                )
+                            if name.splitlines()[:1] == [avd_name]:
+                                detected_serial = serial
                                 break
                 except Exception as e:
                     logger.debug(f"ADB query error during boot tracking: {e}")
@@ -343,17 +359,9 @@ class EmulatorManager:
 
                 # Check sys.boot_completed
                 try:
-                    p = await asyncio.create_subprocess_exec(
-                        adb_path,
-                        "-s",
-                        detected_serial,
-                        "shell",
-                        "getprop sys.boot_completed",
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                    boot_completed = await self._adb_output(
+                        adb_path, "-s", detected_serial, "shell", "getprop", "sys.boot_completed"
                     )
-                    stdout, _ = await p.communicate()
-                    boot_completed = stdout.decode(errors="replace").strip()
 
                     if boot_completed == "1":
                         logger.info(

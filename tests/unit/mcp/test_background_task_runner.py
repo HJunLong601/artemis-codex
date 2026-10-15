@@ -38,6 +38,7 @@ async def test_background_agent_initialization_forwards_health_settings():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("auto_boot", [False, True])
 @pytest.mark.parametrize(
     ("knobs", "expect_level", "expect_mode"),
     [
@@ -46,7 +47,7 @@ async def test_background_agent_initialization_forwards_health_settings():
     ],
 )
 async def test_run_task_applies_pro_tuning_to_agent_config(
-    tmp_path, monkeypatch, knobs, expect_level, expect_mode
+    tmp_path, monkeypatch, knobs, expect_level, expect_mode, auto_boot
 ):
     """The detached runner applies --verification-level / --explorer-pro-mode on the builder."""
     from types import SimpleNamespace
@@ -56,25 +57,32 @@ async def test_run_task_applies_pro_tuning_to_agent_config(
     from mcp_server.background import task_runner as bg
 
     monkeypatch.setattr(trace_store, "TRACES_DIR", str(tmp_path))
+    expected_serial = "emulator-5558" if auto_boot else "emulator-5554"
     trace_id = "trace-tuning"
     trace_store.init_trace(
         trace_id=trace_id,
         task_desc="Audit checkout",
         model="Pro",
         conversation_id="",
-        device_serial="emulator-5554",
+        device_serial=None if auto_boot else expected_serial,
     )
 
     fake_builder = MagicMock()
     fake_builders = MagicMock()
     fake_builders.AgentConfig.with_default_profile.return_value = fake_builder
     fake_agent = MagicMock()
-    fake_agent._device_context = SimpleNamespace(device_id="emulator-5554")
+    fake_agent._device_context = SimpleNamespace(device_id=expected_serial)
     fake_agent.run_task = AsyncMock(return_value="done")
     fake_agent.clean = AsyncMock()
 
     monkeypatch.setattr(bg.device_utils, "resolve_adb_path", lambda: "adb")
-    monkeypatch.setattr(bg.device_utils, "get_connected_devices", lambda _adb: ["emulator-5554"])
+    monkeypatch.setattr(
+        bg.device_utils,
+        "get_connected_devices",
+        lambda _adb: [] if auto_boot else [expected_serial],
+    )
+    ensure_emulator = MagicMock(return_value=expected_serial)
+    monkeypatch.setattr(bg.device_utils, "ensure_emulator_serial", ensure_emulator)
     monkeypatch.setattr(bg, "resolve_profile_file", lambda: None)
     monkeypatch.setattr(bg, "_initialize_agent", AsyncMock())
     monkeypatch.setattr(bg, "notify", MagicMock())
@@ -90,7 +98,7 @@ async def test_run_task_applies_pro_tuning_to_agent_config(
             task_desc="Audit checkout",
             model="Pro",
             conversation_id="",
-            device_serial="emulator-5554",
+            device_serial=None if auto_boot else expected_serial,
             **knobs,
         )
 
@@ -102,6 +110,14 @@ async def test_run_task_applies_pro_tuning_to_agent_config(
         fake_builder.with_explorer.assert_called_once_with(pro_mode=expect_mode)
     fake_agent.run_task.assert_awaited_once()
     assert trace_store.read_status(trace_id)["status"] == "completed"
+    assert trace_store.read_status(trace_id)["device_serial"] == expected_serial
+    from artemis.context import DevicePlatform
+
+    fake_builder.for_device.assert_called_once_with(DevicePlatform.ANDROID, expected_serial)
+    if auto_boot:
+        ensure_emulator.assert_called_once_with(adb_path="adb")
+    else:
+        ensure_emulator.assert_not_called()
 
 
 @pytest.mark.asyncio

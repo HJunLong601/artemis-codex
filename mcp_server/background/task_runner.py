@@ -210,9 +210,11 @@ async def run_task(
                     )
                 else:
                     print("❌ No active connected devices detected. Booting emulator...")
-                    if not device_utils.ensure_emulator(adb_path=adb_path):
+                    target_serial = await asyncio.to_thread(
+                        device_utils.ensure_emulator_serial, adb_path=adb_path
+                    )
+                    if not target_serial:
                         raise RuntimeError("Failed to start or connect to the Android emulator.")
-                    target_serial = "emulator-5554"
 
         if target_serial:
             trace_store.update_trace_fields(

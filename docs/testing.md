@@ -43,6 +43,38 @@ explore the application with ARTEMIS, and preserve screenshots and traces before
 authoring or updating device interaction tests. Passing the default suite does
 not establish real-device acceptance or live model availability.
 
+## Android emulator without a physical device
+
+Use an existing Android SDK emulator, system image and AVD. Tool discovery checks
+`ARTEMIS_EMULATOR_PATH`, Android SDK environment variables, the SDK containing
+the resolved `platform-tools/adb`, common SDK directories and `PATH`. A custom
+SDK does not need `ANDROID_HOME` when its SDK ADB is already discoverable.
+
+1. Run `adb devices -l` and list AVDs using the resolved emulator executable's
+   `-list-avds` option. Confirm the target when several AVDs or devices exist.
+2. Call `mobile_diagnose(launch_avd="CHOSEN_AVD")`. It launches in the background;
+   poll diagnostics without `launch_avd` until `emulator.status` is `ready`.
+   Read failures and logs before retrying a launch.
+3. Use the returned serial, rather than assuming `emulator-5554`, in
+   `mobile_diagnose(device_serial="SERIAL", attempt_fix=true, probe_device=true)`.
+   Wait for a passing screenshot and hierarchy probe before starting UI tests.
+4. Run ARTEMIS tasks with that explicit `device_serial`. Explore the target app
+   before authoring navigation tests; AOSP Settings labels differ from MIUI.
+
+For standalone MCP tasks started with no connected Android device, `ARTEMIS_AVD_NAME`
+selects the AVD to boot. If unset, startup requires exactly one installed AVD;
+multiple choices produce an actionable selection error. Restart MCP after changing
+its environment. Startup waits for the chosen AVD's `sys.boot_completed=1` and
+passes its actual serial to the agent. It does not reserve a fixed emulator or
+gRPC port. Existing emulators are also checked for boot completion before reuse.
+With the daemon scheduler, launch through diagnostics first, then submit tasks
+against the returned serial.
+
+Portable unit regressions cover selection, AVD identity, nondefault serials,
+offline devices, timeout/crash handling and Windows/POSIX process isolation.
+They do not boot an emulator in CI. Keep local screenshots, traces and temporary
+device validation scripts under ignored `artifacts/` directories.
+
 ## 可重复的 MIUI 真机回归
 
 当前已探索并验证的基线是 Xiaomi M2002J9E、Android 12、MIUI 13.0.7、中文、

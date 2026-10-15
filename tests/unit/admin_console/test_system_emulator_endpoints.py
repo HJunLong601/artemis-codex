@@ -14,14 +14,66 @@
 
 """Unit tests for System Emulator Launch & Lifecycle Endpoints."""
 
+import importlib
 import subprocess
 import sys
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from apps.admin_console.server import app
 from artemis.core.diagnostics.emulator_manager import EmulatorManager
+
+
+@pytest.mark.asyncio
+async def test_boot_tracker_matches_avd_instead_of_first_emulator(monkeypatch):
+    from artemis.core.diagnostics.engine import readiness_engine
+
+    module = importlib.import_module("artemis.core.diagnostics.emulator_manager")
+    manager = EmulatorManager()
+    process = MagicMock(pid=42)
+    process.poll.return_value = None
+    clock = [0.0]
+
+    async def sleep(delay):
+        clock[0] += delay
+
+    async def adb_output(_adb, *args):
+        if args == ("devices", "-l"):
+            return "emulator-5554 device\nemulator-5558 offline\nemulator-5560 device"
+        if args[-1] == "ro.boot.qemu.avd_name":
+            return "SelectedAVD" if args[1] == "emulator-5560" else "OtherAVD"
+        if args[-1] == "sys.boot_completed":
+            assert args[1] == "emulator-5560"
+            return "1"
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module.asyncio, "sleep", sleep)
+    monkeypatch.setattr(module.time, "time", lambda: clock[0])
+    monkeypatch.setattr(manager, "_locate_adb", lambda: "adb")
+    monkeypatch.setattr(manager, "_adb_output", adb_output)
+    focus = MagicMock()
+    monkeypatch.setattr(readiness_engine, "set_probe_target_serial", focus)
+
+    await manager._track_boot_lifecycle("SelectedAVD", process, 0.0)
+
+    assert manager.get_status().status.value == "ready"
+    assert manager.get_status().serial == "emulator-5560"
+    focus.assert_called_once_with("emulator-5560")
+
+
+@pytest.mark.asyncio
+async def test_boot_adb_timeout_kills_and_reaps_child(monkeypatch):
+    module = importlib.import_module("artemis.core.diagnostics.emulator_manager")
+
+    process = MagicMock(returncode=None)
+    process.communicate = AsyncMock(side_effect=[TimeoutError(), (b"", b"")])
+    monkeypatch.setattr(module.asyncio, "create_subprocess_exec", AsyncMock(return_value=process))
+    with pytest.raises(TimeoutError):
+        await EmulatorManager()._adb_output("adb", "devices")
+    process.kill.assert_called_once()
+    assert process.communicate.await_count == 2
 
 
 def test_emulator_uses_posix_session_isolation(monkeypatch):
