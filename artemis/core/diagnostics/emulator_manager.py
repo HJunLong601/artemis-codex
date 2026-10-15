@@ -103,16 +103,102 @@ class EmulatorManager:
             adb_path, *args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         try:
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
         except (TimeoutError, asyncio.CancelledError):
             if proc.returncode is None:
-                proc.kill()
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass  # It may have exited between the timeout and kill.
             await proc.communicate()
             raise
-        return stdout.decode(errors="replace").strip() if proc.returncode == 0 else ""
+        if proc.returncode != 0:
+            raise RuntimeError(f"ADB query failed: {stderr.decode(errors='replace').strip()[:240]}")
+        return stdout.decode(errors="replace").strip()
+
+    async def _find_running_avd(self, adb_path: str, avd_name: str) -> str | None:
+        listing = await self._adb_output(adb_path, "devices", "-l")
+        serials = [
+            parts[0]
+            for line in listing.splitlines()
+            if len(parts := line.split()) >= 2
+            and parts[0].startswith("emulator-")
+            and parts[1] == "device"
+        ]
+
+        async def matches(serial: str) -> bool:
+            name = await self._adb_output(
+                adb_path, "-s", serial, "shell", "getprop", "ro.boot.qemu.avd_name"
+            )
+            if not name:
+                name = await self._adb_output(adb_path, "-s", serial, "emu", "avd", "name")
+            return name.splitlines()[:1] == [avd_name]
+
+        matched = await asyncio.gather(*(matches(serial) for serial in serials))
+        selected = [serial for serial, match in zip(serials, matched, strict=True) if match]
+        if len(selected) > 1:
+            raise RuntimeError(
+                f"Multiple running instances of AVD '{avd_name}': {selected}. Choose a device serial."
+            )
+        if not selected and any(
+            len(parts := line.split()) >= 2
+            and parts[0].startswith("emulator-")
+            and parts[1] != "device"
+            for line in listing.splitlines()
+        ):
+            raise RuntimeError(
+                "An emulator is still connecting to ADB. Retry after its identity is available."
+            )
+        return selected[0] if selected else None
+
+    async def _boot_services_ready(self, adb_path: str, serial: str) -> bool:
+        try:
+            if (
+                await self._adb_output(
+                    adb_path, "-s", serial, "shell", "getprop", "sys.boot_completed"
+                )
+                != "1"
+            ):
+                return False
+            packages = await self._adb_output(
+                adb_path, "-s", serial, "shell", "pm", "path", "android"
+            )
+        except (OSError, RuntimeError, TimeoutError):
+            return False
+        return any(line.startswith("package:") for line in packages.splitlines())
+
+    def _mark_ready(
+        self, avd_name: str, serial: str, proc: subprocess.Popen | None, started_at: float
+    ) -> None:
+        self._current_state = EmulatorLaunchState(
+            avd_name=avd_name,
+            status=EmulatorLaunchStage.READY,
+            pid=proc.pid if proc is not None else None,
+            serial=serial,
+            stage_message=f"Android emulator '{avd_name}' is ready (system and package services verified).",
+            progress_percent=100,
+            started_at=started_at,
+            elapsed_seconds=int(time.time() - started_at),
+            logs=list(self._log_buffer),
+        )
+        try:
+            from artemis.core.diagnostics.engine import readiness_engine
+
+            readiness_engine.set_probe_target_serial(serial)
+        except Exception as exc:
+            logger.debug(f"Could not update the diagnostics target: {exc}")
 
     def get_status(self) -> EmulatorLaunchState:
         """Return current launch progress state snapshot."""
+        if (
+            self._current_state.status == EmulatorLaunchStage.READY
+            and self._proc is not None
+            and self._proc.poll() is not None
+        ):
+            self._current_state.status = EmulatorLaunchStage.FAILED
+            self._current_state.error = "The emulator process has exited."
+            self._current_state.stage_message = "Emulator process is no longer running."
+            self._current_state.progress_percent = 0
         state = self._current_state.model_copy()
         if state.started_at and state.status in (
             EmulatorLaunchStage.STARTING,
@@ -151,20 +237,63 @@ class EmulatorManager:
             return self.get_status()
 
         async with self._lock:
-            # If already launching the same AVD and process is alive
-            if (
-                self._current_state.status
-                in (
-                    EmulatorLaunchStage.STARTING,
-                    EmulatorLaunchStage.WAITING_FOR_ADB,
-                    EmulatorLaunchStage.BOOTING,
+            tracking = self._track_task is not None and not self._track_task.done()
+            owned_running = self._proc is not None and self._proc.poll() is None
+            if tracking or owned_running:
+                if self._current_state.avd_name == clean_avd and tracking:
+                    return self.get_status()
+                if self._current_state.avd_name != clean_avd:
+                    return EmulatorLaunchState(
+                        avd_name=clean_avd,
+                        status=EmulatorLaunchStage.FAILED,
+                        error=f"Already managing AVD '{self._current_state.avd_name}'. Stop it before launching another AVD.",
+                        stage_message="Another AVD is already managed; its state was preserved.",
+                    )
+
+            try:
+                adb_path = self._locate_adb()
+                existing = await self._find_running_avd(adb_path, clean_avd)
+                if existing:
+                    proc = self._proc if owned_running else None
+                    self._proc = proc
+                    now = time.time()
+                    self._log_buffer.append(
+                        f"Reusing running AVD '{clean_avd}' on {existing}; no process spawned."
+                    )
+                    if await self._boot_services_ready(adb_path, existing):
+                        self._mark_ready(clean_avd, existing, proc, now)
+                    else:
+                        self._current_state = EmulatorLaunchState(
+                            avd_name=clean_avd,
+                            status=EmulatorLaunchStage.BOOTING,
+                            serial=existing,
+                            pid=proc.pid if proc is not None else None,
+                            stage_message="Reusing existing AVD; waiting for Android system services.",
+                            started_at=now,
+                            progress_percent=65,
+                        )
+                        self._track_task = asyncio.create_task(
+                            self._track_boot_lifecycle(
+                                clean_avd, proc, now, existing_serial=existing
+                            )
+                        )
+                    return self.get_status()
+            except (OSError, RuntimeError, TimeoutError) as exc:
+                self._current_state = EmulatorLaunchState(
+                    avd_name=clean_avd,
+                    status=EmulatorLaunchStage.FAILED,
+                    error=f"Cannot verify running emulator identity: {exc}",
+                    stage_message="ADB discovery failed; no new emulator was started.",
                 )
-                and self._current_state.avd_name == clean_avd
-                and self._proc is not None
-                and self._proc.poll() is None
-            ):
-                logger.info(f"AVD '{clean_avd}' is already in progress of launching.")
                 return self.get_status()
+
+            if owned_running:
+                return EmulatorLaunchState(
+                    avd_name=clean_avd,
+                    status=EmulatorLaunchStage.FAILED,
+                    error="The managed emulator process is still alive but its ADB identity is unavailable. Wait or stop it before retrying.",
+                    stage_message="Existing process preserved; no duplicate emulator started.",
+                )
 
             emu_path = self._locate_emulator()
             if not emu_path:
@@ -232,17 +361,24 @@ class EmulatorManager:
                 )
                 return self.get_status()
 
-    async def _track_boot_lifecycle(self, avd_name: str, proc: subprocess.Popen, started_at: float):
+    async def _track_boot_lifecycle(
+        self,
+        avd_name: str,
+        proc: subprocess.Popen | None,
+        started_at: float,
+        *,
+        existing_serial: str | None = None,
+    ):
         """Monitor emulator lifecycle from process execution to ADB connection and OS boot completion."""
         adb_path = self._locate_adb()
-        detected_serial: str | None = None
+        detected_serial: str | None = existing_serial
         max_wait_seconds = 180  # 3 minutes maximum boot timeout
 
         try:
             # Phase 1: Early crash detection (first 5 seconds)
-            for _ in range(5):
+            for _ in range(5 if proc is not None else 0):
                 await asyncio.sleep(1)
-                poll_res = proc.poll()
+                poll_res = proc.poll() if proc is not None else None
                 if poll_res is not None:
                     logs_str = "\n".join(list(self._log_buffer)[-10:])
                     error_msg = f"Emulator process exited immediately with code {poll_res}."
@@ -255,7 +391,7 @@ class EmulatorManager:
                     self._current_state = EmulatorLaunchState(
                         avd_name=avd_name,
                         status=EmulatorLaunchStage.FAILED,
-                        pid=proc.pid,
+                        pid=proc.pid if proc is not None else None,
                         error=error_msg,
                         stage_message=f"Process exited prematurely (Exit code {poll_res})",
                         started_at=started_at,
@@ -271,17 +407,17 @@ class EmulatorManager:
                 "QEMU hypervisor started. Waiting for ADB connection..."
             )
 
-            while time.time() - started_at < max_wait_seconds:
+            while not detected_serial and time.time() - started_at < max_wait_seconds:
                 await asyncio.sleep(1.5)
 
                 # Check if process died
-                poll_res = proc.poll()
+                poll_res = proc.poll() if proc is not None else None
                 if poll_res is not None:
                     logs_str = "\n".join(list(self._log_buffer)[-10:])
                     self._current_state = EmulatorLaunchState(
                         avd_name=avd_name,
                         status=EmulatorLaunchStage.FAILED,
-                        pid=proc.pid,
+                        pid=proc.pid if proc is not None else None,
                         error=f"Emulator process terminated unexpectedly (exit code {poll_res}): {logs_str}",
                         stage_message="Process terminated unexpectedly",
                         started_at=started_at,
@@ -322,7 +458,7 @@ class EmulatorManager:
                 self._current_state = EmulatorLaunchState(
                     avd_name=avd_name,
                     status=EmulatorLaunchStage.FAILED,
-                    pid=proc.pid,
+                    pid=proc.pid if proc is not None else None,
                     error="Timeout waiting for emulator to connect to ADB.",
                     stage_message="ADB handshake timed out.",
                     started_at=started_at,
@@ -343,12 +479,12 @@ class EmulatorManager:
                 await asyncio.sleep(2)
 
                 # Check if process died
-                poll_res = proc.poll()
+                poll_res = proc.poll() if proc is not None else None
                 if poll_res is not None:
                     self._current_state = EmulatorLaunchState(
                         avd_name=avd_name,
                         status=EmulatorLaunchStage.FAILED,
-                        pid=proc.pid,
+                        pid=proc.pid if proc is not None else None,
                         error=f"Emulator process crashed during OS boot (exit code {poll_res}).",
                         stage_message="Process crashed during OS boot",
                         started_at=started_at,
@@ -357,37 +493,10 @@ class EmulatorManager:
                     )
                     return
 
-                # Check sys.boot_completed
+                # Require both Android boot completion and a working package service.
                 try:
-                    boot_completed = await self._adb_output(
-                        adb_path, "-s", detected_serial, "shell", "getprop", "sys.boot_completed"
-                    )
-
-                    if boot_completed == "1":
-                        logger.info(
-                            f"[EmulatorManager] Android system boot completed for {detected_serial} ({avd_name})"
-                        )
-                        self._current_state = EmulatorLaunchState(
-                            avd_name=avd_name,
-                            status=EmulatorLaunchStage.READY,
-                            pid=proc.pid,
-                            serial=detected_serial,
-                            stage_message=f"Android emulator '{avd_name}' is fully booted and ready!",
-                            progress_percent=100,
-                            started_at=started_at,
-                            elapsed_seconds=int(time.time() - started_at),
-                            error=None,
-                            logs=list(self._log_buffer),
-                        )
-                        try:
-                            from artemis.core.diagnostics.engine import readiness_engine
-
-                            # Focus the readiness report on the freshly booted
-                            # emulator; task routing still resolves its own
-                            # target from the request or the device pool.
-                            readiness_engine.set_probe_target_serial(detected_serial)
-                        except Exception as e:
-                            logger.debug(f"Failed to focus probes on the new emulator: {e}")
+                    if await self._boot_services_ready(adb_path, detected_serial):
+                        self._mark_ready(avd_name, detected_serial, proc, started_at)
                         return
                     else:
                         # Gradual progress visual indicator
@@ -402,7 +511,7 @@ class EmulatorManager:
             self._current_state = EmulatorLaunchState(
                 avd_name=avd_name,
                 status=EmulatorLaunchStage.FAILED,
-                pid=proc.pid,
+                pid=proc.pid if proc is not None else None,
                 serial=detected_serial,
                 error=f"Android OS boot did not finish within {max_wait_seconds}s timeout.",
                 stage_message="Boot process timed out.",
@@ -470,6 +579,11 @@ class EmulatorManager:
 
     def dismiss(self) -> dict[str, Any]:
         """Reset emulator launch state back to idle."""
+        if self._track_task is not None and not self._track_task.done():
+            return {
+                "success": False,
+                "message": "Boot tracking is active; stop it before resetting state.",
+            }
         self._current_state = EmulatorLaunchState()
         self._log_buffer.clear()
         return {"success": True, "message": "State reset"}

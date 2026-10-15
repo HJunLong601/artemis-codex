@@ -89,6 +89,23 @@ gRPC port. Existing emulators are also checked for boot completion before reuse.
 With the daemon scheduler, launch through diagnostics first, then submit tasks
 against the returned serial.
 
+Emulator launch requests first check live ADB identities. An already running AVD
+is reused even after the manager/MCP process restarts, without requiring another
+emulator process or an SDK binary for reuse. Concurrent requests in one manager
+share its in-progress launch; a different AVD cannot overwrite that active launch.
+Resetting the progress panel while boot tracking is active is rejected.
+
+Boot readiness requires both `sys.boot_completed=1` and a working Android package
+service (`pm path android`). A screenshot/hierarchy probe remains the acceptance
+check for UI automation. Explicitly requested device information in diagnostics
+is taken from that device's inventory entry, matching helper and smoke-test targets.
+
+AVD inventory is cached for 10 seconds and concurrent callers share a scan. SDK
+file changes, user AVD directory changes and environment-path changes invalidate
+the cache immediately; an explicit readiness refresh also clears it. Only static
+AVD names are cached. SDK discovery runs outside the readiness event loop so a
+slow inventory command does not block other requests.
+
 Portable unit regressions cover selection, AVD identity, nondefault serials,
 offline devices, timeout/crash handling and Windows/POSIX process isolation.
 They do not boot an emulator in CI. Keep local screenshots, traces and temporary

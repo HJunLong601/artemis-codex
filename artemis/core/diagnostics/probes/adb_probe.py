@@ -38,7 +38,7 @@ from artemis.runtime.device_selection import (
     is_emulator_serial,
 )
 from artemis.toolchain import toolchain
-from artemis.toolchain.emulators import list_installed_avds
+from artemis.toolchain.emulators import clear_avd_inventory_cache, list_installed_avds
 from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -75,6 +75,7 @@ class AdbDeviceProbe(BaseProbe):
     def invalidate_enrichment_cache(self) -> None:
         """Refresh static device metadata on an explicit full re-check."""
         self._device_enrichment_cache.clear()
+        clear_avd_inventory_cache()
 
     def _locate_adb(self) -> str | None:
         """Find the adb binary path from ToolchainResolver."""
@@ -566,7 +567,11 @@ class AdbDeviceProbe(BaseProbe):
         adb_path = self._locate_adb()
         discovery_enabled = emulator_discovery_enabled()
         emulator_path = self._locate_emulator() if discovery_enabled else None
-        installed_avds = self._list_installed_avds(emulator_path) if discovery_enabled else []
+        installed_avds = (
+            await asyncio.to_thread(self._list_installed_avds, emulator_path)
+            if discovery_enabled
+            else []
+        )
 
         # 1. ADB binary check
         if not adb_path:

@@ -47,6 +47,8 @@ async def test_boot_tracker_matches_avd_instead_of_first_emulator(monkeypatch):
         if args[-1] == "sys.boot_completed":
             assert args[1] == "emulator-5560"
             return "1"
+        if args[-3:] == ("pm", "path", "android"):
+            return "package:/system/framework/framework-res.apk"
         raise AssertionError(args)
 
     monkeypatch.setattr(module.asyncio, "sleep", sleep)

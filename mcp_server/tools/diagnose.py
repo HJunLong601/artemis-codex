@@ -45,7 +45,12 @@ from artemis.core.diagnostics.readiness import (
     collect_readiness,
     sort_by_fix_order,
 )
-from artemis.core.diagnostics.schema import ProbeResult, ProbeStatus, SystemReadinessReport
+from artemis.core.diagnostics.schema import (
+    DeviceInfo,
+    ProbeResult,
+    ProbeStatus,
+    SystemReadinessReport,
+)
 from artemis.context import ArtemisContext, DeviceContext, DevicePlatform
 from artemis.core.diagnostics.schema import ProbeAction, ProbeCategory
 from artemis.runtime import (
@@ -172,8 +177,25 @@ def _compact_host(metadata: dict[str, Any]) -> dict[str, Any]:
     return host
 
 
-def _compact_device(report: SystemReadinessReport) -> dict[str, Any] | None:
+def _compact_device(
+    report: SystemReadinessReport, requested_device: str | None = None
+) -> dict[str, Any] | None:
     device = report.active_device
+    if requested_device and (device is None or device.serial != requested_device):
+        adb = next((probe for probe in report.probes if probe.id == "android_adb"), None)
+        raw = (
+            next(
+                (
+                    item
+                    for item in (adb.metadata.get("devices") or [])
+                    if item.get("serial") == requested_device
+                ),
+                None,
+            )
+            if adb
+            else None
+        )
+        device = DeviceInfo.model_validate(raw) if raw is not None else None
     if device is None:
         return None
     return {
@@ -1777,7 +1799,7 @@ async def mobile_diagnose(
         device_probe=device_probe,
         accessibility_helper=accessibility_helper,
     )
-    device = _compact_device(report)
+    device = _compact_device(report, requested_device)
     if device is not None and accessibility_helper is not None:
         device["accessibility_helper"] = accessibility_helper
     env_file = host.metadata.get("env_file")

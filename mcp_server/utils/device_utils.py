@@ -161,7 +161,16 @@ def _wait_for_emulator_boot(
                     check=True,
                 )
                 if result.stdout.strip() == "1":
-                    return serial
+                    packages = subprocess.run(
+                        [adb, "-s", serial, "shell", "pm", "path", "android"],
+                        stdin=subprocess.DEVNULL,
+                        capture_output=True,
+                        text=True,
+                        timeout=3,
+                        check=True,
+                    )
+                    if any(line.startswith("package:") for line in packages.stdout.splitlines()):
+                        return serial
         except (subprocess.SubprocessError, OSError):
             pass  # ADB can reconnect while the emulator boots.
         time.sleep(2)

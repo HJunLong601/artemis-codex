@@ -739,6 +739,24 @@ def test_ready_environment_reports_ready_with_slim_shape(temp_trace_env):
     assert result["logs"]["daemon_log"] == "/logs/daemon.log"
 
 
+def test_requested_emulator_is_not_reported_as_default_physical_device(temp_trace_env):
+    probes = _healthy_probes()
+    phone = DeviceInfo(serial="pixel-1", state="device", model="Physical Phone", is_emulator=False)
+    emulator = DeviceInfo(
+        serial="emulator-5558", state="device", model="Test AVD", is_emulator=True
+    )
+    adb = next(probe for probe in probes if probe.id == "android_adb")
+    adb.metadata["devices"] = [phone.model_dump(), emulator.model_dump()]
+    report = _report(probes, active_device=phone)
+    result = _run(probes, report=report, device_serial="emulator-5558")
+    assert result["device"]["serial"] == "emulator-5558"
+    assert result["device"]["is_emulator"] is True
+    assert result["device"]["accessibility_helper"]["serial"] == "emulator-5558"
+    result = _run(probes, report=report, device_serial="missing-emulator")
+    assert result["device"] is None
+    assert result["verdict"] == "blocked"
+
+
 def test_host_mcp_client_is_forwarded_when_probe_reports_it(temp_trace_env):
     result = _run(_healthy_probes(), host=_host(mcp_client={"name": "cursor", "key": "SECRET"}))
     assert result["host"]["mcp_client"] == {"name": "cursor"}

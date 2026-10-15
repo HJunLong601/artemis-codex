@@ -12,10 +12,12 @@ from artemis.platform import OSType, platform
 from artemis.runtime.ios_device_provider import IosDeviceProvider
 from artemis.runtime.ios_physical_device_provider import IosPhysicalDeviceProvider
 from artemis.toolchain import ToolchainResolver
+from artemis.toolchain.emulators import clear_avd_inventory_cache
 
 
 @pytest.fixture(autouse=True)
 def isolated_paths(monkeypatch, tmp_path):
+    clear_avd_inventory_cache()
     for name in (
         "ARTEMIS_EMULATOR_PATH",
         "ARTEMIS_ADB_PATH",
@@ -28,6 +30,8 @@ def isolated_paths(monkeypatch, tmp_path):
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "profile")
+    yield
+    clear_avd_inventory_cache()
 
 
 def test_emulator_cli_is_authoritative_including_empty_inventory(monkeypatch, tmp_path):
@@ -42,6 +46,7 @@ def test_emulator_cli_is_authoritative_including_empty_inventory(monkeypatch, tm
     assert probe._list_installed_avds(executable) == ["CustomAVD", "SecondAVD"]
     assert run.call_args.args[0] == [executable, "-list-avds"]
     run.return_value.stdout = ""
+    clear_avd_inventory_cache()
     assert probe._list_installed_avds(executable) == []
 
 

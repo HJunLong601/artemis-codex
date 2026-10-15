@@ -28,6 +28,7 @@ def emulator_host(monkeypatch, tmp_path):
         property_name="TestAVD",
         console_name="TestAVD",
         clock=0.0,
+        packages=["package:/system/framework/framework-res.apk"],
     )
     monkeypatch.delenv("ARTEMIS_AVD_NAME", raising=False)
     monkeypatch.setattr(device_utils.os.path, "exists", lambda _path: True)
@@ -58,6 +59,8 @@ def emulator_host(monkeypatch, tmp_path):
             stdout = state.console_name + "\nOK\n"
         elif command[-2:] == ["getprop", "sys.boot_completed"]:
             stdout = state.boot.pop(0) if len(state.boot) > 1 else state.boot[0]
+        elif command[-3:] == ["pm", "path", "android"]:
+            stdout = state.packages.pop(0) if len(state.packages) > 1 else state.packages[0]
         else:
             raise AssertionError(f"Unexpected command: {command}")
         return SimpleNamespace(stdout=stdout, returncode=0)
@@ -158,6 +161,19 @@ def test_boot_timeout_requires_exact_completed_value(emulator_host):
         device_utils.ensure_emulator_serial("TestAVD", "adb", "emulator", timeout_seconds=4) is None
     )
     assert state.clock == 4
+
+
+def test_existing_emulator_waits_for_package_service(emulator_host):
+    state, popen, _, _ = emulator_host
+    state.devices = {"emulator-5558": "device"}
+    state.boot = ["1"]
+    state.packages = ["", "package:/system/framework/framework-res.apk"]
+    assert (
+        device_utils.ensure_emulator_serial("TestAVD", "adb", "emulator", timeout_seconds=10)
+        == "emulator-5558"
+    )
+    assert state.clock == 2
+    popen.assert_not_called()
 
 
 def test_process_exit_does_not_report_ready(emulator_host):
