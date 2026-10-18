@@ -21,6 +21,7 @@ from langchain_core.messages import HumanMessage
 import pytest
 
 import codex_client_provider.langchain as provider_module
+import artemis.llm.codex_app_server as artemis_module
 from codex_client_provider import CodexAppServerChatModel as GenericCodexChatModel
 
 from artemis.llm.codex_app_server import CodexAppServerChatModel
@@ -83,15 +84,16 @@ def test_telemetry_kill_switch(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_missing_extension_hook_uses_original_provider(monkeypatch):
+async def test_missing_extension_hook_does_not_bypass_session_isolation(monkeypatch):
     from unittest.mock import AsyncMock
 
     original = AsyncMock(return_value="original-result")
     monkeypatch.setattr(provider_module, "_parse_response", None)
     monkeypatch.setattr(GenericCodexChatModel, "_agenerate", original)
     model = CodexAppServerChatModel(model_name="test")
-    assert await model._agenerate([]) == "original-result"
-    original.assert_awaited_once()
+    with pytest.raises(artemis_module.CodexAppServerError, match="contract helpers"):
+        await model._agenerate([])
+    original.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -108,7 +110,7 @@ async def test_concurrent_usage_is_not_shared_between_requests(monkeypatch):
                 "usage": {"last": {"inputTokens": 100, "cachedInputTokens": cached}},
             }
 
-    monkeypatch.setattr(provider_module, "_client_for_running_loop", lambda **_: Client())
+    monkeypatch.setattr(artemis_module, "client_for_running_loop", lambda **_: Client())
     first, second = await asyncio.gather(
         *[
             CodexAppServerChatModel(model_name=name).ainvoke([HumanMessage(content="test")])
@@ -139,7 +141,7 @@ async def test_cache_metadata_never_breaks_output(monkeypatch, cached, expected)
             }
         },
     }
-    monkeypatch.setattr(provider_module, "_client_for_running_loop", lambda **_: client)
+    monkeypatch.setattr(artemis_module, "client_for_running_loop", lambda **_: client)
     result = await CodexAppServerChatModel(model_name="test").ainvoke(
         [HumanMessage(content="test")]
     )
@@ -168,7 +170,7 @@ async def test_telemetry_preserves_tool_contract_and_has_explicit_legacy_switch(
         "model": "test",
         "usage": None,
     }
-    monkeypatch.setattr(provider_module, "_client_for_running_loop", lambda **_: client)
+    monkeypatch.setattr(artemis_module, "client_for_running_loop", lambda **_: client)
     messages = [HumanMessage(content="Find display")]
     new = (
         await CodexAppServerChatModel(model_name="test")
@@ -194,7 +196,7 @@ async def test_provider_error_is_not_replayed_for_telemetry(monkeypatch):
 
     client = AsyncMock()
     client.run_completion.side_effect = RuntimeError("provider rejected request")
-    monkeypatch.setattr(provider_module, "_client_for_running_loop", lambda **_: client)
+    monkeypatch.setattr(artemis_module, "client_for_running_loop", lambda **_: client)
     with pytest.raises(RuntimeError, match="rejected"):
         await CodexAppServerChatModel(model_name="test").ainvoke([HumanMessage(content="test")])
     client.run_completion.assert_awaited_once()
@@ -236,7 +238,7 @@ async def test_artemis_identity_is_forwarded_to_the_generic_provider(monkeypatch
         assert kwargs["client_version"] == "1.0"
         return FakeClient()
 
-    monkeypatch.setattr(provider_module, "_client_for_running_loop", fake_client)
+    monkeypatch.setattr(artemis_module, "client_for_running_loop", fake_client)
     model = CodexAppServerChatModel(model_name="gpt-test")
 
     result = await model.ainvoke([HumanMessage(content="Return ready.")])

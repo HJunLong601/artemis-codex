@@ -40,12 +40,12 @@ from codex_client_provider.langchain import (
     CODEX_IMAGE_MAX_EDGE,
     CODEX_IMAGE_MIN_JPEG_QUALITY,
     CodexAppServerChatModel as _CodexAppServerChatModel,
-    CodexAppServerClient,
     CodexAppServerError,
 )
 
 from artemis.llm.codex_binary import codex_client_status, find_codex_binary
 from artemis.llm.image_inputs import prepare_image_messages
+from artemis.llm.codex_session import CodexAppServerClient, client_for_running_loop
 
 
 class CodexAppServerChatModel(_CodexAppServerChatModel):
@@ -83,13 +83,10 @@ class CodexAppServerChatModel(_CodexAppServerChatModel):
             "_response_contract",
             "_message_transcript",
             "_system_instructions",
-            "_client_for_running_loop",
             "_parse_response",
         )
-        if not self.telemetry_enabled or not all(
-            callable(getattr(provider, n, None)) for n in helpers
-        ):
-            return await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
+        if not all(callable(getattr(provider, n, None)) for n in helpers):
+            raise CodexAppServerError("Pinned provider contract helpers are unavailable")
         tools = list(kwargs.get("tools") or [])
         schema, contract = provider._response_contract(tools, kwargs.get("tool_choice"))
         transcript, images, temp_paths = provider._message_transcript(messages)
@@ -99,7 +96,7 @@ class CodexAppServerChatModel(_CodexAppServerChatModel):
                 "Available host tools:\n" + json.dumps(tools, ensure_ascii=False, default=str)
             )
         try:
-            result = await provider._client_for_running_loop(
+            result = await client_for_running_loop(
                 binary=self.codex_binary,
                 client_name=self.client_name,
                 client_title=self.client_title,
@@ -133,10 +130,13 @@ class CodexAppServerChatModel(_CodexAppServerChatModel):
             "provider": "codex",
             "model": result.get("model") or self.model_name,
             "thread_id": result.get("thread_id"),
-            "inference_seconds": round(time.monotonic() - started, 6),
         }
-        usage, cache_available = _usage_metadata(result.get("usage"))
-        metadata["cache_usage_available"] = cache_available
+        usage, cache_available = (
+            _usage_metadata(result.get("usage")) if self.telemetry_enabled else (None, False)
+        )
+        if self.telemetry_enabled:
+            metadata["inference_seconds"] = round(time.monotonic() - started, 6)
+            metadata["cache_usage_available"] = cache_available
         tool_calls = []
         if tools and parsed.get("kind") == "tool_call":
             raw_args = parsed.get("tool_arguments_json") or "{}"

@@ -2,6 +2,8 @@
 
 from functools import lru_cache
 import os
+import logging
+import shutil
 from pathlib import Path
 import sys
 
@@ -19,19 +21,42 @@ def _desktop_candidates() -> tuple[Path, ...]:
             for root in (Path("/Applications"), Path.home() / "Applications")
             for bundle in bundles
         )
-    if sys.platform == "win32" and os.getenv("LOCALAPPDATA"):
-        return (Path(os.environ["LOCALAPPDATA"]) / "Programs/OpenAI/Codex/bin/codex.exe",)
+    if sys.platform == "win32":
+        # MCP launch environments can omit LOCALAPPDATA; the signed-in user's
+        # standard local application directory is still discoverable.
+        local = Path(os.getenv("LOCALAPPDATA") or Path.home() / "AppData/Local")
+        bundles = []
+        for path in (local / "OpenAI/Codex/bin").glob("*/codex.exe"):
+            try:
+                bundles.append((path.stat().st_mtime, path))
+            except OSError:
+                continue  # A desktop update may remove a version during discovery.
+        bundles = [path for _, path in sorted(bundles, key=lambda item: item[0], reverse=True)]
+        return (
+            *bundles,
+            local / "OpenAI/Codex/bin/codex.exe",
+            local / "Programs/OpenAI/Codex/bin/codex.exe",
+        )
     return ()
 
 
 def find_codex_binary(configured: str | None = None) -> str | None:
     """Honor explicit overrides, then desktop installs, then the provider's CLI fallback."""
-    override = configured or os.getenv("CODEX_CLIENT_BIN") or os.getenv("ARTEMIS_CODEX_BIN")
+    if configured and configured.strip():
+        return provider.find_codex_binary(configured)
+    override = os.getenv("CODEX_CLIENT_BIN") or os.getenv("ARTEMIS_CODEX_BIN")
     if override and override.strip():
-        return provider.find_codex_binary(override)
+        resolved = provider.find_codex_binary(override)
+        if resolved:
+            return resolved
+        logging.getLogger(__name__).warning(
+            "Configured Codex environment path no longer exists; rediscovering installed desktop client"
+        )
     for candidate in _desktop_candidates():
         if candidate.is_file() and os.access(candidate, os.X_OK):
             return str(candidate)
+    if override and override.strip():
+        return shutil.which("codex.exe") or shutil.which("codex")
     return provider.find_codex_binary()
 
 
