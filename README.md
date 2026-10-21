@@ -217,6 +217,8 @@ Reuse supports exact pages, guarded local targets, and fixed regions. Device, ap
 
 The Web console's **Page Cache / 页面缓存** (`/cache`) provides page/element search, learning state, hit rates, timings, failure cases, and single-page clearing. New time-savings estimates multiply hits by average visual locating duration for the same device/app, then subtract all cache lookup overhead. Missing samples display an unavailable estimate; this is not a measured reduction in total task time.
 
+Page names never participate in cache matching. Dashboard groups stay stable by device, package and Activity; unnamed pages show an Activity/package and fingerprint prefix. Candidate queries filter target and Activity before applying limits, reducing misses for older positions. Separate scope-admission skip counters do not affect cache miss rates.
+
 Only position metadata and fingerprints are stored locally, with no screenshots or full model responses. Configure the cache in `config/artemis.jsonc`:
 
 ```jsonc

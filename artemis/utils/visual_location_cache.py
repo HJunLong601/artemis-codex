@@ -154,14 +154,21 @@ async def scope_for_state(ctx, state, screenshot_path) -> LocationScope | None:
         return None
     if not cache_config_for_context(ctx).enabled:
         return None
+    cache = configured_cache(ctx)
+
+    async def bypass(reason):
+        logger.info("Visual cache skipped: %s", reason)
+        await asyncio.to_thread(cache.record_bypass, reason)
+        return None
+
     device = getattr(ctx, "device", None)
     if device is None:
-        return None
+        return await bypass("device_unavailable")
     device_id = getattr(device, "device_id", None)
     if not isinstance(device_id, str) or not device_id or device_id == "default-device":
-        return None
+        return await bypass("device_unknown")
     if str(screenshot_path) != getattr(state, "latest_screenshot", None):
-        return None
+        return await bypass("historical_frame")
     try:
         from artemis.agents.explorer.geometry import resolve_screen_size
         from artemis.drivers.factory import get_driver
@@ -174,18 +181,18 @@ async def scope_for_state(ctx, state, screenshot_path) -> LocationScope | None:
                 "Visual cache bypassed: foreground app query exceeded 2 seconds; "
                 "this observation will not read or write cached locations"
             )
-            return None
+            return await bypass("foreground_timeout")
         if not isinstance(application, str) or not application.strip():
-            return None
+            return await bypass("application_unknown")
         if str(device.mobile_platform) == "android" and (
             not isinstance(activity, str) or not activity.strip()
         ):
-            return None  # Never reuse an Android location whose Activity is unknown.
+            return await bypass("activity_unknown")
         hierarchy = getattr(state, "latest_ui_hierarchy", None)
         if hierarchy is None:
             hierarchy = []  # Canvas-only screens still have the exact pixel guard.
         if not isinstance(hierarchy, list):
-            return None
+            return await bypass("hierarchy_invalid")
         size = resolve_screen_size(ctx, state)
         status_bar = status_bar_from_hierarchy(hierarchy, size)
         probe = getattr(driver, "get_status_bar_bounds", None)
@@ -207,10 +214,10 @@ async def scope_for_state(ctx, state, screenshot_path) -> LocationScope | None:
                 activity=activity or "",
             )
         )
-        return await asyncio.to_thread(configured_cache(ctx).bind_scope, scope)
+        return await asyncio.to_thread(cache.bind_scope, scope)
     except Exception as exc:
         logger.debug("Visual location cache scope unavailable: %s", type(exc).__name__)
-        return None
+        return await bypass("scope_unavailable")
 
 
 def valid_location(value) -> bool:
@@ -240,13 +247,30 @@ class VisualLocationCache(CacheStorage):
         return scope.device_key, scope.application, scope.page_key
 
     @staticmethod
-    def _rows(db, scope, *, structure=False):
+    def _rows(db, scope, *, structure=False, query=None, namespace=None, include_page=True):
         column = "structure_key" if structure else "page_key"
         key = scope.structure_key if structure else scope.page_key
+        args = [scope.device_key, scope.application, key]
+        target_filter = ""
+        if query is not None:
+            # Filter before LIMIT: unrelated targets must not hide an older hit.
+            target_filter = """ AND l.activity=? AND (l.target_key=? OR EXISTS (
+                SELECT 1 FROM cache_aliases a WHERE a.device_key=l.device_key
+                AND a.application=l.application AND a.page_key=l.page_key
+                AND a.target_key=l.target_key AND a.query_key IN (?,?)))"""
+            query_key = VisualLocationCache._target(query, namespace)
+            args.extend(
+                (
+                    scope.activity,
+                    query_key,
+                    query_key,
+                    "query:" + _digest(normalized_name(query)) if include_page else query_key,
+                )
+            )
         cursor = db.execute(
-            f"""SELECT * FROM locations WHERE device_key=? AND application=?
-            AND {column}=? ORDER BY recency DESC LIMIT 1000""",
-            (scope.device_key, scope.application, key),
+            f"""SELECT l.* FROM locations l WHERE l.device_key=? AND l.application=?
+            AND l.{column}=? {target_filter} ORDER BY l.recency DESC LIMIT 1000""",
+            args,
         )
         return [
             dict(zip((c[0] for c in cursor.description), row, strict=True))
@@ -380,27 +404,44 @@ class VisualLocationCache(CacheStorage):
                 matches.append((row, value))
         return matches
 
-    def _region_candidates(self, db, scope, query, namespace, *, regional_only=True):
+    def _region_candidates(
+        self,
+        db,
+        scope,
+        query,
+        namespace,
+        *,
+        regional_only=True,
+        same_activity=True,
+        include_page=True,
+    ):
         # Non-regional rows require their own local target guard before reuse.
         cursor = db.execute(
             """SELECT DISTINCT l.* FROM locations l JOIN cache_aliases a
             ON l.device_key=a.device_key AND l.application=a.application AND l.page_key=a.page_key
             AND l.target_key=a.target_key WHERE l.device_key=? AND l.application=? AND (?=0 OR l.region_key!='')
+            AND (?=0 OR l.activity=?)
             AND a.query_key IN (?,?) ORDER BY l.recency DESC LIMIT 256""",
             (
                 scope.device_key,
                 scope.application,
                 int(regional_only),
+                int(same_activity),
+                scope.activity,
                 self._target(query, namespace),
-                "query:" + _digest(normalized_name(query)),
+                "query:" + _digest(normalized_name(query))
+                if include_page
+                else self._target(query, namespace),
             ),
         )
         columns = [c[0] for c in cursor.description]
         return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
-    def _lookup(self, db, scope, query, namespace, include_page, records, structural):
+    def _lookup(
+        self, db, scope, query, namespace, include_page, records, structural, page_exists=False
+    ):
         matches = self._matches(db, scope, records, query, namespace, include_page)
-        reason = "target_missing" if records else "page_missing"
+        reason = "target_missing" if records or page_exists else "page_missing"
         candidate = None
         if not matches and scope.structure_key:
             candidates = self._matches(db, scope, structural, query, namespace, include_page)
@@ -420,7 +461,7 @@ class VisualLocationCache(CacheStorage):
             regional = self._matches(
                 db,
                 scope,
-                self._region_candidates(db, scope, query, namespace),
+                self._region_candidates(db, scope, query, namespace, include_page=include_page),
                 query,
                 namespace,
                 include_page,
@@ -444,7 +485,9 @@ class VisualLocationCache(CacheStorage):
             nearby = self._matches(
                 db,
                 scope,
-                self._region_candidates(db, scope, query, namespace, regional_only=False),
+                self._region_candidates(
+                    db, scope, query, namespace, regional_only=False, include_page=include_page
+                ),
                 query,
                 namespace,
                 include_page,
@@ -466,7 +509,15 @@ class VisualLocationCache(CacheStorage):
             known = self._matches(
                 db,
                 scope,
-                self._region_candidates(db, scope, query, namespace, regional_only=False),
+                self._region_candidates(
+                    db,
+                    scope,
+                    query,
+                    namespace,
+                    regional_only=False,
+                    same_activity=False,
+                    include_page=include_page,
+                ),
                 query,
                 namespace,
                 include_page,
@@ -508,13 +559,33 @@ class VisualLocationCache(CacheStorage):
                         record_failure(db, scope, query, "stale_generation")
                     prune_failures(db, scope.device_key)
                     return found
-                records = self._rows(db, scope)
-                structural = self._rows(db, scope, structure=True) if scope.structure_key else []
                 recency = self._recency(db, scope)
+                page_exists = (
+                    db.execute(
+                        "SELECT 1 FROM locations WHERE device_key=? AND application=? AND page_key=? AND activity=? LIMIT 1",
+                        (*self._key(scope), scope.activity),
+                    ).fetchone()
+                    is not None
+                )
                 promoted = set()
                 for query in dict.fromkeys(queries):
+                    records = self._rows(
+                        db, scope, query=query, namespace=namespace, include_page=include_page
+                    )
+                    structural = (
+                        self._rows(
+                            db,
+                            scope,
+                            structure=True,
+                            query=query,
+                            namespace=namespace,
+                            include_page=include_page,
+                        )
+                        if scope.structure_key
+                        else []
+                    )
                     match, reason, candidate = self._lookup(
-                        db, scope, query, namespace, include_page, records, structural
+                        db, scope, query, namespace, include_page, records, structural, page_exists
                     )
                     self._event(db, scope, reason if match else "miss_" + reason)
                     if not match:

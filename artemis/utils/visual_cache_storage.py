@@ -54,6 +54,10 @@ class CacheStorage:
                 CREATE INDEX IF NOT EXISTS location_lru ON locations(device_key,recency);
                 CREATE INDEX IF NOT EXISTS location_structure ON locations(device_key,application,structure_key);
                 CREATE INDEX IF NOT EXISTS location_region ON locations(device_key,application,region_key);
+                CREATE INDEX IF NOT EXISTS location_activity ON locations(device_key,application,activity,recency);
+                CREATE TABLE IF NOT EXISTS cache_bypasses(
+                    reason TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0,
+                    last_seen REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS cache_failure_cases(
                     device_key TEXT NOT NULL,application TEXT NOT NULL,case_key TEXT NOT NULL,
                     page_key TEXT NOT NULL,source_page_key TEXT NOT NULL,activity TEXT NOT NULL,
@@ -96,6 +100,22 @@ class CacheStorage:
                 self._event(db, scope, metric, count, elapsed_ms)
         except (OSError, sqlite3.Error):
             logger.debug("Cache telemetry unavailable: %s", metric)
+
+    def record_bypass(self, reason):
+        """Scope-admission attempts, kept outside target lookup/hit statistics.
+
+        No fabricated device or application identity is needed when discovery fails.
+        Only the reason and aggregate count are retained, never frames or UI data.
+        """
+        try:
+            with closing(self._connect()) as db, db:
+                db.execute(
+                    """INSERT INTO cache_bypasses VALUES (?,1,?) ON CONFLICT(reason)
+                    DO UPDATE SET count=count+1,last_seen=excluded.last_seen""",
+                    (reason, time.time()),
+                )
+        except (OSError, sqlite3.Error):
+            logger.debug("Cache skip telemetry unavailable")
 
     @staticmethod
     def _epoch(db, device_key):

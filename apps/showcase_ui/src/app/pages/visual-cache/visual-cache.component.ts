@@ -12,7 +12,7 @@ export interface CacheGroup {
   application: string;
   activity: string | null;
   page_name?: string | null;
-  fingerprints: { page_key: string; positions: number; hits: number; prefetched?: number }[];
+  fingerprints: { page_key: string; page_name?: string | null; positions: number; hits: number; prefetched?: number }[];
   pages: number;
   positions: number;
   hits: number;
@@ -42,6 +42,7 @@ export interface CacheStats {
     estimated_saved_ms?: number | null; estimated_hits?: number;
     metrics: Record<string, { count: number; total_ms: number }>;
     misses: Record<string, number>; inventory: InventoryState[]; inventory_counts: Record<string, number>;
+    bypasses?: Record<string, number>;
   };
   enabled: boolean;
   capacity_per_device: number;
@@ -99,7 +100,13 @@ export class VisualCacheComponent {
     region_layout_changed: '固定区域布局变化', region_unavailable: '无法确认固定区域',
     region_occluded: '弹窗、键盘或其他窗口遮挡', region_overlap: '其他节点跨入固定区域',
     region_not_fixed: '区域位于可滚动容器内', region_activity_changed: 'Activity 变化',
+    activity_changed: 'Activity 变化', structure_changed: '页面结构变化', structure_unavailable: '缺少可用页面结构',
     action_failed: '缓存坐标对应的动作执行失败', feedback_correction: '收到纠错并清理缓存'
+  };
+  readonly bypassNames: Record<string, string> = {
+    device_unavailable: '未获取到设备', device_unknown: '设备身份未知', historical_frame: '历史截图',
+    foreground_timeout: '前台应用查询超时', application_unknown: '应用包名未知', activity_unknown: 'Activity 未知',
+    hierarchy_invalid: 'UI 层级格式异常', scope_unavailable: '截图或缓存范围不可用'
   };
   readonly stateNames: Record<string, string> = {
     complete: '已完成', partial: '部分淘汰，待补齐', empty: '未发现常用元素', failed: '识别失败',
@@ -140,7 +147,7 @@ export class VisualCacheComponent {
       (!this.device() || group.device_key === this.device()) &&
       (!this.category() || group.category === this.category()) &&
       (!search || `${group.application} ${group.device_name} ${group.activity ?? ''} ${group.page_name ?? ''}`.toLowerCase().includes(search) ||
-        group.fingerprints.some(fingerprint => fingerprint.page_key.toLowerCase().includes(search)))
+        group.fingerprints.some(fingerprint => `${fingerprint.page_key} ${fingerprint.page_name ?? ''}`.toLowerCase().includes(search)))
     );
   });
 
@@ -183,9 +190,24 @@ export class VisualCacheComponent {
     return value?.count ? value.total_ms / value.count : null;
   }
   stateName(state: string): string { return this.stateNames[state] ?? state; }
+  pageName(row: CacheGroup, page_key?: string): string | null {
+    const fingerprint = page_key ? row.fingerprints.find(item => item.page_key === page_key) : undefined;
+    const value = fingerprint && 'page_name' in fingerprint ? fingerprint.page_name : row.page_name;
+    const name = value?.trim();
+    if (!name || /^(unknown|unknow)([\s_-]+page)?$|^(未识别|未知)(页面)?$|^(unnamed|unidentified|不确定|n\/a)$/i.test(name)) return null;
+    return name;
+  }
+  pageLabel(row: CacheGroup, page_key?: string): string {
+    const name = this.pageName(row, page_key);
+    if (name) return name;
+    const activity = row.activity?.split('.').pop();
+    const base = activity || row.application;
+    const key = page_key ?? (row.fingerprints.length === 1 ? row.fingerprints[0].page_key : null);
+    return key ? `${base} · ${key.slice(0, 8)}` : `${base} · ${row.pages} 个页面`;
+  }
   inspect(row: CacheGroup, page_key: string): void {
     this.selection.set({ device_key: row.device_key, application: row.application, page_key,
-      name: row.page_name || '未识别页面' });
+      name: this.pageLabel(row, page_key) });
     this.confirmingClear.set(false);
     this.notice.set('');
     this.loadElements(0);

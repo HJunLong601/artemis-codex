@@ -91,6 +91,22 @@ def test_minor_intensity_noise_preserves_local_evidence(tmp_path):
     assert history(cache)["metrics"]["local_hit"]["count"] == 1
 
 
+def test_other_activities_cannot_exhaust_the_local_candidate_budget(tmp_path):
+    from dataclasses import replace
+
+    cache = VisualLocationCache(tmp_path / "cache.sqlite3")
+    original = frame()
+    cache.put(original, "sun", "flash", TARGET)
+    # More recent snapshots of another Activity used to consume the entire limit.
+    for number in range(257):
+        cache.put(
+            replace(original, activity=".Other", page_key=f"other-{number}"), "sun", "flash", TARGET
+        )
+    tree = deepcopy(original.hierarchy) + [{"text": "New row", "bounds": [80, 50, 100, 70]}]
+    current = frame(tree=tree)
+    assert cache.get(current, "sun", "flash") == TARGET
+
+
 @pytest.mark.parametrize("blank", [True, False])
 def test_blank_patch_or_unbounded_point_cannot_authorize_cross_snapshot_reuse(tmp_path, blank):
     cache = VisualLocationCache(tmp_path / "cache.sqlite3")

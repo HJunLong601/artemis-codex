@@ -24,6 +24,22 @@ def validated_page_name(value) -> str:
     if not isinstance(value, str):
         return ""
     name = " ".join(value.split())
+    placeholder = " ".join(normalized_name(name).replace("_", " ").replace("-", " ").split())
+    if placeholder in {
+        "unknown",
+        "unknown page",
+        "unknow",
+        "unknow page",
+        "unnamed",
+        "unidentified",
+        "未识别",
+        "未识别页面",
+        "未知",
+        "未知页面",
+        "不确定",
+        "n/a",
+    }:
+        return ""
     return name if 0 < len(name) <= 64 else ""
 
 

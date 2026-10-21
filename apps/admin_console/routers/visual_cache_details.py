@@ -23,7 +23,9 @@ def estimate_saved_time(db):
         if visual_count <= 0 or visual_ms <= 0 or lookup_count <= 0:
             continue
         sampled = True
-        hits = sum(metrics.get(name, (0, 0))[0] for name in ("exact_hit", "local_hit", "region_hit"))
+        hits = sum(
+            metrics.get(name, (0, 0))[0] for name in ("exact_hit", "local_hit", "region_hit")
+        )
         covered_hits += hits
         saved_ms += max(0.0, hits * visual_ms / visual_count - lookup_ms)
     return (round(saved_ms, 1) if sampled else None), covered_hits
@@ -47,6 +49,11 @@ def read_history(db):
         k.removeprefix("miss_"): v["count"] for k, v in metrics.items() if k.startswith("miss_")
     }
     queries = hits + sum(misses.values())
+    bypasses = (
+        dict(db.execute("SELECT reason,count FROM cache_bypasses"))
+        if "cache_bypasses" in tables
+        else {}
+    )
     inventory = []
     counts = {}
     if "cache_inventory" in tables:
@@ -90,6 +97,7 @@ def read_history(db):
         estimated_saved_ms=estimated_saved_ms,
         estimated_hits=estimated_hits,
         misses=misses,
+        bypasses=bypasses,
         inventory=inventory,
         inventory_counts=counts,
     )

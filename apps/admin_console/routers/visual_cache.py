@@ -20,7 +20,7 @@ from artemis.utils.visual_location_cache import (
     cache_config_for_context,
     configured_cache,
 )
-from artemis.utils.visual_page_elements import MAX_PAGE_ELEMENTS
+from artemis.utils.visual_page_elements import MAX_PAGE_ELEMENTS, validated_page_name
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -51,6 +51,7 @@ def get_visual_cache_stats():
             "estimated_saved_ms": None,
             "estimated_hits": 0,
             "misses": {},
+            "bypasses": {},
             "inventory": [],
             "inventory_counts": {},
         },
@@ -97,7 +98,7 @@ def get_visual_cache_stats():
             if not isinstance(info, dict):
                 info = {}
             group = grouped.setdefault(
-                (device_key, category, application, activity, page_name),
+                (device_key, category, application, activity),
                 {
                     "device_key": device_key,
                     "device_name": str(info.get("name") or device_key[:12]),
@@ -105,7 +106,7 @@ def get_visual_cache_stats():
                     "category": category,
                     "application": application,
                     "activity": activity or None,
-                    "page_name": page_name or None,
+                    "page_name": None,
                     "pages": 0,
                     "positions": 0,
                     "hits": 0,
@@ -118,11 +119,15 @@ def get_visual_cache_stats():
             group["fingerprints"].append(
                 {
                     "page_key": page_key,
+                    "page_name": validated_page_name(page_name) or None,
                     "positions": positions,
                     "hits": hits,
                     "prefetched": prefetched,
                 }
             )
+        for group in grouped.values():
+            names = {item["page_name"] for item in group["fingerprints"]}
+            group["page_name"] = next(iter(names)) if len(names) == 1 else None
         groups = sorted(
             grouped.values(),
             key=lambda g: (

@@ -44,6 +44,11 @@
         <p class="detail-note">节省时间按同设备、同应用的平均视觉定位耗时折算缓存命中收益，并扣除全部缓存查询开销。仅统计有耗时样本的命中；多目标并行等会影响实际提速。</p>
         <p class="detail-note">缓存坐标对应的设备动作：已下发 {{ count('action_dispatched') }} 次，执行失败 {{ count('action_failed') }} 次。下发成功不代表页面跳转或任务目标已验证。仅关联同一截图下坐标完全匹配的下一次动作。</p>
         <div class="reason-list">@for (reason of history.misses | keyvalue; track reason.key) { <span>{{ missNames[reason.key] || reason.key }} <strong>{{ reason.value | number }}</strong></span> } @empty { <span>暂无未命中记录</span> }</div>
+        <details>
+          <summary>跳过缓存的原因</summary>
+          <p class="detail-note">按缓存范围检查次数累计，同一次定位可能检查多次；不计入目标查询数或未命中率。关闭缓存及 XML 直接定位不产生这些计数。</p>
+          <div class="reason-list">@for (reason of history.bypasses | keyvalue; track reason.key) { <span>{{ bypassNames[reason.key] || reason.key }} <strong>{{ reason.value | number }}</strong></span> } @empty { <span>暂无跳过记录</span> }</div>
+        </details>
         <p class="detail-note">纠错失效 {{ count('corrections') }} 次 · 执行失败失效 {{ count('execution_invalidations') }} 次 · 元素去重 {{ count('deduplicated_writes') }} 次</p>
       </section>
       <section class="panel inventory" aria-label="页面学习状态">
@@ -82,7 +87,7 @@
       </section>
       <section class="panel details">
         <div class="panel-heading"><h2>页面与 Activity 明细</h2><span>{{ filteredGroups().length }} 条分组</span></div>
-        <p class="detail-note">页面名称由视觉识别概括，仅供参考；旧缓存或无法判断时显示“未识别”。Activity 与截图主体、UI 树共同区分页面。同一个 Activity 内的不同页面仍有独立指纹。旧缓存未记录 Activity，将在后续视觉定位时重新学习。</p>
+        <p class="detail-note">按设备、应用和 Activity 分组，展开查看各页面的独立名称和指纹。名称仅供展示，不参与复用；名称缺失时显示 Activity 简称或包名及指纹短码。旧缓存未记录 Activity，将在后续视觉定位时重新学习。</p>
         <div class="filters">
           <label>设备<select aria-label="设备" [ngModel]="device()" (ngModelChange)="device.set($event)"><option value="">全部设备</option>@for (item of devices(); track item.key) { <option [value]="item.key">{{ item.name }} · {{ item.key.slice(0, 8) }}</option> }</select></label>
           <label>分类<select aria-label="分类" [ngModel]="category()" (ngModelChange)="category.set($event)"><option value="">全部分类</option>@for (item of categories; track item.key) { <option [value]="item.key">{{ item.label }}</option> }</select></label>
@@ -92,18 +97,18 @@
           <table>
             <thead><tr><th scope="col">设备</th><th scope="col">应用 / 指纹</th><th scope="col">页面名称</th><th scope="col">Activity</th><th scope="col">分类</th><th scope="col" class="numeric">页面</th><th scope="col" class="numeric">缓存元素</th><th scope="col" class="numeric">复用次数</th></tr></thead>
             <tbody>
-              @for (row of filteredGroups(); track row.device_key + row.application + row.category + row.activity + row.page_name) {
+              @for (row of filteredGroups(); track row.device_key + row.application + row.category + row.activity) {
                 <tr>
                   <td>{{ row.device_name }}<small>{{ row.platform }} · {{ row.device_key.slice(0, 8) }}</small></td>
                   <td class="application">{{ row.application }}
                     <details class="fingerprint-details">
                       <summary>查看指纹（{{ row.pages }}）</summary>
                       @for (fingerprint of row.fingerprints; track fingerprint.page_key) {
-                        <div class="fingerprint"><code>{{ fingerprint.page_key }}</code><small>{{ fingerprint.positions | number }} 个元素（批量预缓存 {{ fingerprint.prefetched ?? 0 | number }}） · 复用 {{ fingerprint.hits | number }} 次</small><button type="button" (click)="inspect(row, fingerprint.page_key)">查看元素 / 清理</button></div>
+                        <div class="fingerprint"><span>{{ pageLabel(row, fingerprint.page_key) }}</span>@if (!pageName(row, fingerprint.page_key)) { <small>名称未识别</small> }<code>{{ fingerprint.page_key }}</code><small>{{ fingerprint.positions | number }} 个元素（批量预缓存 {{ fingerprint.prefetched ?? 0 | number }}） · 复用 {{ fingerprint.hits | number }} 次</small><button type="button" (click)="inspect(row, fingerprint.page_key)">查看元素 / 清理</button></div>
                       }
                     </details>
                   </td>
-                  <td class="page-name">{{ row.page_name || '未识别' }}</td>
+                  <td class="page-name">{{ pageLabel(row) }}@if (row.pages === 1 && !pageName(row)) { <small>名称未识别</small> }</td>
                   <td class="activity">@if (row.activity) { <code>{{ row.activity }}</code> } @else { <span class="unknown-activity">{{ row.platform === 'ios' ? '不适用（iOS）' : '未记录 Activity' }}</span> }</td>
                   <td><span class="category-tag">{{ categoryName(row.category) }}</span></td><td class="numeric">{{ row.pages | number }}</td><td class="numeric">{{ row.positions | number }}</td><td class="numeric hits">{{ row.hits | number }}</td>
                 </tr>
