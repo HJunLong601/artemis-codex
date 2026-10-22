@@ -29,8 +29,10 @@ from artemis.core.diagnostics.adb_server_connection import (
     adb_server_connection,
 )
 from artemis.core.diagnostics.schema import SystemReadinessReport
+from apps.admin_console.routers.codex_auth import router as codex_auth_router
 
 router = APIRouter(prefix="/api/system", tags=["system"])
+router.include_router(codex_auth_router)
 
 
 def _require_local_admin_request(request: Request) -> None:

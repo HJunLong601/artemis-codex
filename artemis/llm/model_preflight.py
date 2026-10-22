@@ -12,6 +12,7 @@ from typing import Any
 from artemis.config.llm import LLMConfig
 from artemis.llm.codex_app_server import CodexAppServerClient, find_codex_binary
 from artemis.llm.reliability import classify_failure
+from artemis.llm.codex_auth import read_account
 
 _CATALOG_TTL = 60.0
 _catalog_cache: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
@@ -92,6 +93,14 @@ async def preflight_models(
     catalog_started = time.monotonic()
     try:
         try:
+            account = await read_account(client)
+            if account["state"] not in {"authenticated", "not_required"}:
+                return {
+                    "ok": False,
+                    "checks": checks,
+                    "scope": "codex",
+                    "error": "Codex task process is not logged in. Open the local console Setup Guide > Codex login; check runtime user, CODEX_HOME and credential-store access.",
+                }
             models = await asyncio.wait_for(_catalog(client, force=force), timeout=20)
         except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
             return {

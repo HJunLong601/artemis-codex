@@ -26,18 +26,23 @@ def client(monkeypatch):
     monkeypatch.delenv("ARTEMIS_FAKE_LLM", raising=False)
     preflight._catalog_cache.clear()
     obj = MagicMock(binary="codex-test")
-    obj.request = AsyncMock(
-        return_value={
-            "data": [
-                {
-                    "model": "main",
-                    "isDefault": True,
-                    "supportedReasoningEfforts": [{"reasoningEffort": "low"}],
-                },
-                {"model": "small"},
-            ]
-        }
-    )
+    catalog = {
+        "data": [
+            {
+                "model": "main",
+                "isDefault": True,
+                "supportedReasoningEfforts": [{"reasoningEffort": "low"}],
+            },
+            {"model": "small"},
+        ]
+    }
+
+    async def reply(method, params):
+        if method == "account/read":
+            return {"account": {"type": "chatgpt"}, "requiresOpenaiAuth": True}
+        return catalog
+
+    obj.request = AsyncMock(side_effect=reply)
     obj.close = AsyncMock()
     obj.run_completion = AsyncMock(
         side_effect=lambda **kw: {"text": '{"status":"READY"}', "model": kw["model"]}
@@ -54,7 +59,11 @@ async def test_catalog_deduplicates_roles_and_caches_without_inference(client):
     assert report["ok"] and not report["inference_tested"]
     assert len(report["checks"]) == 2
     await preflight.preflight_models(config())
-    client.request.assert_awaited_once()
+    assert [c.args[0] for c in client.request.await_args_list] == [
+        "account/read",
+        "model/list",
+        "account/read",
+    ]
     client.run_completion.assert_not_awaited()
     assert client.close.await_count == 2
 
@@ -100,12 +109,14 @@ async def test_explicit_inference_deduplicates_and_rejects_substitution(client):
 @pytest.mark.asyncio
 async def test_pagination_and_forced_refresh(client):
     client.request.side_effect = [
+        {"account": {"type": "chatgpt"}},
         {"data": [{"model": "main"}], "nextCursor": "page2"},
         {"data": [{"model": "small"}]},
+        {"account": {"type": "chatgpt"}},
         {"data": []},
     ]
     assert (await preflight.preflight_models(config()))["ok"]
-    assert client.request.await_args_list[1].args[1]["cursor"] == "page2"
+    assert client.request.await_args_list[2].args[1]["cursor"] == "page2"
     assert not (await preflight.preflight_models(config(), force=True))["ok"]
 
 
@@ -114,6 +125,17 @@ async def test_catalog_timeout_is_bounded_and_does_not_leak(client):
     client.request.side_effect = TimeoutError("secret-marker")
     report = await preflight.preflight_models(config())
     assert not report["ok"] and "secret-marker" not in str(report)
+    client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_missing_account_blocks_before_catalog_or_device_work(client):
+    client.request.side_effect = None
+    client.request.return_value = {"account": None, "requiresOpenaiAuth": True}
+    report = await preflight.preflight_models(config())
+    assert not report["ok"] and "not logged in" in report["error"]
+    client.request.assert_awaited_once_with("account/read", {"refreshToken": False})
+    client.run_completion.assert_not_awaited()
     client.close.assert_awaited_once()
 
 

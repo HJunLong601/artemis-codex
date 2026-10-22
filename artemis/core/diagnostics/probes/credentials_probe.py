@@ -93,7 +93,7 @@ class LLMCredentialsProbe(BaseProbe):
             models.setdefault(model.provider, model)
             roles.setdefault(model.provider, []).append(name)
 
-        # Refresh the public CLI status, never read or copy authentication tokens.
+        # Refresh the shared App Server verdict, never read or copy tokens.
         if "codex" in models:
             codex_client_status.cache_clear()
         outcomes = await asyncio.gather(
@@ -128,7 +128,7 @@ class LLMCredentialsProbe(BaseProbe):
                     "message": str(outcome)
                     if not valid
                     else (
-                        "Codex CLI login is available; model inference was not tested."
+                        "Codex App Server is connected; model inference was not tested."
                         if provider == "codex"
                         else "Required credential configuration is present; API access and model inference were not tested."
                     ),
@@ -139,7 +139,7 @@ class LLMCredentialsProbe(BaseProbe):
                     {
                         "provider": "codex",
                         "label": "Codex client",
-                        "masked": "CLI login",
+                        "masked": "App Server connection",
                         "credential_type": "client_session",
                     }
                 )

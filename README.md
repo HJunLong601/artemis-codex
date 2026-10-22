@@ -102,6 +102,10 @@ Ensure an Android device (with **USB Debugging** enabled) or emulator is connect
 
 This fork defaults to the locally signed-in **Codex client**, preferring the desktop client's bundled Codex before the CLI on PATH. Follow the first-use prompt to run `codex login`. Artemis uses Codex App Server without an OpenAI API key. See [Codex client provider](./docs/codex-client-provider.md) and [macOS support](./docs/macos-support.md).
 
+The local console's **System Setup & Prerequisites → AI Model Setup** includes Codex authentication diagnostics, a browser sign-in link, cancellation, and an explicit inference check. It checks credentials accessible to the backend process—not the desktop's current conversation. Sign-in success, model inference, and real-device execution are separate checks. See [backend authentication](./docs/codex-client-provider.md#后台认证诊断与登录入口).
+
+CLI, MCP, SDK, and console readiness share the same App Server account check. A usable Codex connection is not blocked by a separate CLI-login check or unused API keys; credentials for other active providers and device safety checks still apply. Pending sign-in links survive a page refresh within the running backend's 10-minute window, with explicit failure, expiry, and retry states.
+
 ### macOS and Linux
 
 ```bash
