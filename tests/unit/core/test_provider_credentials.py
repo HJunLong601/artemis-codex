@@ -187,3 +187,46 @@ async def test_cancellation_is_not_reported_as_missing_credentials(credentials, 
     monkeypatch.setattr(LLM, "validate_provider", Mock(side_effect=asyncio.CancelledError))
     with pytest.raises(asyncio.CancelledError):
         await LLMCredentialsProbe().probe()
+
+
+@pytest.mark.asyncio
+async def test_claude_code_session_is_independent_of_unused_api_keys(credentials, monkeypatch):
+    parse, codex_login = credentials
+    parse.return_value = model_config("claude_code")
+    login = Mock(return_value=(True, "Connected"))
+    monkeypatch.setattr("artemis.llm.claude_code_client.claude_code_status", login)
+    result = await LLMCredentialsProbe().probe()
+    assert result.status is ProbeStatus.PASS
+    assert result.metadata["required_providers"] == ["claude_code"]
+    assert result.metadata["provider_checks"][0]["credential_type"] == "client_session"
+    assert result.metadata["current_key"] == ""
+    login.cache_clear.assert_called_once()
+    codex_login.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_claude_code_connection_does_not_bypass_other_primary_routes(
+    credentials, monkeypatch
+):
+    parse, _ = credentials
+    parse.return_value = model_config("claude_code", operator="openai")
+    monkeypatch.setattr(
+        "artemis.llm.claude_code_client.claude_code_status", Mock(return_value=(True, "Connected"))
+    )
+    result = await LLMCredentialsProbe().probe()
+    assert result.status is ProbeStatus.FAIL
+    assert result.metadata["missing_providers"] == ["openai"]
+
+
+@pytest.mark.asyncio
+async def test_claude_code_failure_instructs_official_login_not_api_key(credentials, monkeypatch):
+    parse, _ = credentials
+    parse.return_value = model_config("claude_code")
+    monkeypatch.setattr(
+        "artemis.llm.claude_code_client.claude_code_status",
+        Mock(return_value=(False, "Not logged in")),
+    )
+    result = await LLMCredentialsProbe().probe()
+    assert result.status is ProbeStatus.FAIL
+    assert any(action.payload == "claude auth status" for action in result.actions)
+    assert not any("Add credentials for" in action.payload for action in result.actions)

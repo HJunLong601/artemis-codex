@@ -40,6 +40,7 @@ class ModelProvider(StrEnum):
     VERTEX_AI = "vertexai"
     OPENAI = "openai"
     CODEX = "codex"
+    CLAUDE_CODE = "claude_code"
     ANTHROPIC = "anthropic"
     OPENROUTER = "openrouter"
     XAI = "xai"
@@ -69,6 +70,7 @@ class ModelProvider(StrEnum):
             "vertex": cls.VERTEX_AI,
             "openai": cls.OPENAI,
             "codex": cls.CODEX,
+            "claudecode": cls.CLAUDE_CODE,
             "codexclient": cls.CODEX,
             "chatgptclient": cls.CODEX,
             "anthropic": cls.ANTHROPIC,
@@ -273,6 +275,15 @@ class ModelFactory:
             if endpoint.reasoning_effort is not None:
                 codex_kwargs["reasoning_effort"] = endpoint.reasoning_effort
             return CodexAppServerChatModel(**codex_kwargs)
+
+        elif provider == ModelProvider.CLAUDE_CODE:
+            from artemis.llm.claude_code import ClaudeCodeChatModel
+
+            return ClaudeCodeChatModel(
+                model_name=endpoint.model_name,
+                timeout_seconds=endpoint.timeout_seconds,
+                reasoning_effort=endpoint.reasoning_effort,
+            )
 
         elif provider == ModelProvider.VERTEX_AI:
             from langchain_google_vertexai import (

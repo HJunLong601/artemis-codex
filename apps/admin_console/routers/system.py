@@ -30,9 +30,13 @@ from artemis.core.diagnostics.adb_server_connection import (
 )
 from artemis.core.diagnostics.schema import SystemReadinessReport
 from apps.admin_console.routers.codex_auth import router as codex_auth_router
+from apps.admin_console.routers.claude_code_auth import router as claude_code_auth_router
+from apps.admin_console.routers.native_clients import router as native_clients_router
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 router.include_router(codex_auth_router)
+router.include_router(claude_code_auth_router)
+router.include_router(native_clients_router)
 
 
 def _require_local_admin_request(request: Request) -> None:
@@ -313,6 +317,16 @@ async def get_credentials():
             status["codex"] = (await asyncio.to_thread(codex_client_status))[0]
     except Exception:
         status["codex"] = False
+    status["claude_code"] = False
+    try:
+        from artemis.llm.claude_code_client import probe_claude_code
+
+        if any(
+            model.provider == "claude_code" for _, model in parse_llm_config().iter_primary_models()
+        ):
+            status["claude_code"] = (await probe_claude_code())["state"] == "authenticated"
+    except (OSError, RuntimeError, ValueError):
+        pass  # A broken route never becomes an apparent successful login.
     return {
         "providers": [
             {"name": name, "configured": configured} for name, configured in status.items()
@@ -406,6 +420,9 @@ async def get_model_config_and_env():
         config_content = config_path_obj.read_text(encoding="utf-8")
         with open(config_path_obj, encoding="utf-8") as f:
             parsed_config = load_jsonc(f)
+        from artemis.config.native_clients import native_client_view
+
+        parsed_config = native_client_view(parsed_config)
     except Exception as e:
         config_content = f"// Error reading config: {e}"
 

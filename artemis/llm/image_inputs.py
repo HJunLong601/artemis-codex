@@ -12,8 +12,9 @@ from langchain_core.messages import SystemMessage
 from PIL import Image, ImageOps
 
 
-def _limit(name, default, minimum, maximum=None, *, provider_override=False):
-    value = os.getenv(f"ARTEMIS_CODEX_IMAGE_{name}", str(default))
+def _limit(name, default, minimum, maximum=None, *, provider_override=False, provider="CODEX"):
+    provider_override = provider_override and provider == "CODEX"
+    value = os.getenv(f"ARTEMIS_{provider}_IMAGE_{name}", str(default))
     if provider_override:
         value = os.getenv(f"CODEX_CLIENT_IMAGE_{name}", value)
     try:
@@ -28,17 +29,19 @@ def _limit(name, default, minimum, maximum=None, *, provider_override=False):
     return number
 
 
-def prepare_image_bytes(raw: bytes) -> bytes:
+def prepare_image_bytes(raw: bytes, *, provider="CODEX") -> bytes:
     """Return an oriented, proportionally resized, metadata-free lossy WebP.
 
     Default bounds: short edge 720, long edge 1600, 768 KiB, quality 70/100.
     Never upscale. Already bounded WebP passes through to avoid generation loss.
     Keep quality fixed when further resizing is needed for the byte budget.
     """
-    short_edge = _limit("SHORT_EDGE", 720, 1)
-    max_edge = _limit("MAX_EDGE", 1600, 320, provider_override=True)
-    max_bytes = _limit("MAX_BYTES", 768 * 1024, 64 * 1024, provider_override=True)
-    quality = _limit("WEBP_QUALITY", 70, 0, 100)
+    short_edge = _limit("SHORT_EDGE", 720, 1, provider=provider)
+    max_edge = _limit("MAX_EDGE", 1600, 320, provider_override=True, provider=provider)
+    max_bytes = _limit(
+        "MAX_BYTES", 768 * 1024, 64 * 1024, provider_override=True, provider=provider
+    )
+    quality = _limit("WEBP_QUALITY", 70, 0, 100, provider=provider)
     with Image.open(BytesIO(raw)) as source:
         source.seek(0)
         image = ImageOps.exif_transpose(source)
@@ -83,7 +86,7 @@ def prepare_image_bytes(raw: bytes) -> bytes:
         )
 
 
-def _prepare_url(url: str) -> str:
+def _prepare_url(url: str, *, provider="CODEX") -> str:
     if url.lower().startswith("data:image/"):
         header, separator, payload = url.partition(",")
         if not separator:
@@ -96,11 +99,11 @@ def _prepare_url(url: str) -> str:
     else:
         # Remote URLs are left to the provider; do not fetch user content here.
         return url
-    prepared = prepare_image_bytes(raw)
+    prepared = prepare_image_bytes(raw, provider=provider)
     return "data:image/webp;base64," + base64.b64encode(prepared).decode("ascii")
 
 
-def prepare_image_messages(messages):
+def prepare_image_messages(messages, *, provider="CODEX"):
     """Copy image blocks without mutating caller messages, history or disk files."""
     prepared = []
     for message in messages:
@@ -126,7 +129,7 @@ def prepare_image_messages(messages):
             if not url:
                 blocks.append(block)
                 continue
-            updated = _prepare_url(str(url))
+            updated = _prepare_url(str(url), provider=provider)
             if updated == url:
                 blocks.append(block)
                 continue

@@ -39,18 +39,24 @@ codex login status
 
 浏览器回调无法使用时，可执行 `codex login --device-auth`。
 
-预期输出包含 `Logged in using ChatGPT`。默认配置已经使用：
+预期输出包含 `Logged in using ChatGPT`。本地配置默认选择 `native_clients.active: "codex"`。以下展示 Codex 配置所在结构（合并时保留已有的另一套配置和各节点设置）；仅未启用独立客户端配置的旧文件才使用顶层 `default`：
 
 ```jsonc
 {
-  "default": {
-    "provider": "codex",
-    "model": "gpt-6.1-sol",
-    "reasoning_effort": "low",
-    "fallback": {
-      "provider": "codex",
-      "model": "gpt-6-luna",
-      "reasoning_effort": "low"
+  "native_clients": {
+    "active": "codex",
+    "codex": {
+      "default": {
+        "provider": "codex",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "low",
+        "fallback": {
+          "provider": "codex",
+          "model": "gpt-6-luna",
+          "reasoning_effort": "low"
+        }
+      },
+      "nodes": {}
     }
   }
 }
@@ -65,7 +71,8 @@ macOS 支持系统及用户 Applications 下的 Codex.app / ChatGPT.app；Window
 LocalAppData 下的 Codex 桌面安装。显式路径、`CODEX_CLIENT_BIN`、`ARTEMIS_CODEX_BIN`
 按此顺序优先于自动发现。登录检查、模型目录预检与实际推理使用相同的选择规则。
 
-主模型使用 6.1 Sol、low 推理；Planner、Operator、Explorer、Checker 默认继承该档位，可在 `nodes` 中单独覆盖。轻量摘要、历史压缩和校验节点保留 6 Luna 档位。
+主模型使用 6.1 Sol、low 推理；Planner、Operator、Explorer、Checker 默认继承该档位，可在 `native_clients.codex.nodes` 中单独覆盖。当前 Codex 配置保留 6 Luna 历史与校验节点；后台视觉摘要跟随当前 `summarizer` 角色，默认继承主模型，需要轻量模型时显式设置该配置的 `nodes.summarizer.model`。
+Codex / Claude Code 的两套独立配置、单字段切换、有效文件定位及重启要求见 [双客户端配置说明](./claude-code-provider.md#模型配置)。两者不自动互相备用，启用独立配置后仅修改顶层旧 `default/nodes` 不生效。
 使用能在 `model/list` 中列出 `gpt-6.1-sol` 的新版 Codex 客户端；旧客户端可能拒绝该模型。
 
 ### 截图尺寸与压缩

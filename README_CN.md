@@ -40,6 +40,7 @@
 | 方向 | 主要能力 |
 |---|---|
 | **Codex 接入** | 复用本机 ChatGPT 登录态，核心流程无需额外模型 API Key；优先使用桌面客户端内置 Codex，支持按角色配置模型。[接入与配置](#model-configuration) |
+| **Claude Code 接入** | 可选官方本机 CLI，通过显式开关与 Codex 独立切换，支持 MCP、后台 Run Task、认证诊断及实际推理验证；真实账号与真机验收待完成。[配置与边界](./docs/claude-code-provider.md) |
 | **缓存与运行优化** | 视觉位置缓存减少重复定位，后台提供查询、失败案例和节省时间估算；结合图片压缩、Flash 延迟摘要及截图与历史加载优化。[缓存说明](#visual-location-cache) · [耗时记录](./docs/model-call-performance.md) |
 | **跨平台与设备支持** | 统一 Windows/macOS/Linux 安装与诊断，完善真机优先选择、AVD 发现与复用；扩展 iOS 模拟器和真机驱动，真机自动点击仍待验收。[安装](#quick-start) · [设备](#device-selection) · [iOS](#ios-simulator) |
 
@@ -170,12 +171,18 @@ ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
 
 | 配置项 | 用途 |
 |---|---|
-| `default` | 主模型、Provider、推理强度与回退；当前仓库为 Codex `gpt-6.1-sol` / `low`，回退 `gpt-6-luna`。 |
-| `nodes` | 单独覆盖 Planner、Operator、Explorer、Checker 等角色，未指定字段继承默认值；轻量摘要和历史压缩保留 Luna 档位。 |
+| `native_clients.active` | 选择 `codex`（默认）或 `claude_code`；不自动跨客户端回退。 |
+| `native_clients.<client>.default` | 两套独立的 Provider、模型、推理强度与同客户端回退；Codex 为 `gpt-6.1-sol` / `gpt-6-luna`，Claude Code 为 `sonnet` / `haiku`。 |
+| `native_clients.<client>.nodes` | 独立覆盖各角色，未指定字段继承该客户端默认值；Codex 保留 Luna 历史与校验节点配置。 |
+| `default` / `nodes` | 旧格式/API 路由，仅在没有 `native_clients.active` 时生效；不能用于修改已启用的独立配置。 |
 | `presets` | 预设的 Provider/模型组合。 |
 | `agent.flash` / `agent.pro` | Flash/Pro 行为，包括 Explorer 档位与步骤摘要设置。 |
 
 源码优先读取上述配置，打包模板位于 [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc)。可用 `ARTEMIS_ARTEMIS_JSONC` 指定另一份已存在的配置；主模型、回退和各角色必须与所选 Provider 兼容。
+
+本地源码配置已包含两套配置，只需将 `native_clients.active` 改为 `"claude_code"` 或 `"codex"`。手工修改后运行 `uv run artemis restart` 重启后台，并在 IDE 中重载 MCP 服务。后台步骤摘要通过 `agent.flash.step_summarizer.provider: null`、`model: ""` 跟随所选配置的 `summarizer` 角色，不要在这里写死另一个客户端的模型。全局安装的 MCP 可能读取另一份文件，定位方式见[配置指南](./docs/claude-code-provider.md#模型配置)，不要直接修改打包模板。
+
+Claude Code 需要单独安装官方 CLI，并在后台运行用户的环境中执行 `claude auth login`。后台 **AI Model Setup → 模型客户端** 也可显式切换，保留另一套配置，不代办登录、不自动回退；普通状态刷新不调用模型。安装参数、完整双配置示例、认证与验收边界见 [Claude Code 接入文档](./docs/claude-code-provider.md)。
 
 图片默认等比缩至短边最多 720、长边最多 1600 像素，以 WebP 质量 70 编码，字节预算 768 KiB；超出预算时继续缩小，不放大小图。原始截图和坐标尺寸保持不变。环境变量、客户端路径优先级与适配层说明集中在 [Codex Provider 文档](./docs/codex-client-provider.md)。
 

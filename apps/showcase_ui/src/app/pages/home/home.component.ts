@@ -16,7 +16,12 @@
 
 import { Component, signal, computed, effect, inject, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { CodexAuthComponent } from '../../components/codex-auth/codex-auth.component';
+import { NativeClientSelectorComponent } from '../../components/native-client-selector/native-client-selector.component';
+
+export function modelSetupModeForProvider(provider: unknown): 'gemini' | 'custom' | null {
+  if (typeof provider !== 'string' || !provider.trim()) return null;
+  return ['google', 'gemini'].includes(provider.trim().toLowerCase()) ? 'gemini' : 'custom';
+}
 import { Router, RouterLink } from '@angular/router';
 import { AgentService } from '../../services/agent.service';
 import { SystemService } from '../../services/system.service';
@@ -104,7 +109,7 @@ type AdbGuideTab = 'emulator' | 'usb' | 'wifi' | 'remote';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [FormsModule, CodexAuthComponent],
+  imports: [FormsModule, NativeClientSelectorComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './home.component.scss'
@@ -124,6 +129,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   // Interactive guide tab for LLM / OCR credentials: 'gemini' | 'ocr'
   public modelSetupMode = signal<'gemini' | 'custom'>('gemini');
+  private modelSetupInitialized = false;
   public showOcrConfig = signal<boolean>(false);
   public showFullConfigFile = signal<boolean>(false);
 
@@ -523,6 +529,11 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   constructor() {
     effect(() => {
+      const mode = modelSetupModeForProvider(this.systemService.modelConfigEnv()?.default_model?.provider);
+      if (mode && !this.modelSetupInitialized) {
+        this.modelSetupInitialized = true;
+        this.modelSetupMode.set(mode);
+      }
       const keys = this.systemService.apiKeysMap();
       const current = this.systemService.currentApiKey();
       const googleKey = keys['google'] || current || '';
@@ -583,13 +594,21 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   public setModelSetupMode(mode: 'gemini' | 'custom'): void {
+    this.modelSetupInitialized = true;
     this.modelSetupMode.set(mode);
+    this.systemService.setSkipCredentialsCheck(false);
     if (mode === 'custom') {
-      this.systemService.setSkipCredentialsCheck(true);
       this.systemService.fetchModelConfigEnv().subscribe();
-    } else {
-      this.systemService.setSkipCredentialsCheck(false);
     }
+  }
+
+  public refreshModelClient(provider?: string | void): void {
+    if (typeof provider === 'string') {
+      this.systemService.selectedNativeClient.set(provider === 'codex' || provider === 'claude_code' ? provider : null);
+    }
+    this.systemService.setSkipCredentialsCheck(false);
+    this.systemService.fetchReadiness(true, true).subscribe();
+    this.systemService.fetchModelConfigEnv().subscribe();
   }
 
   public toggleFullConfigFile(): void {

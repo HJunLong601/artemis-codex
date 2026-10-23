@@ -27,6 +27,7 @@ NC='\033[0m'
 
 AUTO_LAUNCH=false
 WITH_IOS=false
+WITH_CLAUDE_CODE=false
 for arg in "$@"; do
     case "${arg}" in
         --launch|-l|--open)
@@ -34,6 +35,9 @@ for arg in "$@"; do
             ;;
         --with-ios)
             WITH_IOS=true
+            ;;
+        --with-claude-code)
+            WITH_CLAUDE_CODE=true
             ;;
     esac
 done
@@ -422,6 +426,27 @@ ensure_codex_cli() {
 }
 
 # Function to setup Python runtime and sync dependencies
+ensure_claude_code_cli() {
+    echo -e "\n${BOLD}Checking optional Claude Code CLI...${NC}"
+    if ! has_cmd claude; then
+        local claude_installer
+        claude_installer="$(mktemp -t artemis-claude.XXXXXX)"
+        if curl -fsSL --connect-timeout 15 --max-time 120 \
+            "https://claude.ai/install.sh" -o "${claude_installer}"; then
+            bash "${claude_installer}" || true
+        fi
+        rm -f "${claude_installer}"
+        export PATH="${HOME}/.local/bin:${PATH}"
+    fi
+    if has_cmd claude; then
+        echo -e "   ${GREEN}✓ Official Claude Code CLI found.${NC}"
+        echo "   Run claude auth login, then artemis init and select Claude Code."
+    else
+        echo -e "   ${YELLOW}⚠ Claude Code installation did not complete.${NC}"
+        echo "   See https://code.claude.com/docs/en/setup and retry before selecting claude_code."
+    fi
+}
+
 setup_python_env() {
     echo -e "\n${BOLD}5. Configuring Python Runtime & Syncing Dependencies...${NC}"
     echo -e "   ${BLUE}📦 Running uv sync (auto-provisioning Python >=3.12 & dependencies)...${NC}"
@@ -554,6 +579,7 @@ verify_readiness() {
     echo -e "\n${BOLD}8. Toolchain Readiness Summary:${NC}"
 
     local tools=("adb" "ffmpeg" "scrcpy" "codex" "uv" "python3" "npm")
+    if [ "${WITH_CLAUDE_CODE}" = true ]; then tools+=("claude"); fi
     for t in "${tools[@]}"; do
         if has_cmd "$t"; then
             local loc
@@ -574,7 +600,11 @@ verify_readiness() {
 # Run setup workflow
 install_system_packages
 ensure_uv
-ensure_codex_cli
+if [ "${WITH_CLAUDE_CODE}" = true ]; then
+    ensure_claude_code_cli
+else
+    ensure_codex_cli
+fi
 setup_python_env
 setup_env_file
 setup_showcase_ui

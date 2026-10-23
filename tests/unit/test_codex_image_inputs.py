@@ -166,7 +166,7 @@ async def test_actual_app_server_handoff_is_webp_and_temp_files_are_cleaned(
 
     client = AsyncMock()
     client.run_completion.side_effect = complete
-    monkeypatch.setattr(provider, "_client_for_running_loop", lambda **_: client)
+    monkeypatch.setattr("artemis.llm.codex_app_server.client_for_running_loop", lambda **_: client)
     raw = encode()
     message = HumanMessage(
         content=[
@@ -201,7 +201,7 @@ async def test_explicit_preprocessing_switch_preserves_benchmark_png(monkeypatch
 
     client = AsyncMock()
     client.run_completion.side_effect = complete
-    monkeypatch.setattr(provider, "_client_for_running_loop", lambda **_: client)
+    monkeypatch.setattr("artemis.llm.codex_app_server.client_for_running_loop", lambda **_: client)
     message = HumanMessage(
         content=[
             {

@@ -125,3 +125,6 @@ artifacts/visual-location-cache/
 .Trashes
 ehthumbs.db
 Thumbs.db
+# Native-client setup backups may contain private model endpoint settings.
+artemis.jsonc.backup-*
+artemis.jsonc.pending-*

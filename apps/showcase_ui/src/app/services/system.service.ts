@@ -75,6 +75,18 @@ export class SystemService {
     return usesCodex ? 'unverified' : null;
   });
 
+  public claudeCodeCredentialState = computed<'available' | 'unavailable' | 'unverified' | null>(() => {
+    const metadata = this.llmProbe()?.metadata;
+    const checks = metadata?.['provider_checks'];
+    const check = Array.isArray(checks) ? checks.find(item => item.provider === 'claude_code') : null;
+    if (check?.valid === true) return 'available';
+    if (check?.valid === false) return 'unavailable';
+    const required = metadata?.['required_providers'];
+    const usesClaude = Array.isArray(required) ? required.includes('claude_code')
+      : metadata?.['active_provider'] === 'claude_code' || this.modelConfigEnv()?.default_model?.provider === 'claude_code';
+    return usesClaude ? 'unverified' : null;
+  });
+
   // Grouped readiness helpers for the 3-step onboarding flow
   public isEnvironmentReady = computed(() => {
     const py = this.pythonProbe();
@@ -89,12 +101,20 @@ export class SystemService {
   });
 
   public isSkipCredentialsCheck = signal<boolean>(false);
+  public selectedNativeClient = signal<string | null>(null);
 
   public isCredentialsReady = computed(() => {
-    if (this.isSkipCredentialsCheck()) {
+    const configured = this.modelConfigEnv()?.default_model?.provider;
+    const expected = this.selectedNativeClient()
+      || (configured === 'codex' || configured === 'claude_code' ? configured : null);
+    if (this.isSkipCredentialsCheck() && !expected) {
       return true;
     }
     const llm = this.llmProbe();
+    if (expected) {
+      const checks = llm?.metadata?.['provider_checks'];
+      if (!Array.isArray(checks) || !checks.some(check => check.provider === expected && check.valid === true)) return false;
+    }
     return llm?.status === 'pass';
   });
 

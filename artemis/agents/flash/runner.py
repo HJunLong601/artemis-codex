@@ -927,7 +927,9 @@ class FlashRunner:
         endpoint = getattr(llm, "endpoint", None)
         provider = getattr(endpoint, "provider", None)
         provider_value = str(getattr(provider, "value", provider) or "").lower()
-        bind_kwargs = {"tool_choice": "required"} if provider_value == "codex" else {}
+        bind_kwargs = (
+            {"tool_choice": "required"} if provider_value in {"codex", "claude_code"} else {}
+        )
         bound_llm = llm.bind_tools(current_tools, **bind_kwargs)
 
         # Invoke Model. Streaming, live-token UI deltas, classified

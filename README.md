@@ -40,6 +40,7 @@
 | Area | Main capabilities |
 |---|---|
 | **Codex integration** | Reuse the local ChatGPT login for core workflows without a separate model API key. Prefer the desktop client's bundled Codex and configure models by role. [Setup and configuration](#model-configuration) |
+| **Claude Code integration** | Optional `claude_code` provider using the official local CLI and user-owned authentication, with MCP / Run Task routing, diagnostics and explicit inference verification. Real-account/device acceptance is pending. [Setup and limits](./docs/claude-code-provider.md) |
 | **Cache and runtime improvements** | Reuse visual positions to reduce repeated locating, with dashboard search, failure cases, and estimated savings; add image compression, deferred Flash summaries, and capture/history loading improvements. [Cache guide](#visual-location-cache) · [Timing records](./docs/model-call-performance.md) |
 | **Platforms and devices** | Shared Windows/macOS/Linux setup and diagnostics, physical-first selection, AVD discovery and reuse, plus iOS Simulator and physical-device drivers. Live automated iPhone tap acceptance remains pending. [Setup](#quick-start) · [Devices](#device-selection) · [iOS](#ios-simulator) |
 
@@ -173,12 +174,18 @@ Edit [`config/artemis.jsonc`](./config/artemis.jsonc), then restart ARTEMIS/MCP.
 
 | Key | Purpose |
 |---|---|
-| `default` | Main provider, model, reasoning effort, and fallback. The checked-in default is Codex `gpt-6.1-sol` / `low`, falling back to `gpt-6-luna`. |
-| `nodes` | Override roles such as Planner, Operator, Explorer, and Checker; unspecified fields inherit defaults. Lightweight summaries and history compression retain the Luna tier. |
+| `native_clients.active` | Select `codex` (default) or `claude_code`; no automatic cross-client fallback. |
+| `native_clients.<client>.default` | Independent provider, model, reasoning effort and same-client fallback: Codex `gpt-6.1-sol` / `gpt-6-luna`; Claude Code `sonnet` / `haiku`. |
+| `native_clients.<client>.nodes` | Independent role overrides; unspecified fields inherit that client's default. The Codex profile retains Luna history/validation overrides. |
+| `default` / `nodes` | Legacy/API routing, used only when `native_clients.active` is absent. Editing these does not change an active native profile. |
 | `presets` | Named provider/model combinations. |
 | `agent.flash` / `agent.pro` | Profile behavior, including Explorer tiers and step summaries. |
 
 Source checkouts prefer this configuration over the bundled template at [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc). Use `ARTEMIS_ARTEMIS_JSONC` to select another existing file. Main, fallback, and role-specific models must match the selected provider.
+
+The local source configuration now includes both profiles. Set `native_clients.active` to `"claude_code"` or `"codex"`, then restart the backend (`uv run artemis restart`) and reload the MCP server in your IDE. Background step summaries use `agent.flash.step_summarizer.provider: null` and `model: ""` to follow the selected profile's `summarizer` role; avoid hard-coding the other client's model here. Installed/global MCP may use a different configuration: locate its effective file using the [configuration guide](./docs/claude-code-provider.md#模型配置), rather than editing the bundled template.
+
+For optional local Claude Code inference, install the official CLI and run `claude auth login`. The console's **Model Client** switch selects **Codex** or **Claude Code**, with independent saved configurations and no automatic fallback between them. Only the selected client participates in task authentication and preflight; switching preserves the other configuration. `artemis init` also offers both clients. Ordinary status refreshes never perform inference. Installation flags, model JSON, authentication boundaries and the pending real-account acceptance checklist are in the [Claude Code provider guide](./docs/claude-code-provider.md).
 
 Model images default to proportional short-edge 720 / long-edge 1600 bounds, WebP quality 70, and a 768 KiB budget. Oversized images are resized further without upscaling small images. Original captures and coordinate dimensions remain unchanged. Environment variables, executable precedence, and adapter details live in the [Codex provider guide](./docs/codex-client-provider.md).
 

@@ -528,9 +528,12 @@ def _credential_verification_steps(
                 steps.extend(_credential_steps(env_file))
                 needs_restart = True
             elif kind == "client_session":
-                steps.append("  Run: codex login status")
+                claude = entry.get("provider") == "claude_code"
+                steps.append("  Run: claude auth status" if claude else "  Run: codex login status")
                 steps.append(
-                    "  Guidance: Check the MCP host's Codex login environment, then restart the MCP server."
+                    "  Guidance: Run claude auth login in the Artemis runtime environment, then restart the MCP server. Never copy credentials into chat."
+                    if claude
+                    else "  Guidance: Check the MCP host's Codex login environment, then restart the MCP server."
                 )
     return steps, needs_restart
 
@@ -839,7 +842,7 @@ def _next_steps(
                 and (
                     (
                         "required_providers" not in result.metadata
-                        and result.metadata.get("active_provider") != "codex"
+                        and result.metadata.get("active_provider") not in {"codex", "claude_code"}
                     )
                     or any(
                         not check.get("valid") and check.get("credential_type") == "api_key"
@@ -1630,7 +1633,7 @@ async def _with_model_preflight(report: dict[str, Any], enabled: bool) -> dict[s
         report["verdict"] = "blocked"
         report["summary"] = "Model preflight failed; resolve model access before starting a task."
         report["next_steps"] = [
-            "[REQUIRED] Inspect models.checks and select models supported by this Codex client/account in config/artemis.jsonc; restart the server and re-run mobile_diagnose(verify_models=true).",
+            "[REQUIRED] Inspect models.checks and select models supported by the configured provider/account in config/artemis.jsonc; restart the server and re-run mobile_diagnose(verify_models=true).",
             *[s for s in report["next_steps"] if not s.startswith("Environment is ready.")],
         ]
     elif any(not c["valid"] for c in models["checks"]):

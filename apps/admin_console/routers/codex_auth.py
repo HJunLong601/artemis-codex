@@ -10,7 +10,7 @@ from apps.admin_console.services.codex_auth_service import codex_auth_service, L
 router = APIRouter(prefix="/codex/auth", tags=["system"])
 
 
-def require_local(request: Request, *, mutation=False):
+def require_local(request: Request, *, mutation=False, client_name="Codex"):
     try:
         peer = request.client.host if request.client else ""
         host = request.url.hostname or ""
@@ -24,9 +24,11 @@ def require_local(request: Request, *, mutation=False):
         or not local_host
         or (origin and urlsplit(origin).netloc.lower() != request.headers.get("host", "").lower())
     ):
-        raise HTTPException(403, "Codex authentication requires the local same-origin console.")
+        raise HTTPException(
+            403, f"{client_name} authentication requires the local same-origin console."
+        )
     if mutation and request.headers.get("x-artemis-auth-intent") != "login":
-        raise HTTPException(403, "Explicit Codex authentication intent is required.")
+        raise HTTPException(403, f"Explicit {client_name} authentication intent is required.")
 
 
 @router.get("")
@@ -72,12 +74,17 @@ async def verify(request: Request):
     from artemis.config.llm import parse_llm_config
     from artemis.llm.model_preflight import preflight_models
 
+    config = parse_llm_config()
+    if not any(model.provider == "codex" for _, model in config.iter_primary_models()):
+        raise HTTPException(
+            409, "Select Codex before testing Codex inference. Claude Code is independent."
+        )
     report = await codex_auth_service.status()
     if report["state"] not in {"authenticated", "not_required"}:
         raise HTTPException(
             409, "Sign in to Codex in the Artemis runtime before testing inference."
         )
-    result = await preflight_models(parse_llm_config(), verify_inference=True, force=True)
+    result = await preflight_models(config, verify_inference=True, force=True)
     return {
         "ok": result["ok"],
         "inference_tested": result.get("inference_tested", False),

@@ -298,14 +298,12 @@
       <div class="step-title-row">
         <h3 class="step-title">AI Model Setup</h3>
       </div>
-      <p class="step-desc">Signed-in Codex client or API-key providers (Gemini, OpenAI, Claude)</p>
+      <p class="step-desc">Choose Codex or Claude Code independently, or configure an API provider</p>
     </div>
   </div>
 
   <div class="guide-card-body">
-    @if (systemService.codexCredentialState(); as codexState) {
-    <app-codex-auth (authChanged)="systemService.fetchReadiness(true, true).subscribe()" />
-    }
+    <app-native-client-selector (selectionChanged)="refreshModelClient($event)" />
 
     <!-- 2 Big Visual Choice Cards -->
     <div class="model-choice-cards-row">
@@ -352,8 +350,8 @@
             <div class="choice-title-row">
               <span class="choice-title">Custom Configuration</span>
             </div>
-            <p class="choice-desc">Define models in <code>config/artemis.jsonc</code>; Codex uses client login,
-              while OpenAI and Claude use keys from <code>.env</code>.</p>
+            <p class="choice-desc">Codex / Claude Code use their own official client authentication;
+              API providers use keys from <code>.env</code>.</p>
           </div>
         </div>
       </div>

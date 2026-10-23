@@ -4,7 +4,7 @@
   // ==============================================================================
 
   // ------------------------------------------------------------------------------
-  // 1. Global Default Model (Applied to all sub-agents unless overridden below)
+  // 1. Legacy / API Default Model (used when native_clients.active is absent)
   // ------------------------------------------------------------------------------
   "default": {
     "provider": "codex",
@@ -56,7 +56,7 @@
   },
 
   // ------------------------------------------------------------------------------
-  // 3. Agent & Sub-Agent Node Customizations (Optional - Inherits from 'default')
+  // 3. Legacy / API Node Customizations (native profiles have independent nodes below)
   // ------------------------------------------------------------------------------
   "nodes": {
     // 🧠 Planner: High-level goal decomposition and strategic step planning
@@ -134,6 +134,56 @@
   },
 
   // ------------------------------------------------------------------------------
+  // Native client switch: change ONLY "active" to "codex" or "claude_code".
+  // Each profile owns its default and nodes; the two clients never back up each other.
+  // The selected profile replaces the legacy default/nodes above, not agent settings.
+  "native_clients": {
+    "active": "codex",
+    "codex": {
+      "default": {
+        "provider": "codex",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "low",
+        "timeout": 180,
+        "fallback": { "provider": "codex", "model": "gpt-6-luna", "reasoning_effort": "low" }
+      },
+      "nodes": {
+        "operator": { "include_thoughts": true },
+        "object_detector": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "fallback": { "provider": "codex", "model": "gpt-6-luna" }
+        },
+        "hopper": {
+          "provider": "codex",
+          "model": "gpt-6-luna",
+          "fallback": { "provider": "codex", "model": "gpt-6-luna" }
+        },
+        "log_analyzer": { "enable_grounding": true },
+        "diagnoser_expert": { "enable_grounding": true },
+        "checker": { "include_thoughts": true },
+        "history_analyzer": { "model": "gpt-6-luna", "reasoning_effort": "low", "temperature": 0.0 },
+        "validator_pixel_safety_net": { "model": "gpt-6-luna", "reasoning_effort": "low", "temperature": 0.0 },
+        "planner_validation": { "model": "gpt-6-luna", "reasoning_effort": "low", "temperature": 0.0 },
+        "output_analyzer": { "model": "gpt-6-luna", "reasoning_effort": "low", "temperature": 0.0 }
+      }
+    },
+    "claude_code": {
+      // Uses your separately installed and logged-in Claude Code CLI.
+      // CLI model aliases resolve through Claude Code; no API key belongs here.
+      "default": {
+        "provider": "claude_code",
+        "model": "sonnet",
+        "reasoning_effort": "low",
+        "timeout": 180,
+        "fallback": { "provider": "claude_code", "model": "haiku", "reasoning_effort": "low" }
+      },
+      // Optional per-node overrides; otherwise every node inherits this default.
+      "nodes": {}
+    }
+  },
+
+  // ------------------------------------------------------------------------------
   // 4. Runtime Mode & Agent Capabilities Configuration (Dual-Engine: Flash vs. Pro)
   // ------------------------------------------------------------------------------
   "agent": {
@@ -151,8 +201,8 @@
       "step_summarizer": {
         "enabled": true, // Whether background step summarization is active
         "defer_until_steps": 3, // Short tasks retain original evidence; 0 restores immediate summaries. Pressure/history demand/errors start earlier.
-        "provider": "codex",
-        "model": "gpt-6-luna", // Lightweight client model for background inference
+        "provider": null, // Follow the selected profile's summarizer provider
+        "model": "", // Follow its summarizer model; avoids cross-client background calls
         "prune_history_xml": true // Prune outdated heavy XML trees from historical steps
       }
     },

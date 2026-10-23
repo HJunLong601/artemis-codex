@@ -20,7 +20,8 @@
 [CmdletBinding()]
 param(
     [switch]$Launch = $false,
-    [switch]$Open = $false
+    [switch]$Open = $false,
+    [switch]$WithClaudeCode = $false
 )
 
 $ErrorActionPreference = "Continue"
@@ -295,6 +296,26 @@ function Install-PortableNode {
     return $false
 }
 
+function Install-ClaudeCodeCli {
+    Write-Host "`nChecking optional official Claude Code CLI..." -ForegroundColor Yellow
+    if (-not (Test-CommandExists "claude")) {
+        $claudeInstallerPath = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName() + ".ps1")
+        try {
+            if (Invoke-DownloadFile -Uri "https://claude.ai/install.ps1" -OutFile $claudeInstallerPath -TimeoutSec 120) {
+                & $claudeInstallerPath
+            }
+        } finally {
+            Remove-Item -LiteralPath $claudeInstallerPath -ErrorAction SilentlyContinue
+        }
+        $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+    }
+    if (Test-CommandExists "claude") {
+        Write-Host "   [OK] Official Claude Code CLI found. Run claude auth login, then artemis init." -ForegroundColor Green
+    } else {
+        Write-Host "   [WARN] Installation incomplete. See https://code.claude.com/docs/en/setup" -ForegroundColor DarkYellow
+    }
+}
+
 function Install-CodexCli {
     Write-Host "`n3. Checking Codex CLI (default model provider)..." -ForegroundColor Yellow
     if (-not (Test-CommandExists "codex")) {
@@ -416,7 +437,7 @@ if (Test-CommandExists "uv") {
 }
 
 # 3. Install the default keyless model client
-Install-CodexCli
+if ($WithClaudeCode) { Install-ClaudeCodeCli } else { Install-CodexCli }
 
 # 4. Setup Python Runtime & Sync Dependencies
 Write-Host "`n4. Configuring Python Runtime & Syncing Dependencies..." -ForegroundColor Yellow
@@ -524,6 +545,7 @@ if ((-not (Test-Path $ShowcaseIndex)) -and (-not (Test-Path $ShowcaseIndexAlt1))
 # 7. Toolchain Readiness Summary
 Write-Host "`n7. Toolchain Readiness Summary:" -ForegroundColor Yellow
 $tools = @("adb", "ffmpeg", "scrcpy", "codex", "uv", "npm")
+if ($WithClaudeCode) { $tools += "claude" }
 foreach ($t in $tools) {
     $hasCmd = Test-CommandExists $t
     if (-not $hasCmd -and $t -eq "npm") {

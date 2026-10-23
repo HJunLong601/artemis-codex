@@ -48,7 +48,7 @@ async def _catalog(client: CodexAppServerClient, *, force: bool) -> list[dict[st
     raise ModelPreflightError("Codex model catalog pagination did not finish.")
 
 
-async def preflight_models(
+async def _preflight_codex_models(
     config: LLMConfig, *, verify_inference: bool = False, force: bool = False
 ) -> dict[str, Any]:
     """Check unique Codex model/effort pairs; unused fallbacks are advisory.
@@ -203,11 +203,44 @@ async def preflight_models(
         await client.close()
 
 
+async def preflight_models(
+    config: LLMConfig, *, verify_inference: bool = False, force: bool = False
+) -> dict[str, Any]:
+    """Shared native-client gate for CLI, SDK, MCP and console task execution."""
+    codex = await _preflight_codex_models(config, verify_inference=verify_inference, force=force)
+    uses_claude = any(
+        model.provider == "claude_code" or model.fallback.provider == "claude_code"
+        for _, model in config.iter_primary_models()
+    )
+    if not uses_claude or os.getenv("ARTEMIS_FAKE_LLM") == "1":
+        return codex
+    from artemis.llm.claude_code_preflight import preflight_claude_models
+
+    claude = await preflight_claude_models(config, verify_inference=verify_inference)
+    if not codex.get("checks"):
+        return claude
+    return {
+        "ok": codex["ok"] and claude["ok"],
+        "scope": "native_clients",
+        "checks": codex["checks"] + claude["checks"],
+        "inference_tested": codex.get("inference_tested", False) or claude["inference_tested"],
+        "providers": {"codex": codex, "claude_code": claude},
+    }
+
+
 async def require_available_models(config: LLMConfig) -> dict[str, Any]:
     report = await preflight_models(config)
     if not report["ok"]:
         failed = [c["model"] for c in report["checks"] if c["required"] and not c["valid"]]
         raise ModelPreflightError(
-            report.get("error") or "Codex model preflight failed: " + ", ".join(failed)
+            report.get("error")
+            or (
+                "Claude Code model preflight failed: "
+                if report.get("scope") == "claude_code"
+                else "Codex model preflight failed: "
+                if report.get("scope") == "codex"
+                else "Model preflight failed: "
+            )
+            + ", ".join(failed)
         )
     return report

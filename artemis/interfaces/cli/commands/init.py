@@ -20,7 +20,7 @@ import subprocess
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt
+from rich.prompt import Confirm, Prompt
 
 from artemis.config.paths import get_env_file
 
@@ -44,20 +44,52 @@ def init_command() -> None:
     console.print("  [3] OpenAI API")
     console.print("  [4] Anthropic")
     console.print("  [5] OpenRouter")
+    console.print("  [6] Signed-in Claude Code client (official CLI)")
 
-    choice = Prompt.ask("Select provider", choices=["1", "2", "3", "4", "5"], default="1")
+    choice = Prompt.ask("Select provider", choices=["1", "2", "3", "4", "5", "6"], default="1")
     provider_map = {
         "1": (None, "Codex client"),
         "2": ("GEMINI_API_KEY", "Google Gemini"),
         "3": ("OPENAI_API_KEY", "OpenAI API"),
         "4": ("ANTHROPIC_API_KEY", "Anthropic"),
         "5": ("OPEN_ROUTER_API_KEY", "OpenRouter"),
+        "6": (None, "Claude Code client"),
     }
     env_key, provider_name = provider_map[choice]
 
     # 2. Verify the local client, or collect the selected cloud API key.
     api_key = ""
-    if env_key is None:
+    if choice == "6":
+        from artemis.llm.claude_code_client import claude_code_status
+        from artemis.llm.claude_code_setup import configure_claude_code, select_native_client
+
+        available, detail = claude_code_status()
+        if not available:
+            console.print(f"\n[bold red]Claude Code is not ready.[/bold red] {detail}")
+            console.print(
+                "Install the official CLI: https://code.claude.com/docs/en/overview\nRun claude auth login in this same runtime, then retry. Never copy tokens into chat."
+            )
+            raise SystemExit(1)
+        if not Confirm.ask(
+            "Select Claude Code with its own sonnet/haiku configuration? Codex settings and a private backup are retained.",
+            default=False,
+        ):
+            console.print(
+                "No configuration changed. Edit artemis.jsonc manually to select claude_code."
+            )
+            return
+        try:
+            result = configure_claude_code()
+            select_native_client("claude_code")
+        except (OSError, RuntimeError, ValueError):
+            console.print(
+                "[red]Could not update the writable unified model config. Existing config and backups are retained.[/red]"
+            )
+            raise SystemExit(1) from None
+        console.print(
+            f"[green]Claude Code routes configured. Backup: {result['backup_file']}[/green]"
+        )
+    elif env_key is None:
         from artemis.llm.codex_app_server import codex_client_status
 
         available, detail = codex_client_status()
@@ -85,6 +117,15 @@ def init_command() -> None:
             )
             raise SystemExit(1)
         console.print("\n[bold green]✔ Codex client is signed in with ChatGPT.[/bold green]")
+        from artemis.llm.claude_code_setup import select_native_client
+
+        try:
+            select_native_client("codex")
+        except (OSError, RuntimeError, ValueError):
+            console.print(
+                "[red]Could not select the independent Codex profile; existing configuration is retained.[/red]"
+            )
+            raise SystemExit(1) from None
     else:
         console.print(f"\n[bold]Step 2: Enter your {provider_name} API Key[/bold]")
         api_key = Prompt.ask(f"Enter {env_key}", password=True)
@@ -160,7 +201,9 @@ def init_command() -> None:
             "",
             "# Execution Defaults",
             "ARTEMIS_DEFAULT_PROFILE=pro",
-            "ARTEMIS_DEFAULT_MODEL=gpt-6.1-sol"
+            "ARTEMIS_DEFAULT_MODEL=sonnet"
+            if choice == "6"
+            else "ARTEMIS_DEFAULT_MODEL=gpt-6.1-sol"
             if env_key is None
             else "ARTEMIS_DEFAULT_MODEL=auto",
             "ARTEMIS_TRACES_DIR=./traces",

@@ -64,6 +64,7 @@ class LLMCredentialsProbe(BaseProbe):
 
         from artemis.config.llm import parse_llm_config
         from artemis.llm.codex_app_server import codex_client_status
+        from artemis.llm.claude_code_client import claude_code_status
 
         try:
             config = parse_llm_config()
@@ -96,6 +97,8 @@ class LLMCredentialsProbe(BaseProbe):
         # Refresh the shared App Server verdict, never read or copy tokens.
         if "codex" in models:
             codex_client_status.cache_clear()
+        if "claude_code" in models:
+            claude_code_status.cache_clear()
         outcomes = await asyncio.gather(
             *(
                 asyncio.to_thread(model.validate_provider, roles[provider][0])
@@ -110,7 +113,7 @@ class LLMCredentialsProbe(BaseProbe):
             valid = not isinstance(outcome, BaseException)
             credential_type = (
                 "client_session"
-                if provider == "codex"
+                if provider in {"codex", "claude_code"}
                 else "application_default"
                 if provider == "vertexai"
                 else "endpoint"
@@ -130,6 +133,8 @@ class LLMCredentialsProbe(BaseProbe):
                     else (
                         "Codex App Server is connected; model inference was not tested."
                         if provider == "codex"
+                        else "Claude Code is connected; model inference was not tested."
+                        if provider == "claude_code"
                         else "Required credential configuration is present; API access and model inference were not tested."
                     ),
                 }
@@ -140,6 +145,15 @@ class LLMCredentialsProbe(BaseProbe):
                         "provider": "codex",
                         "label": "Codex client",
                         "masked": "App Server connection",
+                        "credential_type": "client_session",
+                    }
+                )
+            if valid and provider == "claude_code":
+                configured_providers.append(
+                    {
+                        "provider": "claude_code",
+                        "label": "Claude Code client",
+                        "masked": "Official CLI authentication",
                         "credential_type": "client_session",
                     }
                 )
@@ -283,6 +297,21 @@ class LLMCredentialsProbe(BaseProbe):
                     payload="Configure Google Application Default Credentials and a Google Cloud project for Vertex AI.",
                 )
             )
+        if "claude_code" in metadata["missing_providers"]:
+            actions.extend(
+                [
+                    ProbeAction(
+                        action_type="command",
+                        label="Check Claude Code login",
+                        payload="claude auth status",
+                    ),
+                    ProbeAction(
+                        action_type="hint",
+                        label="Sign in using the official CLI",
+                        payload="Run claude auth login in the Artemis runtime environment, then restart the MCP server and re-run mobile_diagnose. Do not copy tokens into chat or configuration.",
+                    ),
+                ]
+            )
         missing_keys = [
             check["provider"] for check in failures if check["credential_type"] == "api_key"
         ]
@@ -300,6 +329,8 @@ class LLMCredentialsProbe(BaseProbe):
             summary = (
                 "Codex session unavailable"
                 if metadata["missing_providers"] == ["codex"]
+                else "Claude Code session unavailable"
+                if metadata["missing_providers"] == ["claude_code"]
                 else "Required credentials unavailable"
             )
             description = "; ".join(check["message"] for check in failures)
@@ -307,6 +338,8 @@ class LLMCredentialsProbe(BaseProbe):
             summary = (
                 "Active (Codex client)"
                 if list(roles) == ["codex"]
+                else "Active (Claude Code client)"
+                if list(roles) == ["claude_code"]
                 else "Required provider credentials configured"
             )
             description = (

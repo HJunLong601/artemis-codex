@@ -69,6 +69,18 @@ def test_flash_runner_tools_initialization(mock_context):
         assert tool_names[:2] == ["click", "click_sequence"]
 
 
+def test_claude_code_contract_accepts_the_complete_flash_toolset(mock_context):
+    import json
+    from artemis.llm.claude_code import _contract
+
+    with patch("artemis.controllers.unified_controller.get_driver"):
+        runner = FlashRunner(mock_context, goal="Synthetic contract check")
+        schema, instruction = _contract(runner._get_tools(), "required")
+    assert len(json.dumps(schema).encode()) < 64 * 1024
+    assert "report_task_status" in instruction
+    assert schema["properties"]["tool_calls"]["minItems"] == 1
+
+
 def test_flash_starts_deferred_summaries_on_context_pressure(mock_context):
     from artemis.memory.transcript import TranscriptLedger
 

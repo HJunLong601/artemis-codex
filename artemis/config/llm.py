@@ -128,6 +128,9 @@ class LLMConfig(LLMConfigBase):
 
 def _expand_default_into_nodes(config_dict: dict) -> dict:
     """Expand unified config format with 'default' and 'nodes' into full LLMConfig schema."""
+    from artemis.config.native_clients import native_client_view
+
+    config_dict = native_client_view(config_dict)
     if "planner" in config_dict and "utils" in config_dict:
         return config_dict
 

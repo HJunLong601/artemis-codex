@@ -56,6 +56,19 @@ describe('SystemService readiness polling', () => {
     expect(service.codexCredentialState()).toBe('unverified');
   });
 
+  it('does not reuse a passing Codex report after switching to Claude Code', () => {
+    setCredentials({required_providers: ['codex'], provider_checks: [{provider: 'codex', valid: true}]});
+    service.selectedNativeClient.set('codex');
+    expect(service.isCredentialsReady()).toBeTrue();
+    service.selectedNativeClient.set('claude_code');
+    service.skipCredentialsCheck();
+    expect(service.isCredentialsReady()).toBeFalse();
+    setCredentials({required_providers: ['claude_code'], provider_checks: [{provider: 'claude_code', valid: false}]}, 'fail');
+    expect(service.isCredentialsReady()).toBeFalse();
+    setCredentials({required_providers: ['claude_code'], provider_checks: [{provider: 'claude_code', valid: true}]});
+    expect(service.isCredentialsReady()).toBeTrue();
+  });
+
   it('updates the Codex banner after failed login, successful login, and logout', () => {
     setCodexDefault();
     for (const valid of [false, true, false]) {

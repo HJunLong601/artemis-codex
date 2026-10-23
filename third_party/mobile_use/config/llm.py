@@ -93,6 +93,13 @@ class LLM(BaseModel):
             if not available:
                 raise Exception(f"{name} requires an installed, signed-in Codex client. {detail}")
 
+        elif self.provider == "claude_code":
+            from artemis.llm.claude_code_client import claude_code_status
+
+            available, detail = claude_code_status()
+            if not available:
+                raise ValueError(f"{name}: {detail}")
+
     def __str__(self) -> str:
         return f"{self.provider}/{self.model}"
 

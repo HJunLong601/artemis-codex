@@ -121,6 +121,7 @@ DEFAULT_EXPLORER_VERSION: Literal["flash", "pro", "ultra"] = "flash"
 LLMProvider = Literal[
     "openai",
     "codex",
+    "claude_code",
     "google",
     "openrouter",
     "xai",

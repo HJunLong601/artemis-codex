@@ -138,7 +138,20 @@ class Agent(AgentBase):
         try:
             from artemis.config.llm import get_default_llm_config
 
-            if get_default_llm_config().planner.provider == "codex":
+            provider = get_default_llm_config().planner.provider
+            if provider == "claude_code":
+                from artemis.llm.claude_code_client import claude_code_status
+
+                available, _ = await asyncio.to_thread(claude_code_status)
+                publish_startup_progress(
+                    "model_ready" if available else "model_warmup",
+                    "Claude Code authentication is ready; inference is checked separately."
+                    if available
+                    else "Claude Code authentication is unavailable; check local diagnostics.",
+                    session_id=self._session_id,
+                )
+                return  # Never warm an unrelated Gemini model for a native CLI route.
+            if provider == "codex":
                 from artemis.llm.codex_app_server import codex_client_status
 
                 available, detail = await asyncio.to_thread(codex_client_status)
@@ -153,6 +166,12 @@ class Agent(AgentBase):
                     )
                     return
                 logger.warning(f"Codex client is not ready: {detail}")
+                publish_startup_progress(
+                    "model_warmup",
+                    "Codex authentication is unavailable; check local diagnostics.",
+                    session_id=self._session_id,
+                )
+                return
         except Exception as exc:
             logger.debug(f"Could not inspect the configured LLM provider: {exc}", exc_info=True)
         publish_startup_progress(
