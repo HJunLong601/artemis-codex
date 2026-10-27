@@ -3,7 +3,7 @@
 import hashlib
 import io
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -253,3 +253,76 @@ def test_bundled_template_is_not_overwritten(tmp_path, monkeypatch):
     assert result["default"]["model"] == "next"
     assert template.read_text() == TEXT
     assert parsed(writable)["default"]["model"] == "next"
+
+
+@pytest.fixture
+def catalog_client(monkeypatch):
+    from artemis.llm import codex_app_server, model_preflight
+
+    model_preflight._catalog_cache.clear()
+    client = MagicMock(binary="catalog-test")
+    client.close = AsyncMock()
+    client.request = AsyncMock(
+        side_effect=[
+            {
+                "data": [
+                    {
+                        "model": "first",
+                        "displayName": "First",
+                        "isDefault": True,
+                        "private": "PRIVATE-TEST-SECRET",
+                    }
+                ],
+                "nextCursor": "next",
+            },
+            {
+                "data": [
+                    {"model": "hidden", "hidden": True},
+                    {"model": "second"},
+                    {"model": "first", "displayName": "First", "isDefault": True},
+                ],
+                "nextCursor": None,
+            },
+        ]
+    )
+    monkeypatch.setattr(codex_app_server, "find_codex_binary", lambda: "catalog-test")
+    monkeypatch.setattr(codex_app_server, "CodexAppServerClient", lambda _: client)
+    yield client
+    model_preflight._catalog_cache.clear()
+
+
+@pytest.mark.asyncio
+async def test_catalog_paginates_filters_and_caches_without_inference(catalog_client):
+    app = FastAPI()
+    app.include_router(api.router)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as client:
+        response = await client.get("/api/system/model-settings/codex-models")
+        assert response.status_code == 200
+        assert response.json() == {
+            "models": [
+                {"model": "first", "display_name": "First", "is_default": True},
+                {"model": "second", "display_name": "second", "is_default": False},
+            ],
+            "inference_tested": False,
+        }
+        assert "PRIVATE-TEST-SECRET" not in response.text
+        assert (await client.get("/api/system/model-settings/codex-models")).status_code == 200
+    assert catalog_client.request.await_count == 2
+    assert catalog_client.request.await_args_list[1].args == (
+        "model/list",
+        {"limit": 100, "includeHidden": True, "cursor": "next"},
+    )
+    assert catalog_client.close.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_catalog_refresh_and_failure_close_client_without_leaking_details(catalog_client):
+    app = FastAPI()
+    app.include_router(api.router)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as client:
+        await client.get("/api/system/model-settings/codex-models")
+        catalog_client.request.side_effect = RuntimeError("PRIVATE-TEST-SECRET")
+        response = await client.get("/api/system/model-settings/codex-models?refresh=true")
+        assert response.status_code == 503
+        assert "PRIVATE-TEST-SECRET" not in response.text
+        assert catalog_client.close.await_count == 2

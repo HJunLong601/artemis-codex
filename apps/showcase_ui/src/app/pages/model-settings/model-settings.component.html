@@ -9,6 +9,9 @@
     <section aria-label="模型路由设置">
       <div class="section-heading"><h2>模型路由</h2><span>{{ config.filename }}</span></div>
       <p>角色空项继承默认配置。修改默认模型不会覆盖角色已有的单独配置，展开角色可以调整；模型名称可自由填写，支持情况以实际推理为准。</p>
+      <div class="catalog-tools"><button type="button" (click)="loadCodexModels(true)" [disabled]="catalogLoading()">{{ catalogLoading() ? '读取 Codex 模型中…' : '刷新 Codex 模型列表' }}</button>
+        <span>来自本机 Codex 的 model/list，仅列出可见模型；目录不代表账号推理权限已验证。</span></div>
+      @if (catalogError()) { <p role="status">{{ catalogError() }}</p> }
       @for (role of routes(); track role) {
         <details [open]="role === 'default'" class="route">
           <summary><strong>{{ labels[role] || role }}</strong><span>{{ summary(role) }}</span></summary>
@@ -21,9 +24,24 @@
                   @if (role !== 'default') { <option value="">{{ inherited(role, fallback, 'provider') }}</option> }
                   @for (provider of config.providers; track provider) { <option [value]="provider">{{ provider }}</option> }
                 </select></label>
-                <label>模型名称<input type="text" maxlength="200" [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' 模型名称'"
+                <div class="model-picker"><label>模型名称
+                  @if (isCodex(role, fallback) && codexModels().length && !manual(role, fallback)) {
+                    <select [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' 模型名称'"
+                      [ngModel]="value(role, fallback, 'model')" (ngModelChange)="set(role, fallback, 'model', $event)">
+                      @if (role !== 'default') { <option value="">{{ inherited(role, fallback, 'model') }}</option> }
+                      @if (value(role, fallback, 'model') && !listed(value(role, fallback, 'model'))) {
+                        <option [value]="value(role, fallback, 'model')">{{ value(role, fallback, 'model') }}（当前配置，目录未列出）</option>
+                      }
+                      @for (entry of codexModels(); track entry.model) { <option [value]="entry.model">{{ entry.display_name }} · {{ entry.model }}{{ entry.is_default ? '（推荐默认）' : '' }}</option> }
+                    </select>
+                  } @else {
+                  <input type="text" maxlength="200" [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' 模型名称'"
                   [placeholder]="inherited(role, fallback, 'model')" [ngModel]="value(role, fallback, 'model')"
-                  (ngModelChange)="set(role, fallback, 'model', $event)" /></label>
+                  (ngModelChange)="set(role, fallback, 'model', $event)" />
+                  }
+                </label>
+                @if (isCodex(role, fallback) && codexModels().length) { <button type="button" class="input-mode" (click)="toggleManual(role, fallback)">{{ manual(role, fallback) ? '切换下拉选择' : '手动输入模型' }}</button> }
+                </div>
                 <label>推理强度<select [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' 推理强度'"
                   [ngModel]="value(role, fallback, 'reasoning_effort')" (ngModelChange)="set(role, fallback, 'reasoning_effort', $event)">
                   <option value="">{{ inherited(role, fallback, 'reasoning_effort') }}</option>
@@ -64,7 +82,7 @@
     <section aria-label="模型凭证"><h2>登录与 API Key</h2>
       <p>Codex 使用后台运行环境的登录态，无需填写其他提供商的 Key。API Key 单独保存在本机 .env，不写入模型 JSON，也不回显。</p>
       <button type="button" (click)="showLogin.set(!showLogin())">{{ showLogin() ? '收起 Codex 登录' : '打开 Codex 登录与推理验证' }}</button>
-      @if (showLogin()) { <app-codex-auth /> }
+      @if (showLogin()) { <app-codex-auth (authChanged)="loadCodexModels(true)" /> }
       <div class="credential-status">@for (entry of ['google', 'openai', 'anthropic', 'openrouter', 'xai', 'ocr']; track entry) {
         <span>{{ entry }}：{{ original()?.credentials?.[entry] ? '已配置' : '未配置' }}</span>
       }</div>

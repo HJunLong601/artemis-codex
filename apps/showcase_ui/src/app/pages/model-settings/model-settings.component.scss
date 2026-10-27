@@ -23,6 +23,10 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
 .save-bar span, .advanced p { color: #526884; font-size: 13px; }
 .advanced { margin-top: 16px; } .advanced .fields { margin-top: 16px; }
 .credential-status { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 20px 0; font-size: 13px; }
+.catalog-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.catalog-tools span { font-size: 13px; color: #526884; flex: 1 1 240px; }
+.model-picker { min-width: 0; }
+.input-mode { margin-top: 6px; padding: 4px 0; border: none; color: #1967d2; font-size: 12px; }
 .error { color: #a32323; background: #fff1f1; padding: 12px; border-radius: 8px; }
 .success { color: #176338; background: #eaf7ef; padding: 12px; border-radius: 8px; }
 @media (max-width: 600px) { main { padding: 76px 12px 24px; } section { padding: 16px; } h1 { font-size: 26px; } }

@@ -20,6 +20,10 @@ describe('ModelSettingsComponent', () => {
     http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
     http.expectOne(base).flush(config());
+    http.expectOne(`${base}/codex-models?refresh=false`).flush({models: [
+      {model: 'main', display_name: 'Main Model', is_default: true},
+      {model: 'small', display_name: 'Small Model', is_default: false}
+    ]});
     fixture.detectChanges();
     await fixture.whenStable(); fixture.detectChanges();
   });
@@ -95,4 +99,41 @@ describe('ModelSettingsComponent', () => {
     expect(component.dirty()).toBeTrue();
   });
 
+  it('uses actual catalog options for Codex including inherited providers', () => {
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select[aria-label="default 模型名称"]');
+    expect(select.value).toBe('main');
+    expect(select.textContent).toContain('Main Model');
+    expect(select.textContent).toContain('推荐默认');
+    expect(fixture.nativeElement.querySelector('select[aria-label="object_detector 模型名称"]')).toBeTruthy();
+    select.value = 'small'; select.dispatchEvent(new Event('change')); fixture.detectChanges();
+    expect(component.draft!.default.model).toBe('small');
+  });
+
+  it('preserves a configured model absent from the catalog and can switch to manual input', async () => {
+    component.load();
+    const stored = config(); stored.default.model = 'unlisted';
+    http.expectOne(base).flush(stored); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select[aria-label="default 模型名称"]');
+    expect(select.value).toBe('unlisted');
+    expect(select.textContent).toContain('当前配置，目录未列出');
+    fixture.nativeElement.querySelector('button.input-mode').click(); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('input[aria-label="default 模型名称"]').value).toBe('unlisted');
+    const provider: HTMLSelectElement = fixture.nativeElement.querySelector('select[aria-label="default 提供商"]');
+    provider.value = 'google'; provider.dispatchEvent(new Event('change')); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('input[aria-label="default 模型名称"]')).toBeTruthy();
+  });
+
+  it('catalog failure allows manual input without overwriting pending edits', async () => {
+    component.codexModels.set([]);
+    component.set('default', false, 'model', 'pending');
+    component.loadCodexModels(true);
+    http.expectOne(`${base}/codex-models?refresh=true`).flush({}, {status: 503, statusText: 'Unavailable'});
+    fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(component.catalogError()).toContain('手动输入');
+    expect(fixture.nativeElement.querySelector('input[aria-label="default 模型名称"]').value).toBe('pending');
+    expect(component.dirty()).toBeTrue();
+  });
 });

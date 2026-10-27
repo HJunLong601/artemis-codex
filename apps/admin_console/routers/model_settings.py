@@ -47,6 +47,41 @@ def read(request: Request):
         raise HTTPException(503, "无法读取本地模型配置。") from None
 
 
+@router.get("/codex-models")
+async def codex_models(request: Request, refresh: bool = False):
+    boundary(request)
+    from artemis.llm.codex_app_server import CodexAppServerClient, find_codex_binary
+    from artemis.llm.model_preflight import _catalog
+
+    binary = find_codex_binary()
+    if not binary:
+        raise HTTPException(503, "未找到 Codex 客户端；仍可手动填写模型名称。")
+    client = CodexAppServerClient(binary)
+    try:
+        rows = await asyncio.wait_for(_catalog(client, force=refresh), timeout=20)
+        models = {}
+        for row in rows:
+            model = row.get("model")
+            if row.get("hidden") or not isinstance(model, str) or not model or len(model) > 200:
+                continue
+            display = row.get("displayName")
+            models[model] = {
+                "model": model,
+                "display_name": display[:160] if isinstance(display, str) else model,
+                "is_default": row.get("isDefault") is True,
+            }
+        return {"models": list(models.values()), "inference_tested": False}
+    except (OSError, RuntimeError, TimeoutError, ValueError, TypeError, AttributeError):
+        raise HTTPException(
+            503, "无法读取 Codex 模型列表；请检查客户端与登录状态，或手动填写。"
+        ) from None
+    finally:
+        try:
+            await asyncio.wait_for(client.close(), timeout=5)
+        except (OSError, RuntimeError, TimeoutError):
+            pass
+
+
 @router.put("")
 def save(request: Request, payload: Save):
     boundary(request, True)

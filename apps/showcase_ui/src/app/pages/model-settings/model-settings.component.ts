@@ -10,6 +10,7 @@ export interface ModelSettings {
 }
 const fields = ['provider', 'model', 'reasoning_effort', 'temperature', 'timeout', 'thinking_level', 'thinking_budget', 'include_thoughts', 'enable_grounding'];
 export interface ModelEdit { path: string; value?: unknown; remove?: boolean; }
+export interface CodexModelOption { model: string; display_name: string; is_default: boolean; }
 
 export function modelEdits(before: ModelSettings, after: ModelSettings): ModelEdit[] {
   const edits: ModelEdit[] = [];
@@ -48,6 +49,11 @@ export class ModelSettingsComponent implements OnInit {
   credentialKey = '';
   credentialBusy = signal(false);
   credentialMessage = signal('');
+  codexModels = signal<CodexModelOption[]>([]);
+  catalogLoading = signal(false);
+  catalogError = signal('');
+  private catalogLoaded = false;
+  private manualModels = new Set<string>();
   efforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
   thoughts = ['minimal', 'low', 'medium', 'high'];
   labels: Record<string, string> = {default: '默认模型', planner: '规划 Planner', operator: '操作 / Monkey 探索',
@@ -63,6 +69,7 @@ export class ModelSettingsComponent implements OnInit {
       this.original.set(data); this.draft = structuredClone(data);
       for (const role of data.roles) this.draft.nodes[role] ||= {};
       this.busy.set(false);
+      if (this.routes().some(role => this.isCodex(role, false) || this.isCodex(role, true))) this.loadCodexModels();
     }, error: () => { this.busy.set(false); this.error.set('无法读取模型配置，请检查本地后台或配置文件格式。当前编辑内容已保留。'); }});
   }
   routes() { return this.draft ? ['default', ...this.draft.roles] : []; }
@@ -75,6 +82,25 @@ export class ModelSettingsComponent implements OnInit {
   set(role: string, fallback: boolean, field: string, value: any) {
     this.endpoint(role, fallback)[field] = value;
     this.message.set(''); this.error.set('');
+    if (field === 'provider' && this.isCodex(role, fallback)) this.loadCodexModels();
+  }
+  isCodex(role: string, fallback: boolean) {
+    const defaults = fallback ? this.draft?.default.fallback : this.draft?.default;
+    return (this.endpoint(role, fallback).provider || defaults?.provider) === 'codex';
+  }
+  manual(role: string, fallback: boolean) { return this.manualModels.has(`${role}:${fallback}`); }
+  toggleManual(role: string, fallback: boolean) {
+    const key = `${role}:${fallback}`;
+    this.manualModels.has(key) ? this.manualModels.delete(key) : this.manualModels.add(key);
+  }
+  listed(value: string) { return this.codexModels().some(row => row.model === value); }
+  loadCodexModels(refresh = false) {
+    if (this.catalogLoading() || (this.catalogLoaded && !refresh)) return;
+    this.catalogLoading.set(true); this.catalogError.set('');
+    this.http.get<{models: CodexModelOption[]}>(`${this.base}/codex-models`, {params: {refresh}}).subscribe({
+      next: data => { this.codexModels.set(data.models); this.catalogLoaded = true; this.catalogLoading.set(false); },
+      error: () => { this.catalogLoading.set(false); this.catalogError.set('无法读取 Codex 模型列表，可重试或手动输入；当前配置保持不变。'); }
+    });
   }
   inherited(role: string, fallback: boolean, field: string) {
     if (role === 'default') return '使用运行时默认值';
