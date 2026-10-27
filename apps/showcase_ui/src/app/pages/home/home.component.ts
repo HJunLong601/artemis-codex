@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+import { UiText, uiMessage } from '../../core/i18n/message';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
+
 import { Component, signal, computed, effect, inject, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CodexAuthComponent } from '../../components/codex-auth/codex-auth.component';
@@ -104,12 +108,13 @@ type AdbGuideTab = 'emulator' | 'usb' | 'wifi' | 'remote';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [FormsModule, CodexAuthComponent],
+  imports: [TranslatePipe, FormsModule, CodexAuthComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './home.component.scss'
 })
 export class HomeComponent implements OnInit, OnDestroy {
+  readonly i18n = inject(I18nService);
   public agentService = inject(AgentService);
   public systemService = inject(SystemService);
   public taskRecService = inject(TaskRecommendationService);
@@ -158,7 +163,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   public wifiHost = signal<string>('192.168.1.100');
   public wifiPort = signal<string>('5555');
   public isConnectingWifi = signal<boolean>(false);
-  public wifiConnectMessage = signal<string | null>(null);
+  public wifiConnectMessage = signal<UiText | null>(null);
   public wifiConnectError = signal<string | null>(null);
   public adbRestartFeedback = signal<string | null>(null);
   public showConnectionMethods = signal<boolean>(false);
@@ -238,9 +243,9 @@ export class HomeComponent implements OnInit, OnDestroy {
     const ei = this.explorerIndex();
     return [
       {
-        kind: 'verify',
-        name: 'Result check',
-        ends: ['Off', 'Strict'],
+        kind: "verify",
+        name: this.i18n.t("Result check"),
+        ends: [this.i18n.t("Off"), this.i18n.t("Strict")],
         ladder: VERIFICATION_LEVELS,
         index: vi,
         level: VERIFICATION_LEVELS[vi],
@@ -248,8 +253,8 @@ export class HomeComponent implements OnInit, OnDestroy {
       },
       {
         kind: 'explore',
-        name: 'Screen reading',
-        ends: ['Faster', 'Sharper'],
+        name: this.i18n.t("Screen reading"),
+        ends: [this.i18n.t("Faster"), this.i18n.t("Sharper")],
         ladder: EXPLORER_MODES,
         index: ei,
         level: EXPLORER_MODES[ei],
@@ -427,16 +432,16 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   public emuHypervisorTitle = computed(() => {
     const os = this.effectiveOs();
-    if (os === 'windows') return 'Enable Windows Hypervisor Platform (WHPX)';
-    if (os === 'darwin') return 'Verify macOS Hypervisor / Install Tools';
-    return 'Enable KVM Hardware Acceleration (Linux)';
+    if (os === 'windows') return this.i18n.t("Enable Windows Hypervisor Platform (WHPX)");
+    if (os === 'darwin') return this.i18n.t("Verify macOS Hypervisor / Install Tools");
+    return this.i18n.t("Enable KVM Hardware Acceleration (Linux)");
   });
 
   public emuHypervisorDesc = computed(() => {
     const os = this.effectiveOs();
-    if (os === 'windows') return 'Enable Windows Hypervisor Platform in PowerShell (Run as Administrator):';
+    if (os === 'windows') return this.i18n.t("Enable Windows Hypervisor Platform in PowerShell (Run as Administrator):");
     if (os === 'darwin') return 'macOS uses native Hypervisor.framework. Install SDK tools via Homebrew (or Studio):';
-    return 'Ensure virtualization permissions are granted to your user account:';
+    return this.i18n.t("Ensure virtualization permissions are granted to your user account:");
   });
 
   public emuHypervisorCmd = computed(() => {
@@ -765,7 +770,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   public getProviderDisplayName(tab: string): string {
     switch (tab) {
       case 'gemini': return 'Gemini';
-      case 'ocr': return 'Vision OCR';
+      case 'ocr': return this.i18n.t("Vision OCR");
       default: return tab;
     }
   }
@@ -781,11 +786,11 @@ export class HomeComponent implements OnInit, OnDestroy {
   public getProviderHint(tab: string): string {
     switch (tab) {
       case 'gemini':
-        return 'For a quick start, Google Gemini provides a free API key. Artemis also supports other models (OpenAI, Claude, OpenRouter, etc.)—you can configure your own API keys directly in .env or your environment.';
+        return this.i18n.t("For a quick start, Google Gemini provides a free API key. Artemis also supports other models (OpenAI, Claude, OpenRouter, etc.)—you can configure your own API keys directly in .env or your environment.");
       case 'ocr':
-        return 'Google Cloud Vision API key for on-screen OCR text detection and UI grounding.';
+        return this.i18n.t("Google Cloud Vision API key for on-screen OCR text detection and UI grounding.");
       default:
-        return 'Configure your API key or use environment definitions.';
+        return this.i18n.t("Configure your API key or use environment definitions.");
     }
   }
 
@@ -795,9 +800,9 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   public getApiKeyPlaceholder(tab: string): string {
     switch (tab) {
-      case 'gemini': return 'Enter Gemini API Key (e.g. AIzaSy...)';
-      case 'ocr': return 'Enter Vision OCR API Key (e.g. AIzaSy...)';
-      default: return 'Enter API Key...';
+      case 'gemini': return this.i18n.t("Enter Gemini API Key (e.g. AIzaSy...)");
+      case 'ocr': return this.i18n.t("Enter Vision OCR API Key (e.g. AIzaSy...)");
+      default: return this.i18n.t("Enter API Key...");
     }
   }
 
@@ -864,7 +869,7 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.isConnectingWifi.set(false);
         const cr = res?.connect_result;
         if (cr?.success) {
-          this.wifiConnectMessage.set(`Connected to ${host}:${port}!`);
+          this.wifiConnectMessage.set(uiMessage("Connected to {0}:{1}!", [host, port]));
           setTimeout(() => this.wifiConnectMessage.set(null), 4000);
         } else {
           this.wifiConnectError.set(cr?.message || 'Connection failed. Please check phone IP & Wi-Fi.');
@@ -1049,7 +1054,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   public applySuggestion(item: SmartSuggestion): void {
-    this.taskGoal.set(item.goal);
+    this.taskGoal.set(this.i18n.t(item.goal));
     this.selectedProfile.set(item.profile);
     this.errorMessage.set(null);
   }

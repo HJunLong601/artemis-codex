@@ -12,6 +12,7 @@
   <a href="#workflow-showcase">全流程演示</a> •
   <a href="#fork-features">Fork 特性</a> •
   <a href="#model-configuration">模型配置</a> •
+  <a href="#console-language">界面语言</a> •
   <a href="#visual-location-cache">缓存后台</a> •
   <a href="#quick-start">快速上手</a> •
   <a href="#device-selection">设备选择</a> •
@@ -40,6 +41,7 @@
 | 方向 | 主要能力 |
 |---|---|
 | **Codex 接入** | 复用本机 ChatGPT 登录态，核心流程无需额外模型 API Key；优先使用桌面客户端内置 Codex，支持按角色配置模型。[接入与配置](#model-configuration) |
+| **控制台与页面学习** | 支持记忆语言偏好的中英文界面、可视化模型配置和本机 Codex 模型选择；提供当前页预热和按预算运行的安全 Monkey 探索。[界面语言](#console-language) · [模型配置](#model-configuration) · [页面学习](#visual-location-cache) |
 | **缓存与运行优化** | 视觉位置缓存减少重复定位，后台提供查询、失败案例和节省时间估算；结合图片压缩、Flash 延迟摘要及截图与历史加载优化。[缓存说明](#visual-location-cache) · [耗时记录](./docs/model-call-performance.md) |
 | **跨平台与设备支持** | 统一 Windows/macOS/Linux 安装与诊断，完善真机优先选择、AVD 发现与复用；扩展 iOS 模拟器和真机驱动，真机自动点击仍待验收。[安装](#quick-start) · [设备](#device-selection) · [iOS](#ios-simulator) |
 
@@ -163,10 +165,21 @@ ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
 
 修改 `.env` 后重启 ARTEMIS/MCP。详细选择规则、路径发现和验收步骤见 [设备与模拟器说明](./docs/testing.md#android-emulator-without-a-physical-device)。
 
+<a id="console-language"></a>
+## 控制台界面语言
+
+主 Web 控制台支持 **英文和简体中文**。首次访问按浏览器首选语言选择，浏览器通常继承本机系统语言：中文地区与文字变体使用中文；英文、不支持的语言或无法获取语言时使用英文。
+
+在顶部导航旁选择 **English**、**中文** 或 **跟随系统**。手动选择会在当前浏览器记忆，并同步到同源的其他标签页；切换立即生效，保留未保存的编辑内容。选择“跟随系统”可清除手动覆盖；浏览器禁止存储时，仍可在当前页面切换。任务目标、模型回复、笔记、原始日志及设备、应用、模型名称保留原文。
+
+源码更新后，在 `apps/showcase_ui` 执行 `npm run build` 并刷新控制台。翻译维护和测试说明见 [前端文档](./apps/showcase_ui/README.md#console-languages)。
+
 <a id="model-configuration"></a>
 ## 模型与图片配置
 
 后台导航新增 **模型配置**（`/settings/models`）：可直接配置默认模型、各角色覆盖、备用模型及推理参数，也可配置 Provider API Key 和打开 Codex 登录。保存后用于新任务；外部 MCP 会话需要重启。[可视化配置说明](./docs/model-settings.md)。
+
+Codex 模型可从本机客户端 `model/list` 返回的目录中下拉选择，支持刷新和手动输入。目录未列出的已有模型配置会保留。模型出现在列表中不代表账号推理权限已验证，保存配置也不会自动调用付费推理。
 
 仍支持手动编辑 [`config/artemis.jsonc`](./config/artemis.jsonc)，手动修改后重启 ARTEMIS/MCP。配置文件只放模型与运行设置，其他 Provider 的密钥放在被 Git 忽略的 `.env`。
 

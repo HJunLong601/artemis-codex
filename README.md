@@ -12,6 +12,7 @@
   <a href="#workflow-showcase">Workflow Showcase</a> •
   <a href="#fork-features">Fork Features</a> •
   <a href="#model-configuration">Model Configuration</a> •
+  <a href="#console-language">Console Language</a> •
   <a href="#visual-location-cache">Cache Dashboard</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#device-selection">Device Selection</a> •
@@ -40,6 +41,7 @@
 | Area | Main capabilities |
 |---|---|
 | **Codex integration** | Reuse the local ChatGPT login for core workflows without a separate model API key. Prefer the desktop client's bundled Codex and configure models by role. [Setup and configuration](#model-configuration) |
+| **Console and page learning** | English/Chinese UI with remembered language preferences, visual model settings and a local Codex model picker, current-page warmup, and budgeted safe Monkey exploration. [Languages](#console-language) · [Models](#model-configuration) · [Page learning](#visual-location-cache) |
 | **Cache and runtime improvements** | Reuse visual positions to reduce repeated locating, with dashboard search, failure cases, and estimated savings; add image compression, deferred Flash summaries, and capture/history loading improvements. [Cache guide](#visual-location-cache) · [Timing records](./docs/model-call-performance.md) |
 | **Platforms and devices** | Shared Windows/macOS/Linux setup and diagnostics, physical-first selection, AVD discovery and reuse, plus iOS Simulator and physical-device drivers. Live automated iPhone tap acceptance remains pending. [Setup](#quick-start) · [Devices](#device-selection) · [iOS](#ios-simulator) |
 
@@ -166,10 +168,21 @@ ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
 
 Restart ARTEMIS/MCP after editing `.env`. See [device and emulator details](./docs/testing.md#android-emulator-without-a-physical-device) for selection, discovery, and acceptance steps.
 
+<a id="console-language"></a>
+## Console Language
+
+The main Web console supports **English and Simplified Chinese**. On the first visit it follows the browser's primary language, which normally inherits the operating system preference: Chinese regional/script variants select Chinese; English, unsupported languages, or missing locale information select English.
+
+Use the language selector beside the navigation tabs to choose **English**, **中文**, or **System default**. Manual choices persist in this browser and synchronize across same-origin tabs. Switching updates the current page immediately and preserves unsaved edits; returning to System default clears the override. If browser storage is unavailable, the selection still works for the current page. Task goals, model replies, notes, raw logs and device/app/model names remain in their original language.
+
+After updating a source checkout, run `npm run build` in `apps/showcase_ui` and refresh the console. See the [front-end guide](./apps/showcase_ui/README.md#console-languages) for translation maintenance and tests.
+
 <a id="model-configuration"></a>
 ## Model and Image Configuration
 
 Open **Model Settings** in the console navigation (`/settings/models`) to edit the default model, role overrides, fallback models and reasoning parameters, or configure provider API keys and Codex login. Changes apply to new tasks; restart external MCP sessions. [Visual configuration guide](./docs/model-settings.md).
+
+Codex model fields load a selectable catalog from the local client's `model/list`, with refresh and manual-input options. Models already configured but absent from the catalog are preserved. Listing a model does not verify your account's inference access; saving settings does not run paid inference.
 
 Manual editing of [`config/artemis.jsonc`](./config/artemis.jsonc) remains supported; restart ARTEMIS/MCP after manual changes. Keep model/runtime settings here and alternative provider credentials in the Git-ignored `.env`.
 

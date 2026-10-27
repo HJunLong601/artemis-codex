@@ -1,3 +1,5 @@
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, computed, inject, signal, viewChild } from '@angular/core';
@@ -15,11 +17,12 @@ export interface ExplorationTask {
 interface PageResult { page_key: string; activity: string; name: string; status: string; reason: string; attempts: number }
 
 @Component({
-  selector: 'app-cache-exploration', standalone: true, imports: [CommonModule, FormsModule],
+  selector: 'app-cache-exploration', standalone: true, imports: [TranslatePipe, CommonModule, FormsModule],
   templateUrl: './cache-exploration.component.html', styleUrl: './cache-exploration.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CacheExplorationComponent {
+  readonly i18n = inject(I18nService);
   private http = inject(HttpClient);
   private destroy = inject(DestroyRef);
   private injector = inject(Injector);
@@ -154,8 +157,8 @@ export class CacheExplorationComponent {
   private errorMessage(error: {status?: number; error?: {detail?: string}}) {
     const detail = error.error?.detail;
     if (detail && this.reasons[detail]) return this.reasons[detail];
-    if (detail === 'unfinished_task_on_device') return '该设备已有未结束任务，请选择原任务继续或停止。';
-    return error.status === 409 ? '任务状态、配置或设备条件已变化，请刷新并核对后重试。' : '请求结果待确认，请刷新状态；同一次开始请求可安全重试，不会重复创建。';
+    if (detail === 'unfinished_task_on_device') return this.i18n.t("该设备已有未结束任务，请选择原任务继续或停止。");
+    return error.status === 409 ? this.i18n.t("任务状态、配置或设备条件已变化，请刷新并核对后重试。") : this.i18n.t("请求结果待确认，请刷新状态；同一次开始请求可安全重试，不会重复创建。");
   }
   selectTask() { this.confirmStop.set(false); this.pageOffset.set(0); this.readPages(); }
   openStop(event: Event) {
@@ -175,6 +178,6 @@ export class CacheExplorationComponent {
   page(delta: number) { this.pageOffset.update(n => Math.max(0, n + delta)); this.readPages(); }
   resumable(task: ExplorationTask) { return ['paused', 'interrupted'].includes(task.status) && !task.unsettled && !['model_configuration_changed', 'accounting_unknown'].includes(task.reason); }
   terminal(task: ExplorationTask) { return ['stopped', 'ended'].includes(task.status); }
-  label(page: PageResult) { return page.name || `${page.activity?.split('.').pop() || this.task()?.config.package || '页面'} · ${page.page_key.slice(0, 8)}`; }
-  reason(value: string) { return this.reasons[value] || (value.startsWith('worker_error_') ? '执行失败，请查看本地诊断并检查模型/设备' : value); }
+  label(page: PageResult) { return page.name || `${page.activity?.split('.').pop() || this.task()?.config.package || this.i18n.t("页面")} · ${page.page_key.slice(0, 8)}`; }
+  reason(value: string) { return this.reasons[value] || (value.startsWith('worker_error_') ? this.i18n.t("执行失败，请查看本地诊断并检查模型/设备") : value); }
 }

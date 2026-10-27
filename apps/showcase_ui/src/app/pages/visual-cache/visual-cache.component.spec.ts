@@ -153,7 +153,7 @@ describe('Visual cache page identity', () => {
     request.flush({ status: 'complete', stored: 3 });
     http.expectOne('/api/system/visual-cache').flush(stats([]));
     expect(component.warming()).toBeFalse();
-    expect(component.warmupMessage()).toContain('3');
+    expect(component.i18n.t(component.warmupMessage())).toContain('3');
     expect(component.warmupConfirmed()).toBeFalse();
   });
 
@@ -182,6 +182,6 @@ describe('Visual cache page identity', () => {
     http.expectOne('/api/system/visual-cache').flush(stats([]));
     expect(component.warming()).toBeFalse();
     expect(component.warmupConfirmed()).toBeFalse();
-    expect(component.warmupMessage()).not.toContain('PRIVATE');
+    expect(component.i18n.t(component.warmupMessage())).not.toContain('PRIVATE');
   });
 });

@@ -1,3 +1,5 @@
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
@@ -33,10 +35,11 @@ export function modelEdits(before: ModelSettings, after: ModelSettings): ModelEd
 }
 
 @Component({
-  selector: 'app-model-settings', standalone: true, imports: [FormsModule, CodexAuthComponent],
+  selector: 'app-model-settings', standalone: true, imports: [TranslatePipe, FormsModule, CodexAuthComponent],
   templateUrl: './model-settings.component.html', styleUrl: './model-settings.component.scss'
 })
 export class ModelSettingsComponent implements OnInit {
+  readonly i18n = inject(I18nService);
   private http = inject(HttpClient);
   private base = '/api/system/model-settings';
   original = signal<ModelSettings | null>(null);
@@ -103,9 +106,9 @@ export class ModelSettingsComponent implements OnInit {
     });
   }
   inherited(role: string, fallback: boolean, field: string) {
-    if (role === 'default') return '使用运行时默认值';
+    if (role === 'default') return this.i18n.t("使用运行时默认值");
     const value = fallback ? this.draft?.default.fallback?.[field] : this.draft?.default[field];
-    return `继承默认${value === undefined ? '' : `：${value}`}`;
+    return this.i18n.t("继承默认{0}", [value === undefined ? '' : `：${value}`]);
   }
   summary(role: string) {
     const row = this.route(role), defaults = this.draft!.default;

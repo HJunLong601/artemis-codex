@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
+
 import { Component, ChangeDetectionStrategy, NgZone, signal, computed, effect, inject, untracked, DestroyRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -233,12 +236,13 @@ export type { MarkdownSegment, MarkdownLine, NoteMilestone, ParsedNote, StreamRe
 @Component({
   selector: 'app-agent-stream',
   standalone: true,
-  imports: [CommonModule, FormsModule, OverlayModule],
+  imports: [TranslatePipe, CommonModule, FormsModule, OverlayModule],
   templateUrl: './agent-stream.component.html',
   styleUrl: './agent-stream.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AgentStreamComponent implements AfterViewInit {
+  readonly i18n = inject(I18nService);
   public agentService = inject(AgentService);
   private http = inject(HttpClient);
   private destroyRef = inject(DestroyRef);
@@ -929,7 +933,7 @@ export class AgentStreamComponent implements AfterViewInit {
 
   public deleteTask(sessionId: string, event?: Event): void {
     if (event) event.stopPropagation();
-    if (!confirm(`Are you sure you want to delete this task? This cannot be undone.`)) {
+    if (!confirm(this.i18n.t("Are you sure you want to delete this task? This cannot be undone."))) {
       return;
     }
     this.agentService.deleteSession(sessionId).subscribe({
@@ -1327,7 +1331,7 @@ export class AgentStreamComponent implements AfterViewInit {
   }
 
   public getActionTitle(action: any): string {
-    return getActionTitle(action);
+    return getActionTitle(action, (key, params) => this.i18n.t(key, params));
   }
 
   public getActionTargetText(action: any): string {
@@ -1335,7 +1339,7 @@ export class AgentStreamComponent implements AfterViewInit {
   }
 
   public getActionInputLabel(action: any): string {
-    return getActionInputLabel(action);
+    return getActionInputLabel(action, (key, params) => this.i18n.t(key, params));
   }
 
   public getActionInputText(action: any): string {
@@ -1486,12 +1490,12 @@ export class AgentStreamComponent implements AfterViewInit {
   }
 
   public getToolDisplayLabel(tool: any): string {
-    return getToolDisplayLabel(tool, this.isFirstSaveNoteForKey(tool));
+    return getToolDisplayLabel(tool, this.isFirstSaveNoteForKey(tool), (key, params) => this.i18n.t(key, params));
   }
 
   /** Short plain-language phase for a compress_history line (hover title). */
   public getCompressionPhaseTitle(tool: any): string | null {
-    return isCompressionTool(tool) ? getCompressionPhaseLabel(tool) : null;
+    return isCompressionTool(tool) ? getCompressionPhaseLabel(tool, (key, params) => this.i18n.t(key, params)) : null;
   }
 
   /**
@@ -1516,12 +1520,12 @@ export class AgentStreamComponent implements AfterViewInit {
   }
 
   public getVideoAnalysisLabel(tool: any): string {
-    return getVideoAnalysisView(tool)?.title || 'Analyzing screen recording';
+    return getVideoAnalysisView(tool)?.title || this.i18n.t("Analyzing screen recording");
   }
 
   public getVideoAnalysisRangeLabel(tool: any): string {
     const range = getVideoAnalysisView(tool)?.requestedRange;
-    if (!range) return 'Screen recording';
+    if (!range) return this.i18n.t("Screen recording");
     return `${formatVideoTime(range.start)}–${formatVideoTime(range.end)}`;
   }
 
@@ -1554,23 +1558,23 @@ export class AgentStreamComponent implements AfterViewInit {
 
   public getScreenRecordingButtonTitle(): string {
     if (this.agentService.isCurrentSessionRunning()) {
-      return 'Task is currently running (Recording screen)';
+      return this.i18n.t("Task is currently running (Recording screen)");
     }
     if (this.agentService.currentSessionRecordingStatus() === 'processing') {
-      return 'Preparing screen recording...';
+      return this.i18n.t("Preparing screen recording...");
     }
     if (this.agentService.currentSessionVideoUrl()) {
-      return 'Play Screen Recording Video';
+      return this.i18n.t("Play Screen Recording Video");
     }
     if (this.agentService.hasCurrentSessionStepFrames()) {
       return this.agentService.currentSessionRecordingStatus() === 'failed'
-        ? 'Video recording failed — Click to replay step-by-step screenshots'
-        : 'Play step-by-step screenshots replay';
+        ? this.i18n.t("Video recording failed — Click to replay step-by-step screenshots")
+        : this.i18n.t("Play step-by-step screenshots replay");
     }
     if (this.agentService.currentSessionRecordingStatus() === 'failed') {
-      return 'Screen recording generation failed';
+      return this.i18n.t("Screen recording generation failed");
     }
-    return 'Screen Recording';
+    return this.i18n.t("Screen Recording");
   }
 
   public isDeviceActionTool(tool: any): boolean {
@@ -1639,11 +1643,11 @@ export class AgentStreamComponent implements AfterViewInit {
   public getCheckerPhaseLabel(block: any): string {
     switch (block?.data?.phase) {
       case 'final':
-        return 'Final check';
+        return this.i18n.t("Final check");
       case 'outcome':
         return 'Result';
       default:
-        return 'Check';
+        return this.i18n.t("Check");
     }
   }
 
@@ -1660,8 +1664,8 @@ export class AgentStreamComponent implements AfterViewInit {
 
   /** How the item is judged, in plain words (verify = must pass, assert = recorded test result). */
   public getCheckMethodLabel(item: any, block: any): string {
-    const parts: string[] = [item?.kind === 'assert' ? 'Test assertion' : 'Must pass'];
-    if (item?.when === 'at_end' && block?.data?.phase !== 'final') parts.push('at the end');
+    const parts: string[] = [this.i18n.t(item?.kind === 'assert' ? 'Test assertion' : 'Must pass')];
+    if (item?.when === 'at_end' && block?.data?.phase !== 'final') parts.push(this.i18n.t('At the end'));
     return parts.join(' · ');
   }
 
@@ -1682,13 +1686,13 @@ export class AgentStreamComponent implements AfterViewInit {
       case 'passed':
         return 'Passed';
       case 'failed':
-        return 'Failed';
+        return this.i18n.t("Failed");
       case 'inconclusive':
-        return 'Could not be confirmed';
+        return this.i18n.t("Could not be confirmed");
       case 'superseded':
-        return 'Superseded by a newer check';
+        return this.i18n.t("Superseded by a newer check");
       case 'unchecked':
-        return 'Not checked';
+        return this.i18n.t("Not checked");
       default:
         return status || '';
     }
@@ -1772,14 +1776,14 @@ export class AgentStreamComponent implements AfterViewInit {
         .map(([n, word]) => `${n} ${word}`);
       return counts.length > 0 ? `${label} · ${counts.join(' · ')}` : label;
     }
-    if (d.isCompleted === false) return 'Checking…';
+    if (d.isCompleted === false) return this.i18n.t("Checking…");
     switch (d.status) {
       case 'superseded':
-        return 'Superseded';
+        return this.i18n.t("Superseded");
       case 'unchecked':
-        return 'Not checked';
+        return this.i18n.t("Not checked");
       case 'error':
-        return 'No verdict';
+        return this.i18n.t("No verdict");
     }
     const verdicts = this.getCheckerVerdicts(block);
     const failed = verdicts.filter((v) => v.status === 'failed').length;
@@ -1854,7 +1858,7 @@ export class AgentStreamComponent implements AfterViewInit {
   }
 
   public getBackendSwitchMessage(tool: any): string {
-    return String(tool?.payload?.message || 'UI hierarchy source changed');
+    return String(tool?.payload?.message || this.i18n.t("UI hierarchy source changed"));
   }
 
   public resumePausedTask(event: Event): void {
@@ -1868,14 +1872,14 @@ export class AgentStreamComponent implements AfterViewInit {
     const rawError = tool.payload?.error || tool.error;
     if (!rawError) return noDetails;
     const cleaned = this.cleanErrorMessage(rawError);
-    return cleaned === 'Unknown error' ? noDetails : cleaned;
+    return cleaned === "Unknown error" ? noDetails : cleaned;
   }
 
   public isLLMRetry(tool: any): boolean {
     return tool?.type === 'llm_call'
       && tool?.status === 'retrying'
       && tool?.payload?.source === 'provider_sdk'
-      && ['google', 'gemini'].includes(String(tool?.payload?.provider || '').toLowerCase());
+      && ["google", 'gemini'].includes(String(tool?.payload?.provider || '').toLowerCase());
   }
 
   public getLLMRetryEntries(tool: any): any[] {
@@ -1888,7 +1892,7 @@ export class AgentStreamComponent implements AfterViewInit {
     if (!Array.isArray(retries)) return [];
     return retries.filter((retry: any) =>
       retry?.source === 'provider_sdk'
-      && ['google', 'gemini'].includes(String(retry?.provider || '').toLowerCase())
+      && ["google", 'gemini'].includes(String(retry?.provider || '').toLowerCase())
     );
   }
 
@@ -1904,7 +1908,7 @@ export class AgentStreamComponent implements AfterViewInit {
 
   public getLLMRetryEntryWaited(entry: any): string {
     const delay = Number(entry?.delay);
-    if (!Number.isFinite(delay) || delay <= 0) return '0s';
+    if (!Number.isFinite(delay) || delay <= 0) return this.i18n.t("0s");
 
     const rawStartedAt = Number(entry?.scheduled_at ?? entry?.timestamp);
     if (!Number.isFinite(rawStartedAt) || rawStartedAt <= 0) {
@@ -1930,7 +1934,7 @@ export class AgentStreamComponent implements AfterViewInit {
   }
 
   public formatLLMDuration(seconds: number): string {
-    if (seconds < 0.05) return '0s';
+    if (seconds < 0.05) return this.i18n.t("0s");
     if (seconds < 10) return `${seconds.toFixed(1).replace(/\.0$/, '')}s`;
     return `${Math.round(seconds)}s`;
   }
@@ -1972,7 +1976,7 @@ export class AgentStreamComponent implements AfterViewInit {
   }
 
   public getToolTitle(tool: any): string {
-    return getToolTitle(tool);
+    return getToolTitle(tool, (key, params) => this.i18n.t(key, params));
   }
 
   public getToolTargetText(tool: any): string {
@@ -1980,7 +1984,7 @@ export class AgentStreamComponent implements AfterViewInit {
   }
 
   public getToolInputLabel(tool: any): string {
-    return getToolInputLabel(tool);
+    return getToolInputLabel(tool, (key, params) => this.i18n.t(key, params));
   }
 
   public getToolInputText(tool: any): string {
@@ -2051,13 +2055,13 @@ export class AgentStreamComponent implements AfterViewInit {
   public getStatusLabel(status: string): string {
     switch (status) {
       case 'idle':
-        return 'Idle';
+        return this.i18n.t("Idle");
       case 'running':
-        return 'Running';
+        return this.i18n.t("Running");
       case 'completed':
-        return 'Completed';
+        return this.i18n.t("Completed");
       case 'offline':
-        return 'Offline';
+        return this.i18n.t("Offline");
       default:
         return status.toUpperCase();
     }
@@ -2162,16 +2166,16 @@ export class AgentStreamComponent implements AfterViewInit {
   }
 
   public getArchitectureTooltip(model?: ModelInfo | null): string {
-    if (!model) return 'Agent Architecture: ARTEMIS Flash (Reactive Fast Loop)';
+    if (!model) return this.i18n.t("Agent Architecture: ARTEMIS Flash (Reactive Fast Loop)");
     const name = this.getModelDisplayName(model.name);
     const isPro = name.toLowerCase().includes('pro');
     const archDesc = isPro
       ? 'ARTEMIS Pro (Multi-Agent Cognitive State Graph)'
       : 'ARTEMIS Flash (Reactive Fast Loop)';
     if (model.id) {
-      return `Agent Architecture: ${archDesc} · LLM: ${model.id} (${model.provider || 'google'})`;
+      return this.i18n.t("Agent Architecture: {0} · LLM: {1} ({2})", [archDesc, model.id, model.provider || 'google']);
     }
-    return `Agent Architecture: ${archDesc}`;
+    return this.i18n.t("Agent Architecture: {0}", [archDesc]);
   }
 
   public formatTokenCount(tokens?: number): string {
@@ -2181,9 +2185,9 @@ export class AgentStreamComponent implements AfterViewInit {
   public getTokenTooltip(phase: PhaseBlock): string {
     if (!phase.tokens) return '';
     if (phase.promptTokens && phase.completionTokens) {
-      return `Consumed: ${phase.tokens.toLocaleString()} tokens (${phase.promptTokens.toLocaleString()} in / ${phase.completionTokens.toLocaleString()} out)`;
+      return this.i18n.t("Consumed: {0} tokens ({1} in / {2} out)", [phase.tokens.toLocaleString(), phase.promptTokens.toLocaleString(), phase.completionTokens.toLocaleString()]);
     }
-    return `Consumed: ${phase.tokens.toLocaleString()} tokens`;
+    return this.i18n.t("Consumed: {0} tokens", [phase.tokens.toLocaleString()]);
   }
 
   public isCurrentSessionActive(): boolean {

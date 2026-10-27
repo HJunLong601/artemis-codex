@@ -1,135 +1,136 @@
 <main class="cache-page">
   <header class="page-heading">
     <div>
-      <p class="eyebrow">ARTEMIS / VISUAL CACHE</p>
-      <h1>页面缓存</h1>
-      <p class="subtitle">查看已学习的元素位置，以及跨任务的定位复用情况。</p>
+      <p class="eyebrow">{{ 'ARTEMIS / VISUAL CACHE' | t }}</p>
+      <h1>{{ '页面缓存' | t }}</h1>
+      <p class="subtitle">{{ '查看已学习的元素位置，以及跨任务的定位复用情况。' | t }}</p>
     </div>
     <button type="button" class="refresh-button" (click)="refresh()" [disabled]="loading()">
       <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
-      {{ loading() ? '读取中…' : '刷新统计' }}
+
+      {{ loading() ? ('读取中…' | t) : ('刷新统计' | t) }}
     </button>
   </header>
 
   <app-cache-exploration />
   @if (error()) {
-    <div class="notice error" role="alert">{{ error() }} @if (stats()) { <span>下方保留上次读取的数据。</span> }</div>
+    <div class="notice error" role="alert">{{ ((error()) | t) }} @if (stats()) { <span>{{ '下方保留上次读取的数据。' | t }}</span> }</div>
   }
   @if (stats(); as data) {
-    <section class="panel warmup" aria-label="主动预热当前页面">
-      <div class="panel-heading"><h2>主动预热当前页面</h2><button type="button" (click)="openWarmup()" [disabled]="!data.enabled || warming() || warmupLoading()">{{ warmupLoading() ? '读取设备中…' : '选择设备并预热' }}</button></div>
-      <p class="detail-note">仅学习所选 Android 设备当前可见页面，最多 20 个常用控件；不会点击、翻页或自动遍历。学习会将当前截图发送至配置的模型并消耗额度，请先避开敏感页面。</p>
+    <section class="panel warmup" [attr.aria-label]="'主动预热当前页面' | t">
+      <div class="panel-heading"><h2>{{ '主动预热当前页面' | t }}</h2><button type="button" (click)="openWarmup()" [disabled]="!data.enabled || warming() || warmupLoading()">{{ warmupLoading() ? ('读取设备中…' | t) : ('选择设备并预热' | t) }}</button></div>
+      <p class="detail-note">{{ '仅学习所选 Android 设备当前可见页面，最多 20 个常用控件；不会点击、翻页或自动遍历。学习会将当前截图发送至配置的模型并消耗额度，请先避开敏感页面。' | t }}</p>
       @if (warmupOpen()) {
         <div class="warmup-controls">
-          <label>目标设备<select [ngModel]="warmupDevice()" (ngModelChange)="warmupDevice.set($event); warmupConfirmed.set(false)" [disabled]="warming()"><option value="">请明确选择设备</option>@for (item of warmupDevices(); track item.canonical_id) { <option [value]="item.canonical_id" [disabled]="item.is_busy">{{ item.name || item.serial }} · {{ item.is_busy ? '忙碌' : '空闲' }}</option> }</select></label>
-          <label class="warmup-confirm"><input type="checkbox" [ngModel]="warmupConfirmed()" (ngModelChange)="warmupConfirmed.set($event)" [disabled]="warming()" />我确认发送当前截图并调用模型学习</label>
-          <button type="button" (click)="startWarmup()" [disabled]="!data.enabled || warming() || !warmupDevice() || !warmupConfirmed()">{{ warming() ? '学习中…' : '学习当前页面' }}</button>
+          <label>{{ '目标设备' | t }}<select [ngModel]="warmupDevice()" (ngModelChange)="warmupDevice.set($event); warmupConfirmed.set(false)" [disabled]="warming()"><option value="">{{ '请明确选择设备' | t }}</option>@for (item of warmupDevices(); track item.canonical_id) { <option [value]="item.canonical_id" [disabled]="item.is_busy">{{ item.name || item.serial }} · {{ item.is_busy ? ('忙碌' | t) : ('空闲' | t) }}</option> }</select></label>
+          <label class="warmup-confirm"><input type="checkbox" [ngModel]="warmupConfirmed()" (ngModelChange)="warmupConfirmed.set($event)" [disabled]="warming()" />{{ '我确认发送当前截图并调用模型学习' | t }}</label>
+          <button type="button" (click)="startWarmup()" [disabled]="!data.enabled || warming() || !warmupDevice() || !warmupConfirmed()">{{ warming() ? ('学习中…' | t) : ('学习当前页面' | t) }}</button>
         </div>
-        @if (!warmupLoading() && !warmupDevices().length) { <p class="detail-note">暂无已授权的 Android 设备；连接设备后重新打开入口。</p> }
+        @if (!warmupLoading() && !warmupDevices().length) { <p class="detail-note">{{ '暂无已授权的 Android 设备；连接设备后重新打开入口。' | t }}</p> }
       }
-      @if (warmupMessage()) { <p class="detail-note" role="status">{{ warmupMessage() }}</p> }
+      @if (warmupMessage()) { <p class="detail-note" role="status">{{ ((warmupMessage()) | t) }}</p> }
     </section>
     <div class="status-row">
-      <span class="status-pill" [class.disabled]="!data.enabled"><span class="status-dot"></span>{{ data.enabled ? '缓存已启用' : '缓存已关闭' }}</span>
-      <span>读取时间 {{ data.checked_at * 1000 | date:'HH:mm:ss' }}</span>
+      <span class="status-pill" [class.disabled]="!data.enabled"><span class="status-dot"></span>{{ data.enabled ? ('缓存已启用' | t) : ('缓存已关闭' | t) }}</span>
+      <span>{{ '读取时间 {0}' | t:[(data.checked_at * 1000 | date:'HH:mm:ss':undefined:i18n.locale())] }}</span>
     </div>
     @if (!data.enabled) {
-      <div class="notice">当前已关闭缓存复用，下方展示已保留的缓存数据。</div>
+      <div class="notice">{{ '当前已关闭缓存复用，下方展示已保留的缓存数据。' | t }}</div>
     }
-    <section class="metrics" aria-label="缓存总览">
-      <article class="metric"><span>缓存元素</span><strong>{{ data.totals.positions | number }}</strong><small>按需定位与批量预缓存合计</small></article>
-      <article class="metric accent"><span>复用次数</span><strong>{{ data.totals.hits | number }}</strong><small>当前条目的累计命中次数</small></article>
-      <article class="metric"><span>页面指纹</span><strong>{{ data.totals.pages | number }}</strong><small>按设备和应用区分的页面</small></article>
-      <article class="metric"><span>设备 / 应用</span><strong>{{ data.totals.devices | number }} <em>/</em> {{ data.totals.applications | number }}</strong><small>拥有缓存的设备和应用</small></article>
+    <section class="metrics" [attr.aria-label]="'缓存总览' | t">
+      <article class="metric"><span>{{ '缓存元素' | t }}</span><strong>{{ data.totals.positions | number:'1.0-3':i18n.locale() }}</strong><small>{{ '按需定位与批量预缓存合计' | t }}</small></article>
+      <article class="metric accent"><span>{{ '复用次数' | t }}</span><strong>{{ data.totals.hits | number:'1.0-3':i18n.locale() }}</strong><small>{{ '当前条目的累计命中次数' | t }}</small></article>
+      <article class="metric"><span>{{ '页面指纹' | t }}</span><strong>{{ data.totals.pages | number:'1.0-3':i18n.locale() }}</strong><small>{{ '按设备和应用区分的页面' | t }}</small></article>
+      <article class="metric"><span>{{ '设备 / 应用' | t }}</span><strong>{{ data.totals.devices | number:'1.0-3':i18n.locale() }} <em>/</em>  {{ data.totals.applications | number:'1.0-3':i18n.locale() }}</strong><small>{{ '拥有缓存的设备和应用' | t }}</small></article>
     </section>
 
-    <p class="detail-note">一个页面可缓存多个元素。{{ data.batch_prefetch ? '批量预缓存已开启' : '批量预缓存已关闭' }}，首次视觉定位最多额外提取 {{ data.max_elements_per_page ?? 20 }} 个常用元素；每台设备共享 {{ data.capacity_per_device | number }} 条额度，未使用预缓存最多占 {{ data.probation_limit ?? data.capacity_per_device }} 条，命中后提升保留优先级。</p>
-    <p class="counting-note"><span class="material-symbols-outlined" aria-hidden="true">info</span>上方为当前保留条目的计数；下方累计统计从新版启用后开始记录，清理或淘汰不会重置。命中率仅针对进入视觉缓存查询的目标，不包含 XML 直接定位。</p>
+    <p class="detail-note">{{ '一个页面可缓存多个元素。{0}，首次视觉定位最多额外提取 {1} 个常用元素；每台设备共享 {2} 条额度，未使用预缓存最多占 {3} 条，命中后提升保留优先级。' | t:[(data.batch_prefetch ? ('批量预缓存已开启' | t) : ('批量预缓存已关闭' | t)), (data.max_elements_per_page ?? 20), (data.capacity_per_device | number:'1.0-3':i18n.locale()), (data.probation_limit ?? data.capacity_per_device)] }}</p>
+    <p class="counting-note"><span class="material-symbols-outlined" aria-hidden="true">info</span>{{ '上方为当前保留条目的计数；下方累计统计从新版启用后开始记录，清理或淘汰不会重置。命中率仅针对进入视觉缓存查询的目标，不包含 XML 直接定位。' | t }}</p>
     @if (data.history; as history) {
-      <section class="panel history" aria-label="累计缓存效果">
-        <div class="panel-heading"><h2>累计缓存效果</h2><span>{{ history.since ? '开始于 ' + (history.since * 1000 | date:'MM-dd HH:mm') : '等待首次查询' }}</span></div>
+      <section class="panel history" [attr.aria-label]="'累计缓存效果' | t">
+        <div class="panel-heading"><h2>{{ '累计缓存效果' | t }}</h2><span>{{ history.since ? ('开始于 ' | t) + (history.since * 1000 | date:'MM-dd HH:mm':undefined:i18n.locale()) : ('等待首次查询' | t) }}</span></div>
         <div class="metrics">
-          <article class="metric accent time-saved"><span>节省时间</span><strong>{{ savedTime(history.estimated_saved_ms) }}</strong><small>基于 {{ history.estimated_hits ?? 0 }} / {{ history.hits }} 次命中的历史耗时估算</small></article>
-          <article class="metric"><span>查询 / 命中率</span><strong>{{ history.queries | number }} <em>/</em> {{ history.hit_rate === null ? '—' : (history.hit_rate * 100 | number:'1.0-1') + '%' }}</strong><small>精确命中 {{ count('exact_hit') }} · 局部校验复用 {{ count('local_hit') }} · 固定区域复用 {{ count('region_hit') }}</small></article>
-          <article class="metric"><span>预热后复访命中率</span><strong>{{ history.warm_reuse?.hit_rate == null ? '—' : (history.warm_reuse!.hit_rate! * 100 | number:'1.0-1') + '%' }}</strong><small>已命中 {{ history.warm_reuse?.hits ?? 0 }} / 再次查询 {{ history.warm_reuse?.queries ?? 0 }} 个目标</small></article>
-          <article class="metric"><span>预缓存使用率</span><strong>{{ count('prefetch_stored_elements') ? (percent(count('prefetch_used_elements'), count('prefetch_stored_elements')) | number:'1.0-1') + '%' : '—' }}</strong><small>已使用 {{ count('prefetch_used_elements') }} / 累计存入 {{ count('prefetch_stored_elements') }} 个</small></article>
-          <article class="metric"><span>缓存查询平均耗时</span><strong>{{ average('lookup_batches') === null ? '—' : (average('lookup_batches') | number:'1.0-1') + ' ms' }}</strong><small>每批目标查询，包含坐标校验</small></article>
-          <article class="metric"><span>视觉定位平均耗时</span><strong>{{ average('visual_batches') === null ? '—' : (average('visual_batches')! / 1000 | number:'1.0-2') + ' s' }}</strong><small>每批实际视觉定位，包含失败与重试</small></article>
+          <article class="metric accent time-saved"><span>{{ '节省时间' | t }}</span><strong>{{ savedTime(history.estimated_saved_ms) }}</strong><small>{{ '基于 {0} / {1} 次命中的历史耗时估算' | t:[(history.estimated_hits ?? 0), (history.hits)] }}</small></article>
+          <article class="metric"><span>{{ '查询 / 命中率' | t }}</span><strong>{{ history.queries | number:'1.0-3':i18n.locale() }} <em>/</em>  {{ history.hit_rate === null ? '—' : (history.hit_rate * 100 | number:'1.0-1':i18n.locale()) + '%' }}</strong><small>{{ '精确命中 {0} · 局部校验复用 {1} · 固定区域复用 {2}' | t:[(count('exact_hit')), (count('local_hit')), (count('region_hit'))] }}</small></article>
+          <article class="metric"><span>{{ '预热后复访命中率' | t }}</span><strong>{{ history.warm_reuse?.hit_rate == null ? '—' : (history.warm_reuse!.hit_rate! * 100 | number:'1.0-1':i18n.locale()) + '%' }}</strong><small>{{ '已命中 {0} / 再次查询 {1} 个目标' | t:[(history.warm_reuse?.hits ?? 0), (history.warm_reuse?.queries ?? 0)] }}</small></article>
+          <article class="metric"><span>{{ '预缓存使用率' | t }}</span><strong>{{ count('prefetch_stored_elements') ? (percent(count('prefetch_used_elements'), count('prefetch_stored_elements')) | number:'1.0-1':i18n.locale()) + '%' : '—' }}</strong><small>{{ '已使用 {0} / 累计存入 {1} 个' | t:[(count('prefetch_used_elements')), (count('prefetch_stored_elements'))] }}</small></article>
+          <article class="metric"><span>{{ '缓存查询平均耗时' | t }}</span><strong>{{ average('lookup_batches') === null ? '—' : (average('lookup_batches') | number:'1.0-1':i18n.locale()) + (' ms' | t) }}</strong><small>{{ '每批目标查询，包含坐标校验' | t }}</small></article>
+          <article class="metric"><span>{{ '视觉定位平均耗时' | t }}</span><strong>{{ average('visual_batches') === null ? '—' : (average('visual_batches')! / 1000 | number:'1.0-2':i18n.locale()) + (' s' | t) }}</strong><small>{{ '每批实际视觉定位，包含失败与重试' | t }}</small></article>
         </div>
-        <p class="detail-note">节省时间按同设备、同应用的平均视觉定位耗时折算缓存命中收益，并扣除全部缓存查询开销。仅统计有耗时样本的命中；多目标并行等会影响实际提速。</p>
-        <p class="detail-note">未命中原因是累计目标查询次数，不是待学习页面数；学会后不会扣减历史未命中。预热后复访按新版成功学习后的同设备、应用、Activity 与页面结构（无结构时用精确指纹）的再次视觉查询计数，不是去重访问次数；不包含首次冷查询、预热请求或 XML 直接定位，旧数据不回算。</p>
-        <p class="detail-note">缓存坐标对应的设备动作：已下发 {{ count('action_dispatched') }} 次，执行失败 {{ count('action_failed') }} 次。下发成功不代表页面跳转或任务目标已验证。仅关联同一截图下坐标完全匹配的下一次动作。</p>
-        <div class="reason-list">@for (reason of history.misses | keyvalue; track reason.key) { <span>{{ missNames[reason.key] || reason.key }} <strong>{{ reason.value | number }}</strong></span> } @empty { <span>暂无未命中记录</span> }</div>
+        <p class="detail-note">{{ '节省时间按同设备、同应用的平均视觉定位耗时折算缓存命中收益，并扣除全部缓存查询开销。仅统计有耗时样本的命中；多目标并行等会影响实际提速。' | t }}</p>
+        <p class="detail-note">{{ '未命中原因是累计目标查询次数，不是待学习页面数；学会后不会扣减历史未命中。预热后复访按新版成功学习后的同设备、应用、Activity 与页面结构（无结构时用精确指纹）的再次视觉查询计数，不是去重访问次数；不包含首次冷查询、预热请求或 XML 直接定位，旧数据不回算。' | t }}</p>
+        <p class="detail-note">{{ '缓存坐标对应的设备动作：已下发 {0} 次，执行失败 {1} 次。下发成功不代表页面跳转或任务目标已验证。仅关联同一截图下坐标完全匹配的下一次动作。' | t:[(count('action_dispatched')), (count('action_failed'))] }}</p>
+        <div class="reason-list">@for (reason of history.misses | keyvalue; track reason.key) { <span>{{ ((missNames[reason.key] || reason.key) | t) }} <strong>{{ ((reason.value | number:'1.0-3':i18n.locale()) | t) }}</strong></span> } @empty { <span>{{ '暂无未命中记录' | t }}</span> }</div>
         <details>
-          <summary>跳过缓存的原因</summary>
-          <p class="detail-note">按缓存范围检查次数累计，同一次定位可能检查多次；不计入目标查询数或未命中率。关闭缓存及 XML 直接定位不产生这些计数。</p>
-          <div class="reason-list">@for (reason of history.bypasses | keyvalue; track reason.key) { <span>{{ bypassNames[reason.key] || reason.key }} <strong>{{ reason.value | number }}</strong></span> } @empty { <span>暂无跳过记录</span> }</div>
+          <summary>{{ '跳过缓存的原因' | t }}</summary>
+          <p class="detail-note">{{ '按缓存范围检查次数累计，同一次定位可能检查多次；不计入目标查询数或未命中率。关闭缓存及 XML 直接定位不产生这些计数。' | t }}</p>
+          <div class="reason-list">@for (reason of history.bypasses | keyvalue; track reason.key) { <span>{{ ((bypassNames[reason.key] || reason.key) | t) }} <strong>{{ ((reason.value | number:'1.0-3':i18n.locale()) | t) }}</strong></span> } @empty { <span>{{ '暂无跳过记录' | t }}</span> }</div>
         </details>
-        <p class="detail-note">纠错失效 {{ count('corrections') }} 次 · 执行失败失效 {{ count('execution_invalidations') }} 次 · 元素去重 {{ count('deduplicated_writes') }} 次</p>
+        <p class="detail-note">{{ '纠错失效 {0} 次 · 执行失败失效 {1} 次 · 元素去重 {2} 次' | t:[(count('corrections')), (count('execution_invalidations')), (count('deduplicated_writes'))] }}</p>
       </section>
-      <section class="panel inventory" aria-label="页面学习状态">
-        <div class="panel-heading"><h2>页面学习状态</h2><span>最近 200 个页面记录</span></div>
-        <div class="reason-list">@for (state of history.inventory_counts | keyvalue; track state.key) { <span>{{ stateName(state.key) }} <strong>{{ state.value }}</strong></span> } @empty { <span>尚无新版学习记录</span> }</div>
-        <details><summary>查看学习记录与重试状态</summary>
+      <section class="panel inventory" [attr.aria-label]="'页面学习状态' | t">
+        <div class="panel-heading"><h2>{{ '页面学习状态' | t }}</h2><span>{{ '最近 200 个页面记录' | t }}</span></div>
+        <div class="reason-list">@for (state of history.inventory_counts | keyvalue; track state.key) { <span>{{ ((stateName(state.key)) | t) }} <strong>{{ state.value }}</strong></span> } @empty { <span>{{ '尚无新版学习记录' | t }}</span> }</div>
+        <details><summary>{{ '查看学习记录与重试状态' | t }}</summary>
           @for (item of history.inventory; track item.device_key + item.application + item.page_key) {
-            <div class="inventory-row"><span>{{ item.application }} · {{ item.device_key.slice(0, 8) }}<code>{{ item.page_key.slice(0, 16) }}</code></span><span>{{ stateName(item.status) }} · 保留 {{ item.retained }} / {{ item.expected }}<small>@if (item.retry_after > data.checked_at && item.status !== 'complete') { {{ item.status === 'learning' ? '学习占用至' : '允许重试于' }} {{ item.retry_after * 1000 | date:'HH:mm:ss' }} } · 失败 / 纠错 {{ item.failures }} 次</small></span><button type="button" (click)="inspectInventory(item)">查看明细</button></div>
+            <div class="inventory-row"><span>{{ item.application }} · {{ item.device_key.slice(0, 8) }}<code>{{ item.page_key.slice(0, 16) }}</code></span><span>{{ '{0} · 保留 {1} / {2}' | t:[(((stateName(item.status)) | t)), (item.retained), (item.expected)] }}<small>@if (item.retry_after > data.checked_at && item.status !== 'complete') {  {{ item.status === 'learning' ? ('学习占用至' | t) : ('允许重试于' | t) }} {{ item.retry_after * 1000 | date:'HH:mm:ss':undefined:i18n.locale() }} }  {{ '· 失败 / 纠错 {0} 次' | t:[(item.failures)] }}</small></span><button type="button" (click)="inspectInventory(item)">{{ '查看明细' | t }}</button></div>
           }
         </details>
       </section>
     }
 
     @if (data.totals.positions > 0) {
-      <section class="charts" aria-label="缓存分布">
+      <section class="charts" [attr.aria-label]="'缓存分布' | t">
         <article class="panel">
-          <div class="panel-heading"><h2>设备容量</h2><span>每台 {{ data.capacity_per_device | number }} 个元素</span></div>
+          <div class="panel-heading"><h2>{{ '设备容量' | t }}</h2><span>{{ '每台 {0} 个元素' | t:[(data.capacity_per_device | number:'1.0-3':i18n.locale())] }}</span></div>
           @for (item of devices(); track item.key) {
             <div class="bar-item">
-              <div class="bar-label"><strong>{{ item.name }} <small>{{ item.key.slice(0, 8) }}</small></strong><span>{{ item.positions | number }} / {{ data.capacity_per_device | number }}</span></div>
-              <div class="bar-track" role="meter" [attr.aria-label]="item.name + ' 缓存元素'" [attr.aria-valuenow]="item.positions" aria-valuemin="0" [attr.aria-valuemax]="data.capacity_per_device"><div [style.width.%]="percent(item.positions, data.capacity_per_device)"></div></div>
-              <p class="bar-detail">{{ item.platform }} · 复用 {{ item.hits | number }} 次</p>
+              <div class="bar-label"><strong>{{ item.name }} <small>{{ item.key.slice(0, 8) }}</small></strong><span>{{ item.positions | number:'1.0-3':i18n.locale() }} / {{ data.capacity_per_device | number:'1.0-3':i18n.locale() }}</span></div>
+              <div class="bar-track" role="meter" [attr.aria-label]="item.name + (' 缓存元素' | t)" [attr.aria-valuenow]="item.positions" aria-valuemin="0" [attr.aria-valuemax]="data.capacity_per_device"><div [style.width.%]="percent(item.positions, data.capacity_per_device)"></div></div>
+              <p class="bar-detail">{{ '{0} · 复用 {1} 次' | t:[(item.platform), (item.hits | number:'1.0-3':i18n.locale())] }}</p>
             </div>
           }
         </article>
         <article class="panel">
-          <div class="panel-heading"><h2>缓存分布</h2><span>按元素数量</span></div>
+          <div class="panel-heading"><h2>{{ '缓存分布' | t }}</h2><span>{{ '按元素数量' | t }}</span></div>
           @for (item of distribution(); track item.key) {
             <div class="bar-item">
-              <div class="bar-label"><strong>{{ item.label }}</strong><span>{{ item.positions | number }} 个元素</span></div>
+              <div class="bar-label"><strong>{{ (item.label) | t }}</strong><span>{{ '{0} 个元素' | t:[(item.positions | number:'1.0-3':i18n.locale())] }}</span></div>
               <div class="bar-track" [class]="'bar-track ' + item.key"><div [style.width.%]="percent(item.positions, data.totals.positions)"></div></div>
-              <p class="bar-detail">复用 {{ item.hits | number }} 次</p>
+              <p class="bar-detail">{{ '复用 {0} 次' | t:[(item.hits | number:'1.0-3':i18n.locale())] }}</p>
             </div>
           }
         </article>
       </section>
       <section class="panel details">
-        <div class="panel-heading"><h2>页面与 Activity 明细</h2><span>{{ filteredGroups().length }} 条分组</span></div>
-        <p class="detail-note">按设备、应用和 Activity 分组，展开查看各页面的独立名称和指纹。名称仅供展示，不参与复用；名称缺失时显示 Activity 简称或包名及指纹短码。旧缓存未记录 Activity，将在后续视觉定位时重新学习。</p>
+        <div class="panel-heading"><h2>{{ '页面与 Activity 明细' | t }}</h2><span>{{ '{0} 条分组' | t:[(filteredGroups().length)] }}</span></div>
+        <p class="detail-note">{{ '按设备、应用和 Activity 分组，展开查看各页面的独立名称和指纹。名称仅供展示，不参与复用；名称缺失时显示 Activity 简称或包名及指纹短码。旧缓存未记录 Activity，将在后续视觉定位时重新学习。' | t }}</p>
         <div class="filters">
-          <label>设备<select aria-label="设备" [ngModel]="device()" (ngModelChange)="device.set($event)"><option value="">全部设备</option>@for (item of devices(); track item.key) { <option [value]="item.key">{{ item.name }} · {{ item.key.slice(0, 8) }}</option> }</select></label>
-          <label>分类<select aria-label="分类" [ngModel]="category()" (ngModelChange)="category.set($event)"><option value="">全部分类</option>@for (item of categories; track item.key) { <option [value]="item.key">{{ item.label }}</option> }</select></label>
-          <label class="search">搜索<input type="search" placeholder="搜索页面名称、包名、Activity 或指纹" [ngModel]="search()" (ngModelChange)="search.set($event)"></label>
+          <label>{{ '设备' | t }}<select [attr.aria-label]="'设备' | t" [ngModel]="device()" (ngModelChange)="device.set($event)"><option value="">{{ '全部设备' | t }}</option>@for (item of devices(); track item.key) { <option [value]="item.key">{{ item.name }} · {{ item.key.slice(0, 8) }}</option> }</select></label>
+          <label>{{ '分类' | t }}<select [attr.aria-label]="'分类' | t" [ngModel]="category()" (ngModelChange)="category.set($event)"><option value="">{{ '全部分类' | t }}</option>@for (item of categories; track item.key) { <option [value]="item.key">{{ (item.label) | t }}</option> }</select></label>
+          <label class="search">{{ '搜索' | t }}<input type="search" [placeholder]="'搜索页面名称、包名、Activity 或指纹' | t" [ngModel]="search()" (ngModelChange)="search.set($event)"></label>
         </div>
         <div class="table-scroll">
           <table>
-            <thead><tr><th scope="col">设备</th><th scope="col">应用 / 指纹</th><th scope="col">页面名称</th><th scope="col">Activity</th><th scope="col">分类</th><th scope="col" class="numeric">页面</th><th scope="col" class="numeric">缓存元素</th><th scope="col" class="numeric">复用次数</th></tr></thead>
+            <thead><tr><th scope="col">{{ '设备' | t }}</th><th scope="col">{{ '应用 / 指纹' | t }}</th><th scope="col">{{ '页面名称' | t }}</th><th scope="col">Activity</th><th scope="col">{{ '分类' | t }}</th><th scope="col" class="numeric">{{ '页面' | t }}</th><th scope="col" class="numeric">{{ '缓存元素' | t }}</th><th scope="col" class="numeric">{{ '复用次数' | t }}</th></tr></thead>
             <tbody>
               @for (row of filteredGroups(); track row.device_key + row.application + row.category + row.activity) {
                 <tr>
                   <td>{{ row.device_name }}<small>{{ row.platform }} · {{ row.device_key.slice(0, 8) }}</small></td>
                   <td class="application">{{ row.application }}
                     <details class="fingerprint-details">
-                      <summary>查看指纹（{{ row.pages }}）</summary>
+                      <summary>{{ '查看指纹（{0}）' | t:[(row.pages)] }}</summary>
                       @for (fingerprint of row.fingerprints; track fingerprint.page_key) {
-                        <div class="fingerprint"><span>{{ pageLabel(row, fingerprint.page_key) }}</span>@if (!pageName(row, fingerprint.page_key)) { <small>名称未识别</small> }<code>{{ fingerprint.page_key }}</code><small>{{ fingerprint.positions | number }} 个元素（批量预缓存 {{ fingerprint.prefetched ?? 0 | number }}） · 复用 {{ fingerprint.hits | number }} 次</small><button type="button" (click)="inspect(row, fingerprint.page_key)">查看元素 / 清理</button></div>
+                        <div class="fingerprint"><span>{{ ((pageLabel(row, fingerprint.page_key)) | t) }}</span>@if (!pageName(row, fingerprint.page_key)) { <small>{{ '名称未识别' | t }}</small> }<code>{{ fingerprint.page_key }}</code><small>{{ '{0} 个元素（批量预缓存 {1}） · 复用 {2} 次' | t:[(fingerprint.positions | number:'1.0-3':i18n.locale()), (fingerprint.prefetched ?? 0 | number:'1.0-3':i18n.locale()), (fingerprint.hits | number:'1.0-3':i18n.locale())] }}</small><button type="button" (click)="inspect(row, fingerprint.page_key)">{{ '查看元素 / 清理' | t }}</button></div>
                       }
                     </details>
                   </td>
-                  <td class="page-name">{{ pageLabel(row) }}@if (row.pages === 1 && !pageName(row)) { <small>名称未识别</small> }</td>
-                  <td class="activity">@if (row.activity) { <code>{{ row.activity }}</code> } @else { <span class="unknown-activity">{{ row.platform === 'ios' ? '不适用（iOS）' : '未记录 Activity' }}</span> }</td>
-                  <td><span class="category-tag">{{ categoryName(row.category) }}</span></td><td class="numeric">{{ row.pages | number }}</td><td class="numeric">{{ row.positions | number }}</td><td class="numeric hits">{{ row.hits | number }}</td>
+                  <td class="page-name">{{ ((pageLabel(row)) | t) }}@if (row.pages === 1 && !pageName(row)) { <small>{{ '名称未识别' | t }}</small> }</td>
+                  <td class="activity">@if (row.activity) { <code>{{ row.activity }}</code> } @else { <span class="unknown-activity">{{ row.platform === 'ios' ? ('不适用（iOS）' | t) : ('未记录 Activity' | t) }}</span> }</td>
+                  <td><span class="category-tag">{{ ((categoryName(row.category)) | t) }}</span></td><td class="numeric">{{ row.pages | number:'1.0-3':i18n.locale() }}</td><td class="numeric">{{ row.positions | number:'1.0-3':i18n.locale() }}</td><td class="numeric hits">{{ row.hits | number:'1.0-3':i18n.locale() }}</td>
                 </tr>
               } @empty {
-                <tr><td colspan="8" class="empty-filter">没有符合筛选条件的缓存。</td></tr>
+                <tr><td colspan="8" class="empty-filter">{{ '没有符合筛选条件的缓存。' | t }}</td></tr>
               }
             </tbody>
           </table>
@@ -138,46 +139,46 @@
     } @else {
       <section class="panel empty-state">
         <span class="material-symbols-outlined" aria-hidden="true">database</span>
-        <h2>{{ data.exists ? '还没有缓存元素' : '缓存数据库尚未生成' }}</h2>
-        <p>任务需要视觉定位并获得有效位置后，会逐步积累缓存。再次遇到相同页面和目标时可复用。</p>
-        <p>执行任务后，点击“刷新统计”查看结果。</p>
+        <h2>{{ data.exists ? ('还没有缓存元素' | t) : ('缓存数据库尚未生成' | t) }}</h2>
+        <p>{{ '任务需要视觉定位并获得有效位置后，会逐步积累缓存。再次遇到相同页面和目标时可复用。' | t }}</p>
+        <p>{{ '执行任务后，点击“刷新统计”查看结果。' | t }}</p>
       </section>
     }
     @if (selection(); as selected) {
-      <section #detailPanel class="panel element-detail" aria-label="元素明细">
-        <div class="panel-heading"><h2>{{ selected.name }} · 元素明细</h2><button type="button" (click)="closeElements()" [disabled]="clearing()">关闭明细</button></div>
+      <section #detailPanel class="panel element-detail" [attr.aria-label]="'元素明细' | t">
+        <div class="panel-heading"><h2>{{ '{0} · 元素明细' | t:[(selected.name)] }}</h2><button type="button" (click)="closeElements()" [disabled]="clearing()">{{ '关闭明细' | t }}</button></div>
         <p class="detail-note">{{ selected.application }} · {{ selected.device_key.slice(0, 8) }}<code>{{ selected.page_key }}</code></p>
-        @if (notice()) { <p role="status">{{ notice() }}</p> }
-        @if (elementsError()) { <p class="notice error" role="alert">{{ elementsError() }} <button type="button" (click)="loadElements(0)">重试</button></p> }
-        @if (elementsLoading()) { <p role="status">正在读取元素…</p> }
+        @if (notice()) { <p role="status">{{ ((notice()) | t) }}</p> }
+        @if (elementsError()) { <p class="notice error" role="alert">{{ ((elementsError()) | t) }} <button type="button" (click)="loadElements(0)">{{ '重试' | t }}</button></p> }
+        @if (elementsLoading()) { <p role="status">{{ '正在读取元素…' | t }}</p> }
         @if (elements(); as page) {
-          <div class="table-scroll"><table><thead><tr><th>元素名称 / 别名</th><th>位置 / 类型</th><th>复用范围</th><th>保留状态</th><th>复用</th><th>最近使用</th></tr></thead><tbody>
+          <div class="table-scroll"><table><thead><tr><th>{{ '元素名称 / 别名' | t }}</th><th>{{ '位置 / 类型' | t }}</th><th>{{ '复用范围' | t }}</th><th>{{ '保留状态' | t }}</th><th>{{ '复用' | t }}</th><th>{{ '最近使用' | t }}</th></tr></thead><tbody>
             @for (element of page.items; track element.target_key) {
-              <tr><td>{{ element.name }}<small>{{ element.aliases.join(' · ') || '暂无别名' }}</small></td><td><code>{{ element.coords?.join(', ') }}</code><small>{{ element.kind }} @if (element.bounds) { · {{ element.bounds.join(', ') }} }</small></td><td>{{ reuseName(element.reuse_scope) }}@if (element.region_key) { <small>区域 {{ element.region_key.slice(0, 12) }} · 像素边界 {{ element.region_bounds?.join(', ') }}</small> }</td><td>{{ element.probation ? '待首次使用' : element.prefetched ? '预缓存已使用' : '按需学习' }}</td><td>{{ element.hits }}</td><td>{{ element.last_used ? (element.last_used * 1000 | date:'MM-dd HH:mm:ss') : '尚未使用' }}</td></tr>
-            } @empty { <tr><td colspan="6">该页面当前没有缓存元素。</td></tr> }
+              <tr><td>{{ element.name }}<small>{{ element.aliases.join(' · ') || ('暂无别名' | t) }}</small></td><td><code>{{ element.coords?.join(', ') }}</code><small>{{ element.kind }} @if (element.bounds) {  · {{ element.bounds.join(', ') }} }</small></td><td>{{ ((reuseName(element.reuse_scope)) | t) }}@if (element.region_key) { <small>{{ '区域 {0} · 像素边界 {1}' | t:[(element.region_key.slice(0, 12)), (element.region_bounds?.join(', '))] }}</small> }</td><td>{{ element.probation ? ('待首次使用' | t) : element.prefetched ? ('预缓存已使用' | t) : ('按需学习' | t) }}</td><td>{{ element.hits }}</td><td>{{ element.last_used ? (element.last_used * 1000 | date:'MM-dd HH:mm:ss':undefined:i18n.locale()) : ('尚未使用' | t) }}</td></tr>
+            } @empty { <tr><td colspan="6">{{ '该页面当前没有缓存元素。' | t }}</td></tr> }
           </tbody></table></div>
-          <div class="detail-actions"><span>共 {{ page.total }} 个 · {{ page.total ? page.offset + 1 : 0 }}–{{ page.offset + page.items.length }}</span><button type="button" [disabled]="page.offset === 0" (click)="loadElements(page.offset - page.limit)">上一页</button><button type="button" [disabled]="page.offset + page.limit >= page.total" (click)="loadElements(page.offset + page.limit)">下一页</button><button class="danger" type="button" [disabled]="clearing()" (click)="confirmingClear.set(true)">清理此页面</button></div>
+          <div class="detail-actions"><span>{{ '共 {0} 个 · {1}–{2}' | t:[(page.total), (page.total ? page.offset + 1 : 0), (page.offset + page.items.length)] }}</span><button type="button" [disabled]="page.offset === 0" (click)="loadElements(page.offset - page.limit)">{{ '上一页' | t }}</button><button type="button" [disabled]="page.offset + page.limit >= page.total" (click)="loadElements(page.offset + page.limit)">{{ '下一页' | t }}</button><button class="danger" type="button" [disabled]="clearing()" (click)="confirmingClear.set(true)">{{ '清理此页面' | t }}</button></div>
         }
-        @if (confirmingClear()) { <div class="notice confirm"><p>清理此指纹下所有元素？下一次定位会重新学习，累计统计保留。设备 {{ selected.device_key.slice(0, 8) }} · {{ selected.application }} · {{ selected.page_key.slice(0, 16) }}</p><button class="danger" type="button" (click)="clearPage()" [disabled]="clearing()">{{ clearing() ? '清理中…' : '确认清理' }}</button><button type="button" (click)="confirmingClear.set(false)" [disabled]="clearing()">取消</button></div> }
+        @if (confirmingClear()) { <div class="notice confirm"><p>{{ '清理此指纹下所有元素？下一次定位会重新学习，累计统计保留。设备 {0} · {1} · {2}' | t:[(selected.device_key.slice(0, 8)), (selected.application), (selected.page_key.slice(0, 16))] }}</p><button class="danger" type="button" (click)="clearPage()" [disabled]="clearing()">{{ clearing() ? ('清理中…' | t) : ('确认清理' | t) }}</button><button type="button" (click)="confirmingClear.set(false)" [disabled]="clearing()">{{ '取消' | t }}</button></div> }
       </section>
     }
-    <section class="panel failure-cases" aria-label="缓存失败案例">
-      <div class="panel-heading"><h2>缓存失败案例</h2><button type="button" (click)="loadFailures(0)" [disabled]="failuresLoading()">{{ failuresLoading() ? '读取中…' : '查看 / 刷新案例' }}</button></div>
-      <p class="detail-note">记录未命中和缓存坐标执行失败；相同设备、应用、页面、目标、来源及原因合并计数，每台设备保留最近 1000 组。包含目标描述与指纹，不保存截图、UI 树或完整模型回复。清理元素不会删除案例，案例淘汰不影响累计指标。</p>
+    <section class="panel failure-cases" [attr.aria-label]="'缓存失败案例' | t">
+      <div class="panel-heading"><h2>{{ '缓存失败案例' | t }}</h2><button type="button" (click)="loadFailures(0)" [disabled]="failuresLoading()">{{ failuresLoading() ? ('读取中…' | t) : ('查看 / 刷新案例' | t) }}</button></div>
+      <p class="detail-note">{{ '记录未命中和缓存坐标执行失败；相同设备、应用、页面、目标、来源及原因合并计数，每台设备保留最近 1000 组。包含目标描述与指纹，不保存截图、UI 树或完整模型回复。清理元素不会删除案例，案例淘汰不影响累计指标。' | t }}</p>
       @if (showFailures()) {
-        <div class="filters"><label>设备<select aria-label="失败案例设备" [ngModel]="device()" (ngModelChange)="device.set($event); loadFailures(0)"><option value="">全部设备</option>@for (item of devices(); track item.key) { <option [value]="item.key">{{ item.name }}</option> }</select></label><label>原因<select aria-label="失败原因" [ngModel]="failureReason()" (ngModelChange)="failureReason.set($event); loadFailures(0)"><option value="">全部原因</option>@for (item of missNames | keyvalue; track item.key) { <option [value]="item.key">{{ item.value }}</option> }</select></label><label class="search">应用包名<input aria-label="失败案例应用" placeholder="完整包名，留空查看全部" [ngModel]="failureApplication()" (ngModelChange)="failureApplication.set($event)" (keyup.enter)="loadFailures(0)"></label><button type="button" (click)="loadFailures(0)">筛选</button></div>
-        @if (failuresError()) { <p class="notice error" role="alert">{{ failuresError() }}</p> }
+        <div class="filters"><label>{{ '设备' | t }}<select [attr.aria-label]="'失败案例设备' | t" [ngModel]="device()" (ngModelChange)="device.set($event); loadFailures(0)"><option value="">{{ '全部设备' | t }}</option>@for (item of devices(); track item.key) { <option [value]="item.key">{{ item.name }}</option> }</select></label><label>{{ '原因' | t }}<select [attr.aria-label]="'失败原因' | t" [ngModel]="failureReason()" (ngModelChange)="failureReason.set($event); loadFailures(0)"><option value="">{{ '全部原因' | t }}</option>@for (item of missNames | keyvalue; track item.key) { <option [value]="item.key">{{ item.value | t }}</option> }</select></label><label class="search">{{ '应用包名' | t }}<input [attr.aria-label]="'失败案例应用' | t" [placeholder]="'完整包名，留空查看全部' | t" [ngModel]="failureApplication()" (ngModelChange)="failureApplication.set($event)" (keyup.enter)="loadFailures(0)"></label><button type="button" (click)="loadFailures(0)">{{ '筛选' | t }}</button></div>
+        @if (failuresError()) { <p class="notice error" role="alert">{{ ((failuresError()) | t) }}</p> }
         @if (failureCases(); as cases) {
-          <div class="table-scroll"><table><thead><tr><th>目标 / 应用</th><th>失败原因 / 复用范围</th><th>当前页 / 缓存来源</th><th>次数</th><th>发生时间</th></tr></thead><tbody>
+          <div class="table-scroll"><table><thead><tr><th>{{ '目标 / 应用' | t }}</th><th>{{ '失败原因 / 复用范围' | t }}</th><th>{{ '当前页 / 缓存来源' | t }}</th><th>{{ '次数' | t }}</th><th>{{ '发生时间' | t }}</th></tr></thead><tbody>
             @for (item of cases.items; track item.device_key + item.application + item.case_key) {
-              <tr><td>{{ item.target }}<small>{{ item.application }} · {{ item.device_key.slice(0, 8) }}<br>{{ item.activity || '未记录 Activity' }}</small></td><td>{{ missNames[item.reason] || item.reason }}<small>{{ reuseName(item.reuse_scope) }} @if (item.region_key) { · {{ item.region_key.slice(0, 12) }} }</small></td><td><code title="{{ item.page_key }}">{{ item.page_key.slice(0, 16) }}</code><small>来源：<code title="{{ item.source_page_key }}">{{ item.source_page_key ? item.source_page_key.slice(0, 16) : '没有候选缓存' }}</code></small></td><td>{{ item.occurrences }}</td><td>{{ item.last_seen * 1000 | date:'MM-dd HH:mm:ss' }}<small>首次 {{ item.first_seen * 1000 | date:'MM-dd HH:mm:ss' }}</small></td></tr>
-            } @empty { <tr><td colspan="5">暂无符合条件的案例。旧版本的失败无法追溯，将从新版实际查询开始积累。</td></tr> }
-          </tbody></table></div><div class="detail-actions"><span>共 {{ cases.total }} 组</span><button type="button" [disabled]="cases.offset === 0" (click)="loadFailures(cases.offset - cases.limit)">上一组</button><button type="button" [disabled]="cases.offset + cases.limit >= cases.total" (click)="loadFailures(cases.offset + cases.limit)">下一组</button></div>
+              <tr><td>{{ item.target }}<small>{{ item.application }} · {{ item.device_key.slice(0, 8) }}<br>{{ item.activity || ('未记录 Activity' | t) }}</small></td><td>{{ ((missNames[item.reason] || item.reason) | t) }}<small>{{ ((reuseName(item.reuse_scope)) | t) }} @if (item.region_key) {  · {{ item.region_key.slice(0, 12) }} }</small></td><td><code title="{{ item.page_key }}">{{ item.page_key.slice(0, 16) }}</code><small>{{ '来源：' | t }}<code title="{{ item.source_page_key }}">{{ item.source_page_key ? item.source_page_key.slice(0, 16) : '没有候选缓存' }}</code></small></td><td>{{ item.occurrences }}</td><td>{{ item.last_seen * 1000 | date:'MM-dd HH:mm:ss':undefined:i18n.locale() }}<small>{{ '首次 {0}' | t:[(item.first_seen * 1000 | date:'MM-dd HH:mm:ss':undefined:i18n.locale())] }}</small></td></tr>
+            } @empty { <tr><td colspan="5">{{ '暂无符合条件的案例。旧版本的失败无法追溯，将从新版实际查询开始积累。' | t }}</td></tr> }
+          </tbody></table></div><div class="detail-actions"><span>{{ '共 {0} 组' | t:[(cases.total)] }}</span><button type="button" [disabled]="cases.offset === 0" (click)="loadFailures(cases.offset - cases.limit)">{{ '上一组' | t }}</button><button type="button" [disabled]="cases.offset + cases.limit >= cases.total" (click)="loadFailures(cases.offset + cases.limit)">{{ '下一组' | t }}</button></div>
         }
       }
     </section>
-    <footer class="storage panel"><span class="material-symbols-outlined" aria-hidden="true">hard_drive</span><div><strong>缓存存储</strong><code>{{ data.path }}</code><p>{{ data.exists ? size(data.size_bytes) : '尚未创建' }} @if (data.updated_at) { · 文件修改时间 {{ data.updated_at * 1000 | date:'yyyy-MM-dd HH:mm:ss' }} }</p></div></footer>
+    <footer class="storage panel"><span class="material-symbols-outlined" aria-hidden="true">hard_drive</span><div><strong>{{ '缓存存储' | t }}</strong><code>{{ data.path }}</code><p>{{ data.exists ? size(data.size_bytes) : ('尚未创建' | t) }} @if (data.updated_at) {  {{ '· 文件修改时间 {0}' | t:[(data.updated_at * 1000 | date:'yyyy-MM-dd HH:mm:ss':undefined:i18n.locale())] }} }</p></div></footer>
   } @else if (loading()) {
-    <section class="panel empty-state" role="status">正在读取缓存统计…</section>
+    <section class="panel empty-state" role="status">{{ '正在读取缓存统计…' | t }}</section>
   }
 </main>

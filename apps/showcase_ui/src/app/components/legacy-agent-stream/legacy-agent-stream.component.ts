@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
+
 import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -22,12 +25,13 @@ import { AgentService } from '../../services/agent.service';
 @Component({
   selector: 'app-legacy-agent-stream',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [TranslatePipe, CommonModule, FormsModule],
   templateUrl: './legacy-agent-stream.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './legacy-agent-stream.component.scss'
 })
 export class LegacyAgentStreamComponent {
+  readonly i18n = inject(I18nService);
   public agentService = inject(AgentService);
 
   /**

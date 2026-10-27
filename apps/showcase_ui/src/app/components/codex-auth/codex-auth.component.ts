@@ -1,3 +1,5 @@
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { Component, EventEmitter, OnDestroy, OnInit, Output, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Subscription, timeout } from 'rxjs';
@@ -25,38 +27,39 @@ export interface CodexAuthStatus {
 }
 
 @Component({
+  imports: [TranslatePipe],
   selector: 'app-codex-auth',
   standalone: true,
   template: `
-    <section aria-label="Codex authentication" class="auth-panel">
-      <h3>Codex 登录与认证诊断</h3>
-      <p role="status">{{ message() }}</p>
-      <p>使用后台进程可访问的登录凭据，不复用桌面当前对话。登录成功不代表推理权限已通过验证。</p>
+    <section [attr.aria-label]="'Codex authentication' | t" class="auth-panel">
+      <h3>{{ 'Codex 登录与认证诊断' | t }}</h3>
+      <p role="status">{{ ((message()) | t) }}</p>
+      <p>{{ '使用后台进程可访问的登录凭据，不复用桌面当前对话。登录成功不代表推理权限已通过验证。' | t }}</p>
       @if (status(); as info) {
         <dl>
-          <dt>后台用户</dt><dd>{{ info.runtime_user || '未知' }}</dd>
-          <dt>Codex 程序</dt><dd>{{ info.binary || '未找到' }}</dd>
+          <dt>{{ '后台用户' | t }}</dt><dd>{{ info.runtime_user || ('未知' | t) }}</dd>
+          <dt>{{ 'Codex 程序' | t }}</dt><dd>{{ info.binary || ('未找到' | t) }}</dd>
           <dt>CODEX_HOME</dt><dd>{{ info.codex_home }}（{{ info.home_source }}）</dd>
-          <dt>凭据存储</dt><dd>{{ info.credential_store || '未知' }}</dd>
-          <dt>认证模式</dt><dd>{{ info.auth_mode || '未确认' }}</dd>
+          <dt>{{ '凭据存储' | t }}</dt><dd>{{ info.credential_store || ('未知' | t) }}</dd>
+          <dt>{{ '认证模式' | t }}</dt><dd>{{ info.auth_mode || ('未确认' | t) }}</dd>
         </dl>
       }
       <div class="actions">
-        <button type="button" (click)="refresh()" [disabled]="busy()">刷新认证状态</button>
-        <button type="button" (click)="login()" [disabled]="busy() || status()?.state === 'login_pending' || authenticated()">登录 Codex</button>
+        <button type="button" (click)="refresh()" [disabled]="busy()">{{ '刷新认证状态' | t }}</button>
+        <button type="button" (click)="login()" [disabled]="busy() || status()?.state === 'login_pending' || authenticated()">{{ '登录 Codex' | t }}</button>
         @if (status()?.state === 'login_pending') {
-          <button type="button" (click)="cancel()" [disabled]="busy()">取消登录</button>
+          <button type="button" (click)="cancel()" [disabled]="busy()">{{ '取消登录' | t }}</button>
         }
-        <button type="button" (click)="verify()" [disabled]="busy() || !authenticated()">验证实际推理</button>
+        <button type="button" (click)="verify()" [disabled]="busy() || !authenticated()">{{ '验证实际推理' | t }}</button>
       </div>
       @if (authUrl()) {
-        <p><a [href]="authUrl()" target="_blank" rel="noopener noreferrer">前往 OpenAI 完成登录</a>（10 分钟内有效；请自行授权，不要复制凭据）</p>
+        <p><a [href]="authUrl()" target="_blank" rel="noopener noreferrer">{{ '前往 OpenAI 完成登录' | t }}</a>{{ '（10 分钟内有效；请自行授权，不要复制凭据）' | t }}</p>
       }
       @if (status()?.credential_store === 'ephemeral') {
-        <p role="alert">当前凭据仅保存在进程内存中，无法供独立任务复用。请在 Codex 中选择允许持久化的凭据存储，再登录。</p>
+        <p role="alert">{{ '当前凭据仅保存在进程内存中，无法供独立任务复用。请在 Codex 中选择允许持久化的凭据存储，再登录。' | t }}</p>
       }
       @if (status()?.diagnostics_warning) {
-        <p>凭据存储信息暂不可用；若连接已确认，不会因此阻断任务。</p>
+        <p>{{ '凭据存储信息暂不可用；若连接已确认，不会因此阻断任务。' | t }}</p>
       }
     </section>
   `,
@@ -71,6 +74,7 @@ export interface CodexAuthStatus {
   `]
 })
 export class CodexAuthComponent implements OnInit, OnDestroy {
+  readonly i18n = inject(I18nService);
   private http = inject(HttpClient);
   @Output() authChanged = new EventEmitter<void>();
   status = signal<CodexAuthStatus | null>(null);

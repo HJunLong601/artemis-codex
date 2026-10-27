@@ -18,28 +18,29 @@ limitations under the License.
   <!-- Header with Session Selector -->
   <header class="stream-header">
     <div class="header-title">
-      <h2>👣 Real-time Agent Stream (Legacy Card View)</h2>
-      <p class="subtitle">Select a session to monitor raw agent activity</p>
+      <h2>{{ '👣 Real-time Agent Stream (Legacy Card View)' | t }}</h2>
+      <p class="subtitle">{{ 'Select a session to monitor raw agent activity' | t }}</p>
     </div>
 
     <div class="session-selector-wrapper">
-      <label for="session-select">Active Session:</label>
+      <label for="session-select">{{ 'Active Session:' | t }}</label>
       <select
         id="session-select"
         [value]="agentService.currentSessionId() || ''"
         (change)="onSessionChange($event)"
         class="session-dropdown"
         >
-        <option value="" disabled selected>-- Select a Session --</option>
+        <option value="" disabled selected>{{ '-- Select a Session --' | t }}</option>
         @for (session of agentService.sessions(); track session) {
           <option
             [value]="session.session_id"
             >
-            {{ session.initial_goal || 'Unnamed Goal' }} ({{ session.device_serial ? session.device_serial + ' · ' : '' }}{{ session.start_time * 1000 | date:'short' }})
+
+            {{ session.initial_goal || ('Unnamed Goal' | t) }} ({{ session.device_serial ? session.device_serial + ' · ' : '' }}{{ session.start_time * 1000 | date:'short':undefined:i18n.locale() }})
           </option>
         }
       </select>
-      <button class="btn-refresh" (click)="agentService.fetchSessions()">🔄 Refresh</button>
+      <button class="btn-refresh" (click)="agentService.fetchSessions()">{{ '🔄 Refresh' | t }}</button>
     </div>
   </header>
 
@@ -48,8 +49,8 @@ limitations under the License.
     @if (agentService.sessionLogs().length === 0) {
       <div class="empty-state">
         <div class="empty-icon">📡</div>
-        <h3>No Stream Activity Selected</h3>
-        <p>Please select a running session from the dropdown above to view real-time log payloads.</p>
+        <h3>{{ 'No Stream Activity Selected' | t }}</h3>
+        <p>{{ 'Please select a running session from the dropdown above to view real-time log payloads.' | t }}</p>
       </div>
     }
 
@@ -65,7 +66,7 @@ limitations under the License.
                 <span class="index-badge">#{{ i + 1 }}</span>
                 <span class="type-badge" [ngClass]="log.type">{{ log.type }}</span>
               </div>
-              <span class="timestamp">{{ log.timestamp | date:'HH:mm:ss.SSS' }}</span>
+              <span class="timestamp">{{ log.timestamp | date:'HH:mm:ss.SSS':undefined:i18n.locale() }}</span>
             </div>
             <!-- Render Step Events in a beautiful, structured layout -->
             @if (isStepEvent(log.type)) {
@@ -73,28 +74,28 @@ limitations under the License.
                 <!-- Step Summary (Message to User) -->
                 @if (log.data.summary) {
                   <div class="step-summary-section">
-                    <div class="section-title">💬 Message to User / Summary:</div>
+                    <div class="section-title">{{ '💬 Message to User / Summary:' | t }}</div>
                     <div class="summary-bubble">{{ log.data.summary }}</div>
                   </div>
                 }
                 <!-- Model thinking process (collapsible) -->
                 @if (log.data.operator_native_thinking) {
                   <details class="thinking-details">
-                    <summary class="details-summary">🧠 Model Thinking Process (Click to expand)</summary>
+                    <summary class="details-summary">{{ '🧠 Model Thinking Process (Click to expand)' | t }}</summary>
                     <div class="details-content thinking-text">{{ log.data.operator_native_thinking }}</div>
                   </details>
                 }
                 <!-- Raw thinking process (collapsible) -->
                 @if (log.data.operator_raw_thinking) {
                   <details class="planning-details">
-                    <summary class="details-summary">📝 Raw Plan / Thoughts (Click to expand)</summary>
+                    <summary class="details-summary">{{ '📝 Raw Plan / Thoughts (Click to expand)' | t }}</summary>
                     <div class="details-content planning-text">{{ log.data.operator_raw_thinking }}</div>
                   </details>
                 }
                 <!-- Tool Call (collapsible) -->
                 @if (log.data.action_taken) {
                   <details class="tool-details" [open]="isShortContent(log.data.action_taken)">
-                    <summary class="details-summary">🛠️ Tool Call Details (Click to expand)</summary>
+                    <summary class="details-summary">{{ '🛠️ Tool Call Details (Click to expand)' | t }}</summary>
                     <div class="details-content">
                       <pre class="json-code"><code>{{ formatJson(log.data.action_taken) }}</code></pre>
                     </div>
@@ -103,7 +104,7 @@ limitations under the License.
                 <!-- Tool Call Result (collapsible) -->
                 @if (log.data.last_execution_result) {
                   <details class="result-details">
-                    <summary class="details-summary">✓ Execution Result (Click to expand)</summary>
+                    <summary class="details-summary">{{ '✓ Execution Result (Click to expand)' | t }}</summary>
                     <div class="details-content">
                       <pre class="json-code"><code>{{ formatJson(log.data.last_execution_result) }}</code></pre>
                     </div>
@@ -115,7 +116,7 @@ limitations under the License.
             @if (!isStepEvent(log.type)) {
               <div class="log-card-body raw-body">
                 <details class="raw-details" [open]="isShortContent(log.data)">
-                  <summary class="details-summary">📄 Raw Payload Data (Click to expand)</summary>
+                  <summary class="details-summary">{{ '📄 Raw Payload Data (Click to expand)' | t }}</summary>
                   <div class="details-content">
                     <pre class="json-code"><code>{{ formatJson(log.data) }}</code></pre>
                   </div>

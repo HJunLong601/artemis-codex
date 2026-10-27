@@ -24,11 +24,11 @@ limitations under the License.
         class="vscode-tab-btn"
         [class.active]="isTaskDropdownOpen()"
         (click)="toggleTaskDropdown($event)"
-        title="Task Queue"
-        aria-label="Task Queue"
+        [title]="'Task Queue' | t"
+        [attr.aria-label]="'Task Queue' | t"
         >
         <span class="material-symbols-outlined tab-icon">list_alt</span>
-        <span class="tab-label">Task Queue</span>
+        <span class="tab-label">{{ 'Task Queue' | t }}</span>
       </button>
       <button
         #notesOrigin="cdkOverlayOrigin"
@@ -36,11 +36,11 @@ limitations under the License.
         class="vscode-tab-btn"
         [class.active]="isNotesDropdownOpen()"
         (click)="toggleNotesDropdown($event)"
-        title="Notes & Plans"
-        aria-label="Notes & Plans"
+        [title]="'Notes & Plans' | t"
+        [attr.aria-label]="'Notes & Plans' | t"
         >
         <span class="material-symbols-outlined tab-icon">description</span>
-        <span class="tab-label">Notes & Plans</span>
+        <span class="tab-label">{{ 'Notes & Plans' | t }}</span>
       </button>
     </div>
 
@@ -57,15 +57,16 @@ limitations under the License.
       <div class="vscode-dropdown-menu task-dropdown">
         <div class="popover-title-header">
           <span class="material-symbols-outlined">list_alt</span>
-          <span>Task Queue</span>
+          <span>{{ 'Task Queue' | t }}</span>
         </div>
         <div class="dropdown-section-label">
           <span class="material-symbols-outlined icon-bolt">bolt</span>
-          <span>Active Queue ({{ activeQueue().length }})</span>
+          <span>{{ 'Active Queue ({0})' | t:[(activeQueue().length)] }}</span>
         </div>
         @if (activeQueue().length === 0) {
           <div class="dropdown-empty-state">
-            No active or queued tasks
+
+            {{ 'No active or queued tasks' | t }}
           </div>
         }
         @for (session of activeQueue(); track trackSession($index, session)) {
@@ -80,11 +81,12 @@ limitations under the License.
                 @if (getTaskStatus(session) === 'running') {
                   <span class="status-dot"></span>
                 }
+
                 {{ getTaskStatus(session) | uppercase }}
               </span>
               <div class="item-header-actions">
                 @if (getDeviceSerial(session)) {
-                  <span class="item-device" [title]="'Device: ' + getDeviceSerial(session)">
+                  <span class="item-device" [title]="('Device: ' | t) + getDeviceSerial(session)">
                     <span class="material-symbols-outlined device-icon">phone_android</span>
                     <span class="device-name">{{ getDeviceSerial(session) }}</span>
                   </span>
@@ -92,14 +94,14 @@ limitations under the License.
                 @if (getDeviceSerial(session)) {
                   <span class="item-time-divider">·</span>
                 }
-                <span class="item-time">{{ session.start_time * 1000 | date:'shortTime' }}</span>
+                <span class="item-time">{{ session.start_time * 1000 | date:'shortTime':undefined:i18n.locale() }}</span>
                 @if (getTaskStatus(session) === 'running' || getTaskStatus(session) === 'paused') {
                   <button
                     type="button"
                     class="btn-stop-card"
                     (click)="stopTask(session.session_id, $event)"
-                    title="Stop this task"
-                    aria-label="Stop this task"
+                    [title]="'Stop this task' | t"
+                    [attr.aria-label]="'Stop this task' | t"
                     >
                     <span class="material-symbols-outlined">stop_circle</span>
                   </button>
@@ -109,8 +111,8 @@ limitations under the License.
                     type="button"
                     class="btn-delete-card"
                     (click)="deleteTask(session.session_id, $event)"
-                    title="Delete this task"
-                    aria-label="Delete this task"
+                    [title]="'Delete this task' | t"
+                    [attr.aria-label]="'Delete this task' | t"
                     >
                     <span class="material-symbols-outlined">delete</span>
                   </button>
@@ -118,21 +120,23 @@ limitations under the License.
               </div>
             </div>
             <div class="item-goal" title="{{ session.initial_goal }}">
-              {{ session.initial_goal || 'Unnamed Task' }}
+
+              {{ session.initial_goal || ('Unnamed Task' | t) }}
             </div>
             <div class="item-footer">
-              <span class="item-id" [title]="session.session_id">ID: {{ session.session_id }}</span>
-              <span class="item-date">{{ session.start_time * 1000 | date:'MM/dd/yy' }}</span>
+              <span class="item-id" [title]="session.session_id">{{ 'ID: {0}' | t:[(session.session_id)] }}</span>
+              <span class="item-date">{{ session.start_time * 1000 | date:'MM/dd/yy':undefined:i18n.locale() }}</span>
             </div>
           </div>
         }
         <div class="dropdown-section-label history-label">
           <span class="material-symbols-outlined icon-history">history</span>
-          <span>Past Runs & History ({{ historyTasks().length }})</span>
+          <span>{{ 'Past Runs & History ({0})' | t:[(historyTasks().length)] }}</span>
         </div>
         @if (historyTasks().length === 0) {
           <div class="dropdown-empty-state">
-            No past task history
+
+            {{ 'No past task history' | t }}
           </div>
         }
         <div class="dropdown-history-list">
@@ -148,11 +152,12 @@ limitations under the License.
                   @if (getTaskStatus(session) === 'running') {
                     <span class="status-dot"></span>
                   }
+
                   {{ getTaskStatus(session) | uppercase }}
                 </span>
                 <div class="item-header-actions">
                   @if (getDeviceSerial(session)) {
-                    <span class="item-device" [title]="'Device: ' + getDeviceSerial(session)">
+                    <span class="item-device" [title]="('Device: ' | t) + getDeviceSerial(session)">
                       <span class="material-symbols-outlined device-icon">phone_android</span>
                       <span class="device-name">{{ getDeviceSerial(session) }}</span>
                     </span>
@@ -160,14 +165,14 @@ limitations under the License.
                   @if (getDeviceSerial(session)) {
                     <span class="item-time-divider">·</span>
                   }
-                  <span class="item-time">{{ session.start_time * 1000 | date:'shortTime' }}</span>
+                  <span class="item-time">{{ session.start_time * 1000 | date:'shortTime':undefined:i18n.locale() }}</span>
                   @if (getTaskStatus(session) !== 'running' && getTaskStatus(session) !== 'paused') {
                     <button
                       type="button"
                       class="btn-delete-card"
                       (click)="deleteTask(session.session_id, $event)"
-                      title="Delete this task"
-                      aria-label="Delete this task"
+                      [title]="'Delete this task' | t"
+                      [attr.aria-label]="'Delete this task' | t"
                       >
                       <span class="material-symbols-outlined">delete</span>
                     </button>
@@ -175,11 +180,12 @@ limitations under the License.
                 </div>
               </div>
               <div class="item-goal" title="{{ session.initial_goal }}">
-                {{ session.initial_goal || 'Unnamed Task' }}
+
+                {{ session.initial_goal || ('Unnamed Task' | t) }}
               </div>
               <div class="item-footer">
-                <span class="item-id" [title]="session.session_id">ID: {{ session.session_id }}</span>
-                <span class="item-date">{{ session.start_time * 1000 | date:'MM/dd/yy' }}</span>
+                <span class="item-id" [title]="session.session_id">{{ 'ID: {0}' | t:[(session.session_id)] }}</span>
+                <span class="item-date">{{ session.start_time * 1000 | date:'MM/dd/yy':undefined:i18n.locale() }}</span>
               </div>
             </div>
           }
@@ -200,7 +206,7 @@ limitations under the License.
       <div class="vscode-dropdown-menu notes-dropdown">
         <div class="popover-title-header">
           <span class="material-symbols-outlined">description</span>
-          <span>Notes & Plans</span>
+          <span>{{ 'Notes & Plans' | t }}</span>
         </div>
         <!-- Notes Selector / Pills (Shown if there are note files) -->
         @if (noteKeys().length > 1) {
@@ -213,6 +219,7 @@ limitations under the License.
                   (click)="selectNote(key, $event)"
                   >
                   <span class="material-symbols-outlined pill-icon">draft</span>
+
                   {{ key }}
                 </button>
               }
@@ -222,7 +229,7 @@ limitations under the License.
         @if (noteKeys().length === 0) {
           <div class="dropdown-empty-state">
             <span class="material-symbols-outlined empty-icon">description</span>
-            <span>No notes available for this session.</span>
+            <span>{{ 'No notes available for this session.' | t }}</span>
           </div>
         }
         <!-- Rich Notes Content Viewer -->
@@ -307,7 +314,7 @@ limitations under the License.
                             [style.margin-left.px]="(check.indent > 2 ? (check.indent - 2) * 12 : 0)"
                             >
                             <div class="card-header">
-                              <span class="card-tag" [class.assert]="check.checkKind === 'assert'">{{ check.checkKind || 'verify' }}{{ check.atEnd ? ' @end' : '' }}</span>
+                              <span class="card-tag" [class.assert]="check.checkKind === 'assert'">{{ check.checkKind || ('verify' | t) }}{{ check.atEnd ? ' @end' : '' }}</span>
                             </div>
                             <div class="card-body">
                               @for (seg of check.segments; track seg) {
@@ -332,7 +339,7 @@ limitations under the License.
                   @if (line.type === 'verify' || line.type === 'finding') {
                     <div class="verification-card standalone" [ngClass]="line.type" [style.margin-left.px]="line.indent * 12">
                       <div class="card-header">
-                        <span class="card-tag" [class.assert]="line.checkKind === 'assert'">{{ line.checkKind || 'verify' }}{{ line.atEnd ? ' @end' : '' }}</span>
+                        <span class="card-tag" [class.assert]="line.checkKind === 'assert'">{{ line.checkKind || ('verify' | t) }}{{ line.atEnd ? ' @end' : '' }}</span>
                       </div>
                       <div class="card-body">
                         @for (seg of line.segments; track seg) {
@@ -396,13 +403,13 @@ limitations under the License.
           class="model-info-chip"
           [ngClass]="getModelClass(model.name)"
           [class.active]="isRunInfoOpen()"
-          [title]="getArchitectureTooltip(model)"
+          [title]="((getArchitectureTooltip(model)) | t)"
           aria-haspopup="dialog"
           [attr.aria-expanded]="isRunInfoOpen()"
           (click)="toggleRunInfo($event)"
           >
           <span class="material-symbols-outlined model-icon">{{ getModelIcon(model.name) }}</span>
-          <span class="model-label">Architecture:</span>
+          <span class="model-label">{{ 'Architecture:' | t }}</span>
           <span class="model-name">{{ getModelDisplayName(model.name) }}</span>
         </button>
 
@@ -415,7 +422,7 @@ limitations under the License.
           (backdropClick)="isRunInfoOpen.set(false)"
           [cdkConnectedOverlayPositions]="dropdownPositions"
         >
-          <div class="vscode-dropdown-menu run-info-dropdown" role="dialog" aria-label="Run info">
+          <div class="vscode-dropdown-menu run-info-dropdown" role="dialog" [attr.aria-label]="'Run info' | t">
             <div class="run-info-header">
               <span class="material-symbols-outlined" [class.is-pro]="runInfoIsPro()">{{ getModelIcon(model.name) }}</span>
               <span class="run-info-title">{{ getModelDisplayName(model.name) }}</span>
@@ -425,7 +432,7 @@ limitations under the License.
             </div>
 
             <div class="run-info-row">
-              <span class="run-info-label">Elapsed</span>
+              <span class="run-info-label">{{ 'Elapsed' | t }}</span>
               <span class="run-info-value">{{ runInfoElapsed() }}</span>
             </div>
 
@@ -433,8 +440,9 @@ limitations under the License.
               <span class="run-info-label">Tokens</span>
               @if (runUsage(); as usage) {
                 <span class="run-info-value">
-                  {{ formatRunTokens(usage.total_tokens) }}
-                  <span class="run-info-sub">{{ formatRunTokens(usage.prompt_tokens) }} in · {{ formatRunTokens(usage.completion_tokens) }} out</span>
+
+                  {{ ((formatRunTokens(usage.total_tokens)) | t) }}
+                  <span class="run-info-sub">{{ '{0} in · {1} out' | t:[(((formatRunTokens(usage.prompt_tokens)) | t)), (((formatRunTokens(usage.completion_tokens)) | t))] }}</span>
                 </span>
               } @else {
                 <span class="run-info-value is-muted">—</span>
@@ -443,11 +451,12 @@ limitations under the License.
 
             <div class="run-info-row is-stacked">
               <div class="run-info-line">
-                <span class="run-info-label">Context</span>
+                <span class="run-info-label">{{ 'Context' | t }}</span>
                 @if (runInfoContextPercent() !== null) {
                   <span class="run-info-value">
+
                     {{ runInfoContextPercent() }}%
-                    <span class="run-info-sub-inline">of {{ formatRunTokens(runUsage()?.operator_context_window_tokens) }}</span>
+                    <span class="run-info-sub-inline">{{ 'of {0}' | t:[(((formatRunTokens(runUsage()?.operator_context_window_tokens)) | t))] }}</span>
                   </span>
                 } @else {
                   <span class="run-info-value is-muted">—</span>
@@ -464,15 +473,15 @@ limitations under the License.
 
             @if (runInfoIsPro()) {
               <div class="run-info-row">
-                <span class="run-info-label">Result check</span>
+                <span class="run-info-label">{{ 'Result check' | t }}</span>
                 <span class="run-info-value">{{ runTuningLabel('verify', runInfoTuning()?.verification_level) }}</span>
               </div>
               <div class="run-info-row">
-                <span class="run-info-label">Screen reading</span>
+                <span class="run-info-label">{{ 'Screen reading' | t }}</span>
                 <span class="run-info-value">{{ runTuningLabel('explore', runInfoTuning()?.explorer_mode) }}</span>
               </div>
             } @else {
-              <div class="run-info-note">No extra settings for Flash.</div>
+              <div class="run-info-note">{{ 'No extra settings for Flash.' | t }}</div>
             }
           </div>
         </ng-template>
@@ -487,7 +496,7 @@ limitations under the License.
         [class.has-steps]="!agentService.isCurrentSessionRunning() && !agentService.currentSessionVideoUrl() && agentService.hasCurrentSessionStepFrames()"
         [class.failed]="!agentService.isCurrentSessionRunning() && !agentService.currentSessionVideoUrl() && !agentService.hasCurrentSessionStepFrames() && agentService.currentSessionRecordingStatus() === 'failed'"
         (click)="agentService.toggleVideoPlayer()"
-        [title]="getScreenRecordingButtonTitle()"
+        [title]="((getScreenRecordingButtonTitle()) | t)"
         >
         @if (agentService.isCurrentSessionRunning()) {
           <span class="material-symbols-outlined video-icon">
@@ -520,28 +529,29 @@ limitations under the License.
           </span>
         }
         @if (agentService.isCurrentSessionRunning()) {
-          <span class="btn-text">Recording...</span>
+          <span class="btn-text">{{ 'Recording...' | t }}</span>
         }
         @if (!agentService.isCurrentSessionRunning() && agentService.currentSessionRecordingStatus() === 'processing') {
-          <span class="btn-text">Preparing...</span>
+          <span class="btn-text">{{ 'Preparing...' | t }}</span>
         }
         @if (!agentService.isCurrentSessionRunning() && agentService.currentSessionRecordingStatus() !== 'processing' && agentService.currentSessionVideoUrl()) {
-          <span class="btn-text">Play Recording</span>
+          <span class="btn-text">{{ 'Play Recording' | t }}</span>
         }
         @if (!agentService.isCurrentSessionRunning() && agentService.currentSessionRecordingStatus() !== 'processing' && !agentService.currentSessionVideoUrl() && agentService.hasCurrentSessionStepFrames()) {
-          <span class="btn-text">Step Replay</span>
+          <span class="btn-text">{{ 'Step Replay' | t }}</span>
         }
         @if (!agentService.isCurrentSessionRunning() && agentService.currentSessionRecordingStatus() !== 'processing' && !agentService.currentSessionVideoUrl() && !agentService.hasCurrentSessionStepFrames() && agentService.currentSessionRecordingStatus() === 'failed') {
-          <span class="btn-text">Recording Failed</span>
+          <span class="btn-text">{{ 'Recording Failed' | t }}</span>
         }
         @if (!agentService.isCurrentSessionRunning() && agentService.currentSessionRecordingStatus() !== 'processing' && !agentService.currentSessionVideoUrl() && !agentService.hasCurrentSessionStepFrames() && agentService.currentSessionRecordingStatus() !== 'failed') {
-          <span class="btn-text">Screen Recording</span>
+          <span class="btn-text">{{ 'Screen Recording' | t }}</span>
         }
         @if (agentService.isCurrentSessionRunning()) {
           <span class="video-pulse-dot red"></span>
         }
         @if (!agentService.isCurrentSessionRunning() && !agentService.currentSessionVideoUrl() && agentService.hasCurrentSessionStepFrames()) {
           <span class="steps-count-badge">
+
             {{ agentService.currentSessionStepFrames().length }}
           </span>
         }
@@ -554,15 +564,15 @@ limitations under the License.
     @if (agentService.isSessionContentLoading()) {
       <div class="session-loading-state" aria-live="polite">
         <span class="material-symbols-outlined spin-animation">progress_activity</span>
-        <span>Loading run history...</span>
+        <span>{{ 'Loading run history...' | t }}</span>
       </div>
     }
 
     @if (!agentService.isSessionContentLoading() && consolidatedBlocks().length === 0 && !showPlanningLoader() && startupWorkItems().length === 0) {
       <div class="empty-state">
         <div class="empty-icon"><span class="material-symbols-outlined">sensors</span></div>
-        <h3>No Stream Activity Selected</h3>
-        <p>Please select a session from the Task List on the right to view its real-time log payloads.</p>
+        <h3>{{ 'No Stream Activity Selected' | t }}</h3>
+        <p>{{ 'Please select a session from the Task List on the right to view its real-time log payloads.' | t }}</p>
       </div>
     }
 
@@ -572,9 +582,9 @@ limitations under the License.
         @if (startupWorkItems().length > 0) {
           <div class="phase-container startup-phase" aria-live="polite">
             <div class="phase-header first-phase">
-              <span class="phase-worked-time">Worked for {{ startupPreparationDuration() }}s</span>
+              <span class="phase-worked-time">{{ 'Worked for {0}s' | t:[(startupPreparationDuration())] }}</span>
             </div>
-            <div class="phase-body" aria-label="Task startup progress">
+            <div class="phase-body" [attr.aria-label]="'Task startup progress' | t">
               <div class="block-item type-stream">
                 <div class="step-body">
                   <div class="step-actions-container">
@@ -584,7 +594,8 @@ limitations under the License.
                           <span class="stream-status-dot" [class.streaming]="item.isActive"></span>
                           <div class="llm-retry-note-text">
                             <span class="llm-retry-status-line">
-                              {{ item.message }} · {{ item.isActive ? 'Waiting ' : 'Waited ' }}{{ item.elapsed }}
+
+                              {{ ((item.message) | t) }} · {{ item.isActive ? ('Waiting ' | t) : ('Waited ' | t) }}{{ item.elapsed }}
                             </span>
                           </div>
                         </div>
@@ -603,11 +614,11 @@ limitations under the License.
                 class="phase-header"
                 [class.first-phase]="first && startupWorkItems().length === 0"
                 >
-                <span class="phase-worked-time">{{ isCheckerPhase(phase) ? 'Checked' : 'Worked' }} for {{ phase.durationSeconds }}s</span>
+                <span class="phase-worked-time">{{ '{0} for {1}s' | t:[(isCheckerPhase(phase) ? ('Checked' | t) : ('Worked' | t)), (phase.durationSeconds)] }}</span>
                 @if (phase.tokens) {
-                  <span class="phase-token-usage" [title]="getTokenTooltip(phase)">
+                  <span class="phase-token-usage" [title]="((getTokenTooltip(phase)) | t)">
                     <span class="token-dot">·</span>
-                    <span class="token-text">{{ formatTokenCount(phase.tokens) }}</span>
+                    <span class="token-text">{{ ((formatTokenCount(phase.tokens)) | t) }}</span>
                   </span>
                 }
               </div>
@@ -629,11 +640,11 @@ limitations under the License.
                           <div class="check-lane" [ngClass]="'tone-' + getCheckerTone(block)">
                             <div class="check-header">
                               <span class="stream-status-dot" [class.streaming]="isBlockRunning(block)"></span>
-                              <span class="check-title">{{ getCheckerPhaseLabel(block) }}</span>
+                              <span class="check-title">{{ ((getCheckerPhaseLabel(block)) | t) }}</span>
                               @if (block.data.phase !== 'outcome' && block.data.subgoal_text) {
                                 <span class="check-subject" [title]="block.data.subgoal_text">{{ block.data.subgoal_text }}</span>
                               }
-                              <span class="check-status">{{ getCheckerStatusLabel(block) }}</span>
+                              <span class="check-status">{{ ((getCheckerStatusLabel(block)) | t) }}</span>
                             </div>
                             @if (!isCheckerMuted(block) && getCheckerItems(block).length > 0) {
                               <ol class="check-items">
@@ -641,7 +652,7 @@ limitations under the License.
                                   <li class="check-item">
                                     <span class="check-index">{{ $index + 1 }}</span>
                                     <span class="check-text">{{ item.text }}</span>
-                                    <span class="check-method">{{ getCheckMethodLabel(item, block) }}</span>
+                                    <span class="check-method">{{ ((getCheckMethodLabel(item, block)) | t) }}</span>
                                   </li>
                                 }
                               </ol>
@@ -661,7 +672,7 @@ limitations under the License.
                                   [class.collapsed]="isCheckerSegmentCollapsed(block, itemIdx)">
                                   <div class="details-summary" (click)="toggleCheckerSegment(block, itemIdx)">
                                     <span class="stream-status-dot" [class.streaming]="isCheckerSegmentRunning(block, itemIdx) && !isCheckerSegmentResetNotice(item)" [class.resetting]="isCheckerSegmentResetNotice(item)"></span>
-                                    <span class="header-label">{{ isCheckerSegmentResetNotice(item) ? getCheckerSegmentResetMessage(item) : 'Thought' }}</span>
+                                    <span class="header-label">{{ isCheckerSegmentResetNotice(item) ? getCheckerSegmentResetMessage(item) : ('Thought' | t) }}</span>
                                   </div>
                                   @if (item.data.text && item.data.text.trim()) {
                                     <div class="details-content-wrapper">
@@ -678,7 +689,7 @@ limitations under the License.
                                     <div class="llm-retry-note">
                                       <span class="stream-status-dot" [class.streaming]="isCheckerSegmentRunning(block, itemIdx)"></span>
                                       <div class="llm-retry-note-text">
-                                        <span class="llm-retry-status-line">{{ formatResetMessage(getCheckerSegmentResetMessage(item), isCheckerSegmentRunning(block, itemIdx)) }}</span>
+                                        <span class="llm-retry-status-line">{{ ((formatResetMessage(getCheckerSegmentResetMessage(item), isCheckerSegmentRunning(block, itemIdx))) | t) }}</span>
                                       </div>
                                     </div>
                                   </div>
@@ -689,7 +700,7 @@ limitations under the License.
                                     [class.is-running]="isCheckerSegmentRunning(block, itemIdx)">
                                     <div class="report-header">
                                       <span class="stream-status-dot" [class.streaming]="isCheckerSegmentRunning(block, itemIdx)"></span>
-                                      <span class="header-label">Work</span>
+                                      <span class="header-label">{{ 'Work' | t }}</span>
                                     </div>
                                     <div class="report-content stream-box">
                                       <div class="stream-text" [innerHTML]="renderMarkdown(item.data.text, block.id + '-seg-' + itemIdx)"></div>
@@ -705,7 +716,7 @@ limitations under the License.
                                       <div class="llm-retry-note">
                                         <span class="stream-status-dot" [class.streaming]="reset.isWaiting"></span>
                                         <div class="llm-retry-note-text">
-                                          <span class="llm-retry-status-line">{{ formatResetMessage(reset.message, reset.isWaiting) }}</span>
+                                          <span class="llm-retry-status-line">{{ ((formatResetMessage(reset.message, reset.isWaiting)) | t) }}</span>
                                         </div>
                                       </div>
                                     }
@@ -718,7 +729,7 @@ limitations under the License.
                                     [class.collapsed]="collapsedStreams().has(block.data.execution_id || block.data.step_id || block.id)">
                                     <div class="details-summary" (click)="toggleCollapse(block.data.execution_id || block.data.step_id || block.id)">
                                       <span class="stream-status-dot" [class.streaming]="isBlockRunning(block)"></span>
-                                      <span class="header-label">Thought</span>
+                                      <span class="header-label">{{ 'Thought' | t }}</span>
                                     </div>
                                     @if (getStreamDisplayText(block.id + '-native', item.data.text)) {
                                       <div class="details-content-wrapper">
@@ -738,7 +749,7 @@ limitations under the License.
                                       <div class="llm-retry-note">
                                         <span class="stream-status-dot" [class.streaming]="reset.isWaiting"></span>
                                         <div class="llm-retry-note-text">
-                                          <span class="llm-retry-status-line">{{ formatResetMessage(reset.message, reset.isWaiting) }}</span>
+                                          <span class="llm-retry-status-line">{{ ((formatResetMessage(reset.message, reset.isWaiting)) | t) }}</span>
                                         </div>
                                       </div>
                                     }
@@ -750,7 +761,7 @@ limitations under the License.
                                     [class.is-running]="isBlockRunning(block)">
                                     <div class="report-header">
                                       <span class="stream-status-dot" [class.streaming]="isBlockRunning(block)"></span>
-                                      <span class="header-label">Work</span>
+                                      <span class="header-label">{{ 'Work' | t }}</span>
                                     </div>
                                     @if (getStreamDisplayText(block.id, item.data.text)) {
                                       <div class="report-content stream-box">
@@ -772,13 +783,15 @@ limitations under the License.
                                       {{ getReportStatusValue(item.data) === 'failed' ? 'cancel' : 'task_alt' }}
                                     </span>
                                     <span class="action-title">
-                                      {{ getReportStatusValue(item.data) === 'failed' ? 'Task Execution Failed' : 'Task Completed' }}
+
+                                      {{ getReportStatusValue(item.data) === 'failed' ? ('Task Execution Failed' | t) : ('Task Completed' | t) }}
                                     </span>
                                     <span class="action-status-badge" [class.is-failed]="getReportStatusValue(item.data) === 'failed'" [class.is-completed]="getReportStatusValue(item.data) !== 'failed'">
                                       <span class="material-symbols-outlined status-icon">
                                         {{ getReportStatusValue(item.data) === 'failed' ? 'error' : 'check_circle' }}
                                       </span>
-                                      {{ getReportStatusValue(item.data) === 'failed' ? 'Failed' : 'Completed' }}
+
+                                      {{ getReportStatusValue(item.data) === 'failed' ? ('Failed' | t) : ('Completed' | t) }}
                                     </span>
                                     <span class="action-expand-icon material-symbols-outlined">
                                       {{ isActionExpanded('action-' + block.id + '-' + itemIdx) ? 'expand_less' : 'expand_more' }}
@@ -788,7 +801,7 @@ limitations under the License.
                                   @if (!isActionExpanded('action-' + block.id + '-' + itemIdx) && getReportStatusExplanation(item.data)) {
                                     <div class="action-card-body">
                                       <div class="action-detail-row">
-                                        <span class="detail-label">Summary:</span>
+                                        <span class="detail-label">{{ 'Summary:' | t }}</span>
                                         <span class="detail-value">"{{ getReportStatusExplanation(item.data) }}"</span>
                                       </div>
                                     </div>
@@ -799,7 +812,7 @@ limitations under the License.
                                       <div class="expanded-grid">
                                         @if (getReportStatusExplanation(item.data); as expText) {
                                           <div class="grid-item full-width">
-                                            <span class="grid-label">Report & Findings</span>
+                                            <span class="grid-label">{{ 'Report & Findings' | t }}</span>
                                             <span class="grid-value report-markdown-body" [innerHTML]="renderMarkdown(expText, 'report-' + block.id + '-' + itemIdx)"></span>
                                           </div>
                                         }
@@ -809,20 +822,20 @@ limitations under the License.
                                         <div class="expanded-screenshots-container">
                                           @if (getStepPreImageUrl(block.data, item.data)) {
                                             <div class="screenshot-column">
-                                              <span class="screenshot-label">Final Verified State</span>
+                                              <span class="screenshot-label">{{ 'Final Verified State' | t }}</span>
                                               <div class="image-wrapper" (click)="openImageModal(getStepPreImageUrl(block.data, item.data)!, item.data, $event)">
                                                 <div class="img-relative-box">
-                                                  <img [src]="getStepPreImageUrl(block.data, item.data)" alt="Final Screen Screenshot" />
+                                                  <img [src]="getStepPreImageUrl(block.data, item.data)" [alt]="'Final Screen Screenshot' | t" />
                                                 </div>
                                               </div>
                                             </div>
                                           }
                                           @if (getStepPostImageUrl(block.data, item.data)) {
                                             <div class="screenshot-column">
-                                              <span class="screenshot-label">Post Verification</span>
+                                              <span class="screenshot-label">{{ 'Post Verification' | t }}</span>
                                               <div class="image-wrapper" (click)="openImageModal(getStepPostImageUrl(block.data, item.data)!, null, $event)">
                                                 <div class="img-relative-box">
-                                                  <img [src]="getStepPostImageUrl(block.data, item.data)" alt="Post Screenshot" />
+                                                  <img [src]="getStepPostImageUrl(block.data, item.data)" [alt]="'Post Screenshot' | t" />
                                                 </div>
                                               </div>
                                             </div>
@@ -842,11 +855,12 @@ limitations under the License.
                                   >
                                   <div class="action-card-header" (click)="toggleActionExpanded('action-' + block.id + '-' + itemIdx, $event)">
                                     <span class="material-symbols-outlined action-icon" [class.is-failed]="isActionFailed(item.data, block.data)">{{ getActionIcon(item.data) }}</span>
-                                    <span class="action-title">{{ getActionTitle(item.data) }}</span>
+                                    <span class="action-title">{{ ((getActionTitle(item.data)) | t) }}</span>
                                     @if (isActionFailed(item.data, block.data)) {
                                       <span class="action-status-badge is-failed">
                                         <span class="material-symbols-outlined status-icon">error</span>
-                                        Failed
+
+                                        {{ 'Failed' | t }}
                                       </span>
                                     }
                                     <span class="action-expand-icon material-symbols-outlined">
@@ -858,19 +872,19 @@ limitations under the License.
                                     <div class="action-card-body">
                                       @if (getActionTargetText(item.data)) {
                                         <div class="action-detail-row">
-                                          <span class="detail-label">Target:</span>
+                                          <span class="detail-label">{{ 'Target:' | t }}</span>
                                           <span class="detail-value">"{{ getActionTargetText(item.data) }}"</span>
                                         </div>
                                       }
                                       @if (getActionInputText(item.data)) {
                                         <div class="action-detail-row">
-                                          <span class="detail-label">{{ getActionInputLabel(item.data) }}:</span>
+                                          <span class="detail-label">{{ ((getActionInputLabel(item.data)) | t) }}:</span>
                                           <span class="detail-value">"{{ getActionInputText(item.data) }}"</span>
                                         </div>
                                       }
                                       @if (getActionCoords(item.data)) {
                                         <div class="action-detail-row">
-                                          <span class="detail-label">Coordinates:</span>
+                                          <span class="detail-label">{{ 'Coordinates:' | t }}</span>
                                           <span class="detail-value coordinate-badge">{{ getActionCoords(item.data) }}</span>
                                         </div>
                                       }
@@ -882,31 +896,31 @@ limitations under the License.
                                       <div class="expanded-grid">
                                         @if (getActionTargetText(item.data)) {
                                           <div class="grid-item">
-                                            <span class="grid-label">Target</span>
+                                            <span class="grid-label">{{ 'Target' | t }}</span>
                                             <span class="grid-value">"{{ getActionTargetText(item.data) }}"</span>
                                           </div>
                                         }
                                         @if (getActionInputText(item.data)) {
                                           <div class="grid-item">
-                                            <span class="grid-label">{{ getActionInputLabel(item.data) }}</span>
+                                            <span class="grid-label">{{ ((getActionInputLabel(item.data)) | t) }}</span>
                                             <span class="grid-value">"{{ getActionInputText(item.data) }}"</span>
                                           </div>
                                         }
                                         @if (getActionCoords(item.data)) {
                                           <div class="grid-item">
-                                            <span class="grid-label">Coordinates</span>
+                                            <span class="grid-label">{{ 'Coordinates' | t }}</span>
                                             <span class="grid-value code-pill">{{ getActionCoords(item.data) }}</span>
                                           </div>
                                         }
                                         @if (getActionBounds(item.data)) {
                                           <div class="grid-item">
-                                            <span class="grid-label">Target Bounds</span>
+                                            <span class="grid-label">{{ 'Target Bounds' | t }}</span>
                                             <span class="grid-value code-pill">[{{ getActionBounds(item.data) }}]</span>
                                           </div>
                                         }
                                         @if (getActionClass(item.data)) {
                                           <div class="grid-item">
-                                            <span class="grid-label">Target Class</span>
+                                            <span class="grid-label">{{ 'Target Class' | t }}</span>
                                             <span class="grid-value code-pill">{{ getActionClass(item.data) }}</span>
                                           </div>
                                         }
@@ -919,8 +933,8 @@ limitations under the License.
                                         <!-- Fallback item if all detail fields are empty -->
                                         @if (!getActionTargetText(item.data) && !getActionInputText(item.data) && !getActionCoords(item.data) && !getActionBounds(item.data) && !getActionClass(item.data) && getActionExtraParams(item.data).length === 0) {
                                           <div class="grid-item">
-                                            <span class="grid-label">Action</span>
-                                            <span class="grid-value">{{ getActionTitle(item.data) }}</span>
+                                            <span class="grid-label">{{ 'Action' | t }}</span>
+                                            <span class="grid-value">{{ ((getActionTitle(item.data)) | t) }}</span>
                                           </div>
                                         }
                                       </div>
@@ -929,10 +943,10 @@ limitations under the License.
                                         <div class="expanded-screenshots-container">
                                           @if (getStepPreImageUrl(block.data, item.data)) {
                                             <div class="screenshot-column">
-                                              <span class="screenshot-label">Pre-Action (Before)</span>
+                                              <span class="screenshot-label">{{ 'Pre-Action (Before)' | t }}</span>
                                               <div class="image-wrapper" (click)="openImageModal(getStepPreImageUrl(block.data, item.data)!, item.data, $event)">
                                                 <div class="img-relative-box">
-                                                  <img #preImg [src]="getStepPreImageUrl(block.data, item.data)" (load)="onImageLoad(preImg, preOverlay, item.data)" alt="Pre-Action Screenshot" />
+                                                  <img #preImg [src]="getStepPreImageUrl(block.data, item.data)" (load)="onImageLoad(preImg, preOverlay, item.data)" [alt]="'Pre-Action Screenshot' | t" />
                                                   <div #preOverlay class="overlay-layer"></div>
                                                 </div>
                                               </div>
@@ -940,10 +954,10 @@ limitations under the License.
                                           }
                                           @if (getStepPostImageUrl(block.data, item.data)) {
                                             <div class="screenshot-column">
-                                              <span class="screenshot-label">Post-Action (After)</span>
+                                              <span class="screenshot-label">{{ 'Post-Action (After)' | t }}</span>
                                               <div class="image-wrapper" (click)="openImageModal(getStepPostImageUrl(block.data, item.data)!, null, $event)">
                                                 <div class="img-relative-box">
-                                                  <img [src]="getStepPostImageUrl(block.data, item.data)" alt="Post-Action Screenshot" />
+                                                  <img [src]="getStepPostImageUrl(block.data, item.data)" [alt]="'Post-Action Screenshot' | t" />
                                                 </div>
                                               </div>
                                             </div>
@@ -983,18 +997,22 @@ limitations under the License.
                                         <div class="llm-retry-note-text">
                                           @if (isLLMRetryEntryWaiting(retry)) {
                                             <span class="llm-retry-status-line">
-                                              LLM temporarily unavailable
+
+                                              {{ 'LLM temporarily unavailable' | t }}
                                               @if (getLLMRetryEntryDelay(retry); as retryDelay) {
-                                                · Retrying in {{ retryDelay }}…
+
+                                                {{ '· Retrying in {0}…' | t:[(retryDelay)] }}
                                               }
                                             </span>
                                             <span class="llm-retry-guidance">
-                                              Frequent retries may indicate a low API rate limit. Consider increasing the limit or reducing request concurrency.
+
+                                              {{ 'Frequent retries may indicate a low API rate limit. Consider increasing the limit or reducing request concurrency.' | t }}
                                             </span>
                                           }
                                           @if (!isLLMRetryEntryWaiting(retry)) {
                                             <span class="llm-retry-status-line">
-                                              Retrying LLM request · Waited {{ getLLMRetryEntryWaited(retry) }}
+
+                                              {{ 'Retrying LLM request · Waited {0}' | t:[(getLLMRetryEntryWaited(retry))] }}
                                             </span>
                                           }
                                         </div>
@@ -1011,16 +1029,18 @@ limitations under the License.
                                       (click)="hasLLMFailureRetryEntries(item.data) && toggleActionExpanded('llm-failure-' + block.id + '-' + itemIdx, $event)">
                                       <div class="action-card-header llm-failure-header">
                                         <span class="material-symbols-outlined action-icon is-failed">error</span>
-                                        <span class="action-title">LLM Request Failed</span>
+                                        <span class="action-title">{{ 'LLM Request Failed' | t }}</span>
                                         @if (isTerminalLLMFailure(item.data)) {
                                           <span class="action-status-badge is-paused">
                                             <span class="material-symbols-outlined status-icon">pause_circle</span>
-                                            Paused
+
+                                            {{ 'Paused' | t }}
                                           </span>
                                         } @else {
                                           <span class="action-status-badge is-failed">
                                             <span class="material-symbols-outlined status-icon">warning</span>
-                                            Failed
+
+                                            {{ 'Failed' | t }}
                                           </span>
                                         }
                                         @if (hasLLMFailureRetryEntries(item.data)) {
@@ -1031,28 +1051,28 @@ limitations under the License.
                                       </div>
                                       <div class="action-card-body">
                                         <div class="action-detail-row">
-                                          <span class="detail-label">What happened:</span>
-                                          <span class="detail-value">The AI request could not be completed after automatic retries.</span>
+                                          <span class="detail-label">{{ 'What happened:' | t }}</span>
+                                          <span class="detail-value">{{ 'The AI request could not be completed after automatic retries.' | t }}</span>
                                         </div>
                                         <div class="action-detail-row">
-                                          <span class="detail-label">Failure reason:</span>
-                                          <span class="detail-value">{{ getLLMErrorText(item.data) }}</span>
+                                          <span class="detail-label">{{ 'Failure reason:' | t }}</span>
+                                          <span class="detail-value">{{ ((getLLMErrorText(item.data)) | t) }}</span>
                                         </div>
                                         @if (getLLMFailureWaited(item.data); as waited) {
                                           <div class="action-detail-row">
-                                            <span class="detail-label">Waited:</span>
+                                            <span class="detail-label">{{ 'Waited:' | t }}</span>
                                             <span class="detail-value">{{ waited }}</span>
                                           </div>
                                         }
                                         @if (isActionExpanded('llm-failure-' + block.id + '-' + itemIdx)) {
                                           <div class="failure-retry-details">
-                                            <div class="failure-retry-title">Retry details</div>
+                                            <div class="failure-retry-title">{{ 'Retry details' | t }}</div>
                                             @for (retry of getLLMFailureRetryEntries(item.data); track retry; let retryIndex = $index) {
                                               <div class="failure-retry-row">
-                                                <span>Retry {{ retryIndex + 1 }}</span>
+                                                <span>{{ 'Retry {0}' | t:[(retryIndex + 1)] }}</span>
                                                 <span>
-                                                  Planned {{ getLLMRetryEntryDelay(retry) || '0s' }}
-                                                  · Waited {{ getLLMRetryEntryWaited(retry) }}
+
+                                                  {{ 'Planned {0} · Waited {1}' | t:[(getLLMRetryEntryDelay(retry) || ('0s' | t)), (getLLMRetryEntryWaited(retry))] }}
                                                 </span>
                                               </div>
                                             }
@@ -1066,14 +1086,14 @@ limitations under the License.
                                           type="button"
                                           class="btn-continue-task"
                                           (click)="resumePausedTask($event)"
-                                          title="Continue the paused task"
-                                          aria-label="Continue the paused task"
+                                          [title]="'Continue the paused task' | t"
+                                          [attr.aria-label]="'Continue the paused task' | t"
                                           >
                                           <span class="material-symbols-outlined continue-icon">play_arrow</span>
-                                          <span>Continue task</span>
+                                          <span>{{ 'Continue task' | t }}</span>
                                           <span class="material-symbols-outlined continue-arrow">arrow_forward</span>
                                         </button>
-                                        <span class="llm-resume-hint">Task paused · no steps are running</span>
+                                        <span class="llm-resume-hint">{{ 'Task paused · no steps are running' | t }}</span>
                                       </div>
                                     }
                                   </div>
@@ -1085,20 +1105,21 @@ limitations under the License.
                                     [class.is-note-tool]="isNoteTool(item.data)"
                                     [class.is-video-tool]="isVideoTool(item.data)"
                                     [class.is-video-attention]="isVideoTool(item.data) && isVideoAnalysisAttention(item.data)"
-                                    [attr.title]="getCompressionPhaseTitle(item.data)"
+                                    [attr.title]="((getCompressionPhaseTitle(item.data)) | t)"
                                     >
                                     <div class="tool-call-label">
                                       <span class="stream-status-dot" [class.streaming]="isToolLineRunning(item, block)"></span>
                                       <div class="tool-call-text">
-                                        <span>{{ isVideoTool(item.data) ? getVideoAnalysisLabel(item.data) : getToolDisplayLabel(item.data) }}{{ ((isNoteTool(item.data) && getToolKey(item.data)) || isVideoTool(item.data)) ? ':' : '' }}</span>
+                                        <span>{{ ((isVideoTool(item.data) ? getVideoAnalysisLabel(item.data) : getToolDisplayLabel(item.data)) | t) }}{{ ((isNoteTool(item.data) && getToolKey(item.data)) || isVideoTool(item.data)) ? ':' : '' }}</span>
                                         <!-- Note Tool Pill -->
                                         @if (isNoteTool(item.data) && getToolKey(item.data); as key) {
                                           <span
                                             class="tool-key-pill"
                                             (click)="onToolKeyClick(key)"
-                                            title="Click to view note content"
+                                            [title]="'Click to view note content' | t"
                                             >
                                             <span class="material-symbols-outlined pill-icon">draft</span>
+
                                             {{ key }}
                                           </span>
                                         }
@@ -1107,10 +1128,11 @@ limitations under the License.
                                           <span
                                             class="tool-key-pill"
                                             (click)="onVideoToolClick(item.data)"
-                                            [title]="'Open recording at ' + getVideoAnalysisRangeLabel(item.data)"
+                                            [title]="((('Open recording at ' | t) + getVideoAnalysisRangeLabel(item.data)) | t)"
                                             >
                                             <span class="material-symbols-outlined pill-icon">videocam</span>
-                                            {{ getVideoAnalysisRangeLabel(item.data) }}
+
+                                            {{ ((getVideoAnalysisRangeLabel(item.data)) | t) }}
                                           </span>
                                           @if (getVideoAnalysisDetail(item.data); as detail) {
                                             <span class="video-status-detail">· {{ detail }}</span>
@@ -1130,11 +1152,12 @@ limitations under the License.
                                     >
                                     <div class="action-card-header" (click)="toggleActionExpanded('tool-' + block.id + '-' + itemIdx, $event)">
                                       <span class="material-symbols-outlined action-icon" [class.is-failed]="isToolFailed(item.data)">{{ getToolIcon(item.data) }}</span>
-                                      <span class="action-title">{{ getToolTitle(item.data) }}</span>
+                                      <span class="action-title">{{ ((getToolTitle(item.data)) | t) }}</span>
                                       @if (isToolFailed(item.data)) {
                                         <span class="action-status-badge is-failed">
                                           <span class="material-symbols-outlined status-icon">error</span>
-                                          Failed
+
+                                          {{ 'Failed' | t }}
                                         </span>
                                       }
                                       <span class="action-expand-icon material-symbols-outlined">
@@ -1148,19 +1171,19 @@ limitations under the License.
                                         @if (isAdbCommandTool(item.data)) {
                                           @if (getAdbCommandLine(item.data)) {
                                             <div class="action-detail-row">
-                                              <span class="detail-label">Command:</span>
+                                              <span class="detail-label">{{ 'Command:' | t }}</span>
                                               <span class="detail-value command-value"><code>{{ getAdbCommandLine(item.data) }}</code></span>
                                             </div>
                                           }
                                           @if (getAdbCwd(item.data)) {
                                             <div class="action-detail-row">
-                                              <span class="detail-label">Cwd:</span>
+                                              <span class="detail-label">{{ 'Cwd:' | t }}</span>
                                               <span class="detail-value">"{{ getAdbCwd(item.data) }}"</span>
                                             </div>
                                           }
                                           @if (getAdbTerminalId(item.data)) {
                                             <div class="action-detail-row">
-                                              <span class="detail-label">Terminal ID:</span>
+                                              <span class="detail-label">{{ 'Terminal ID:' | t }}</span>
                                               <span class="detail-value">"{{ getAdbTerminalId(item.data) }}"</span>
                                             </div>
                                           }
@@ -1169,31 +1192,31 @@ limitations under the License.
                                         @if (!isAdbCommandTool(item.data)) {
                                           @if (getToolTargetText(item.data)) {
                                             <div class="action-detail-row">
-                                              <span class="detail-label">Target:</span>
+                                              <span class="detail-label">{{ 'Target:' | t }}</span>
                                               <span class="detail-value">"{{ getToolTargetText(item.data) }}"</span>
                                             </div>
                                           }
                                           @if (getToolInputText(item.data)) {
                                             <div class="action-detail-row">
-                                              <span class="detail-label">{{ getToolInputLabel(item.data) }}:</span>
+                                              <span class="detail-label">{{ ((getToolInputLabel(item.data)) | t) }}:</span>
                                               <span class="detail-value">"{{ getToolInputText(item.data) }}"</span>
                                             </div>
                                           }
                                           @if (getToolCoords(item.data)) {
                                             <div class="action-detail-row">
-                                              <span class="detail-label">Coordinates:</span>
+                                              <span class="detail-label">{{ 'Coordinates:' | t }}</span>
                                               <span class="detail-value coordinate-badge">{{ getToolCoords(item.data) }}</span>
                                             </div>
                                           }
                                           @if (getToolAnalysisText(item.data)) {
                                             <div class="action-detail-row">
-                                              <span class="detail-label">Analysis:</span>
+                                              <span class="detail-label">{{ 'Analysis:' | t }}</span>
                                               <span class="detail-value">"{{ getToolAnalysisText(item.data) }}"</span>
                                             </div>
                                           }
                                           @if (getToolGenericDetails(item.data)) {
                                             <div class="action-detail-row">
-                                              <span class="detail-label">Details:</span>
+                                              <span class="detail-label">{{ 'Details:' | t }}</span>
                                               <span class="detail-value">"{{ getToolGenericDetails(item.data) }}"</span>
                                             </div>
                                           }
@@ -1207,19 +1230,19 @@ limitations under the License.
                                           @if (isAdbCommandTool(item.data)) {
                                             @if (getAdbCommandLine(item.data)) {
                                               <div class="grid-item full-width">
-                                                <span class="grid-label">Command</span>
+                                                <span class="grid-label">{{ 'Command' | t }}</span>
                                                 <span class="grid-value command-value"><code>{{ getAdbCommandLine(item.data) }}</code></span>
                                               </div>
                                             }
                                             @if (getAdbCwd(item.data)) {
                                               <div class="grid-item">
-                                                <span class="grid-label">Working Directory</span>
+                                                <span class="grid-label">{{ 'Working Directory' | t }}</span>
                                                 <span class="grid-value">"{{ getAdbCwd(item.data) }}"</span>
                                               </div>
                                             }
                                             @if (getAdbTerminalId(item.data)) {
                                               <div class="grid-item">
-                                                <span class="grid-label">Terminal ID</span>
+                                                <span class="grid-label">{{ 'Terminal ID' | t }}</span>
                                                 <span class="grid-value code-pill">{{ getAdbTerminalId(item.data) }}</span>
                                               </div>
                                             }
@@ -1227,31 +1250,31 @@ limitations under the License.
                                           @if (!isAdbCommandTool(item.data)) {
                                             @if (getToolTargetText(item.data)) {
                                               <div class="grid-item">
-                                                <span class="grid-label">Target</span>
+                                                <span class="grid-label">{{ 'Target' | t }}</span>
                                                 <span class="grid-value">"{{ getToolTargetText(item.data) }}"</span>
                                               </div>
                                             }
                                             @if (getToolInputText(item.data)) {
                                               <div class="grid-item">
-                                                <span class="grid-label">{{ getToolInputLabel(item.data) }}</span>
+                                                <span class="grid-label">{{ ((getToolInputLabel(item.data)) | t) }}</span>
                                                 <span class="grid-value">"{{ getToolInputText(item.data) }}"</span>
                                               </div>
                                             }
                                             @if (getToolCoords(item.data)) {
                                               <div class="grid-item">
-                                                <span class="grid-label">Coordinates</span>
+                                                <span class="grid-label">{{ 'Coordinates' | t }}</span>
                                                 <span class="grid-value code-pill">{{ getToolCoords(item.data) }}</span>
                                               </div>
                                             }
                                             @if (getToolAnalysisText(item.data)) {
                                               <div class="grid-item">
-                                                <span class="grid-label">Analysis</span>
+                                                <span class="grid-label">{{ 'Analysis' | t }}</span>
                                                 <span class="grid-value">"{{ getToolAnalysisText(item.data) }}"</span>
                                               </div>
                                             }
                                             @if (getToolGenericDetails(item.data)) {
                                               <div class="grid-item">
-                                                <span class="grid-label">Details</span>
+                                                <span class="grid-label">{{ 'Details' | t }}</span>
                                                 <span class="grid-value">"{{ getToolGenericDetails(item.data) }}"</span>
                                               </div>
                                             }
@@ -1268,10 +1291,10 @@ limitations under the License.
                                           <div class="expanded-screenshots-container">
                                             @if (getStepPreImageUrl(block.data, item.data)) {
                                               <div class="screenshot-column">
-                                                <span class="screenshot-label">Pre-Action (Before)</span>
+                                                <span class="screenshot-label">{{ 'Pre-Action (Before)' | t }}</span>
                                                 <div class="image-wrapper" (click)="openImageModal(getStepPreImageUrl(block.data, item.data)!, item.data, $event)">
                                                   <div class="img-relative-box">
-                                                    <img #preImgTool [src]="getStepPreImageUrl(block.data, item.data)" (load)="onImageLoad(preImgTool, preOverlayTool, item.data)" alt="Pre-Action Screenshot" />
+                                                    <img #preImgTool [src]="getStepPreImageUrl(block.data, item.data)" (load)="onImageLoad(preImgTool, preOverlayTool, item.data)" [alt]="'Pre-Action Screenshot' | t" />
                                                     <div #preOverlayTool class="overlay-layer"></div>
                                                   </div>
                                                 </div>
@@ -1279,10 +1302,10 @@ limitations under the License.
                                             }
                                             @if (getStepPostImageUrl(block.data, item.data)) {
                                               <div class="screenshot-column">
-                                                <span class="screenshot-label">Post-Action (After)</span>
+                                                <span class="screenshot-label">{{ 'Post-Action (After)' | t }}</span>
                                                 <div class="image-wrapper" (click)="openImageModal(getStepPostImageUrl(block.data, item.data)!, null, $event)">
                                                   <div class="img-relative-box">
-                                                    <img [src]="getStepPostImageUrl(block.data, item.data)" alt="Post-Action Screenshot" />
+                                                    <img [src]="getStepPostImageUrl(block.data, item.data)" [alt]="'Post-Action Screenshot' | t" />
                                                   </div>
                                                 </div>
                                               </div>
@@ -1337,12 +1360,12 @@ limitations under the License.
             <div class="synthesis-card-header">
               <div class="header-left">
                 <span class="material-symbols-outlined icon-sparkle">assignment_turned_in</span>
-                <span class="main-title">Task Report</span>
+                <span class="main-title">{{ 'Task Report' | t }}</span>
               </div>
               <div class="header-right">
                 <button type="button" class="btn-open-note" (click)="openOutputterNote($event)">
                   <span class="material-symbols-outlined">visibility</span>
-                  <span>View in Notes</span>
+                  <span>{{ 'View in Notes' | t }}</span>
                 </button>
               </div>
             </div>
@@ -1381,10 +1404,10 @@ limitations under the License.
                       @for (line of parsedOut.otherLines; track trackMarkdownLine($index, line)) {
                         <p class="other-line" [class]="'line-' + line.type">
                           @if (line.type === 'verify') {
-                            <span class="verify-badge" [class.assert]="line.checkKind === 'assert'">{{ line.checkKind || 'verify' }}{{ line.atEnd ? '@end' : '' }}</span>
+                            <span class="verify-badge" [class.assert]="line.checkKind === 'assert'">{{ line.checkKind || ('verify' | t) }}{{ line.atEnd ? '@end' : '' }}</span>
                           }
                           @if (line.type === 'finding') {
-                            <span class="finding-badge">finding</span>
+                            <span class="finding-badge">{{ 'finding' | t }}</span>
                           }
                           @for (seg of line.segments; track seg) {
                             @if (seg.bold) {
@@ -1411,7 +1434,7 @@ limitations under the License.
           <div class="planning-loader-container">
             <div class="planning-loader">
               <span class="material-symbols-outlined spin-animation">progress_activity</span>
-              <span class="loader-text">{{ currentPlanningText() }}</span>
+              <span class="loader-text">{{ currentPlanningText() | t }}</span>
             </div>
           </div>
         }
@@ -1423,11 +1446,11 @@ limitations under the License.
   @if (selectedZoomImage()) {
     <div class="image-modal-backdrop" (click)="closeImageModal($event)">
       <div class="image-modal-content" (click)="$event.stopPropagation()">
-        <button class="image-modal-close" (click)="closeImageModal($event)" aria-label="Close image preview">
+        <button class="image-modal-close" (click)="closeImageModal($event)" [attr.aria-label]="'Close image preview' | t">
           <span class="material-symbols-outlined">close</span>
         </button>
         <div class="img-relative-box">
-          <img #modalImg [src]="selectedZoomImage()" (load)="onImageLoad(modalImg, modalOverlay, selectedZoomAction())" alt="Zoomed Screenshot" />
+          <img #modalImg [src]="selectedZoomImage()" (load)="onImageLoad(modalImg, modalOverlay, selectedZoomAction())" [alt]="'Zoomed Screenshot' | t" />
           <div #modalOverlay class="overlay-layer"></div>
         </div>
       </div>

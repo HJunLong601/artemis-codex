@@ -1,54 +1,54 @@
-<section class="exploration" aria-label="安全 Monkey 与页面学习">
-  <div class="heading"><h2>安全 Monkey 与页面学习</h2><div class="actions"><button type="button" (click)="configure()" [disabled]="pending()">配置新任务</button><button type="button" (click)="refresh()" [disabled]="reading()">{{ reading() ? '读取中…' : '刷新任务' }}</button></div></div>
-  <p>在一个 Android App 内安全探索，学习实际访问的稳定页面。不会删除、发送、购买或修改账号。</p>
-  <p class="warning">关闭网页不会停止后台任务。Token 在请求结束后结算，在途请求可能超过设置额度；预算控制不是账单硬上限。</p>
-  <p><a href="/settings/models">模型配置与登录</a> · <a href="/" target="_blank" rel="noopener">主页 Setup Guide（设备诊断）</a>；已连接的模型无需配置无关 Provider 的凭证。</p>
-  @if (message()) { <p class="notice" role="status">{{ message() }}</p> }
-  @if (stale()) { <p class="notice" role="alert">状态未确认，下方为最后一次读取结果。</p> }
+<section class="exploration" [attr.aria-label]="'安全 Monkey 与页面学习' | t">
+  <div class="heading"><h2>{{ '安全 Monkey 与页面学习' | t }}</h2><div class="actions"><button type="button" (click)="configure()" [disabled]="pending()">{{ '配置新任务' | t }}</button><button type="button" (click)="refresh()" [disabled]="reading()">{{ reading() ? ('读取中…' | t) : ('刷新任务' | t) }}</button></div></div>
+  <p>{{ '在一个 Android App 内安全探索，学习实际访问的稳定页面。不会删除、发送、购买或修改账号。' | t }}</p>
+  <p class="warning">{{ '关闭网页不会停止后台任务。Token 在请求结束后结算，在途请求可能超过设置额度；预算控制不是账单硬上限。' | t }}</p>
+  <p><a href="/settings/models">{{ '模型配置与登录' | t }}</a> · <a href="/" target="_blank" rel="noopener">{{ '主页 Setup Guide（设备诊断）' | t }}</a>{{ '；已连接的模型无需配置无关 Provider 的凭证。' | t }}</p>
+  @if (message()) { <p class="notice" role="status">{{ ((message()) | t) }}</p> }
+  @if (stale()) { <p class="notice" role="alert">{{ '状态未确认，下方为最后一次读取结果。' | t }}</p> }
   @if (open()) {
     <div class="configuration">
       <div class="fields">
-        <label>目标设备<select aria-label="目标设备" [(ngModel)]="serial" (ngModelChange)="chooseDevice()" [disabled]="pending()"><option value="">明确选择设备</option>@for (device of devices(); track device.canonical_id) { <option [value]="device.canonical_id" [disabled]="device.is_busy">{{ device.name || device.serial }} · {{ device.is_busy ? '忙碌' : '空闲' }}</option> }</select></label>
-        <label>目标 App<input aria-label="目标 App" aria-describedby="exploration-app-help" list="exploration-apps" [(ngModel)]="package" (ngModelChange)="changed()" [disabled]="pending() || loadingApps() || !serial" placeholder="输入已安装应用包名进行筛选" autocomplete="off"><datalist id="exploration-apps">@for (app of apps(); track app.package) { <option [value]="app.package">{{ app.name }}</option> }</datalist><small id="exploration-app-help">{{ loadingApps() ? '读取应用中…' : '必须从所选设备的已安装应用中选择' }}</small></label>
-        <label>最大有效时长（分钟）<input aria-label="最大有效时长（分钟）" aria-describedby="exploration-duration-help" type="number" min="1" max="1440" step="1" [(ngModel)]="duration" (ngModelChange)="changed()" [disabled]="pending()" required><small id="exploration-duration-help">必填正整数，1–1440；暂停及恢复校验不计时</small></label>
-        <fieldset class="budget-field"><legend>操作步数</legend><label class="unlimited"><input type="checkbox" aria-label="操作步数不限制" [(ngModel)]="unlimitedSteps" (ngModelChange)="changed()" [disabled]="pending()">不限制</label><label>最大操作步数<input aria-label="最大操作步数" aria-describedby="exploration-steps-help" type="number" min="1" max="20000" step="1" [(ngModel)]="steps" (ngModelChange)="changed()" [disabled]="pending() || unlimitedSteps" [required]="!unlimitedSteps"><small id="exploration-steps-help">{{ unlimitedSteps ? '仅按时长控制，仍累计实际操作步数' : '必填正整数，1–20000；下发后失败也计步' }}</small></label></fieldset>
-        <fieldset class="budget-field"><legend>Token 用量</legend><label class="unlimited"><input type="checkbox" aria-label="Token 不限制" [(ngModel)]="unlimitedTokens" (ngModelChange)="changed()" [disabled]="pending()">不限制</label><label>最大 Token 用量<input aria-label="最大 Token 用量" aria-describedby="exploration-token-help" type="number" min="1" max="10000000" step="1" [(ngModel)]="tokens" (ngModelChange)="changed()" [disabled]="pending() || unlimitedTokens" [required]="!unlimitedTokens"><small id="exploration-token-help">{{ unlimitedTokens ? '不设 Token 上限，持续消耗模型额度，仍展示已知用量' : '必填正整数，1–10000000；包含探索、学习及辅助请求' }}</small></label></fieldset>
+        <label>{{ '目标设备' | t }}<select [attr.aria-label]="'目标设备' | t" [(ngModel)]="serial" (ngModelChange)="chooseDevice()" [disabled]="pending()"><option value="">{{ '明确选择设备' | t }}</option>@for (device of devices(); track device.canonical_id) { <option [value]="device.canonical_id" [disabled]="device.is_busy">{{ device.name || device.serial }} · {{ device.is_busy ? ('忙碌' | t) : ('空闲' | t) }}</option> }</select></label>
+        <label>{{ '目标 App' | t }}<input [attr.aria-label]="'目标 App' | t" aria-describedby="exploration-app-help" list="exploration-apps" [(ngModel)]="package" (ngModelChange)="changed()" [disabled]="pending() || loadingApps() || !serial" [placeholder]="'输入已安装应用包名进行筛选' | t" autocomplete="off"><datalist id="exploration-apps">@for (app of apps(); track app.package) { <option [value]="app.package">{{ app.name }}</option> }</datalist><small id="exploration-app-help">{{ loadingApps() ? ('读取应用中…' | t) : ('必须从所选设备的已安装应用中选择' | t) }}</small></label>
+        <label>{{ '最大有效时长（分钟）' | t }}<input [attr.aria-label]="'最大有效时长（分钟）' | t" aria-describedby="exploration-duration-help" type="number" min="1" max="1440" step="1" [(ngModel)]="duration" (ngModelChange)="changed()" [disabled]="pending()" required><small id="exploration-duration-help">{{ '必填正整数，1–1440；暂停及恢复校验不计时' | t }}</small></label>
+        <fieldset class="budget-field"><legend>{{ '操作步数' | t }}</legend><label class="unlimited"><input type="checkbox" [attr.aria-label]="'操作步数不限制' | t" [(ngModel)]="unlimitedSteps" (ngModelChange)="changed()" [disabled]="pending()">{{ '不限制' | t }}</label><label>{{ '最大操作步数' | t }}<input [attr.aria-label]="'最大操作步数' | t" aria-describedby="exploration-steps-help" type="number" min="1" max="20000" step="1" [(ngModel)]="steps" (ngModelChange)="changed()" [disabled]="pending() || unlimitedSteps" [required]="!unlimitedSteps"><small id="exploration-steps-help">{{ unlimitedSteps ? ('仅按时长控制，仍累计实际操作步数' | t) : ('必填正整数，1–20000；下发后失败也计步' | t) }}</small></label></fieldset>
+        <fieldset class="budget-field"><legend>{{ 'Token 用量' | t }}</legend><label class="unlimited"><input type="checkbox" [attr.aria-label]="'Token 不限制' | t" [(ngModel)]="unlimitedTokens" (ngModelChange)="changed()" [disabled]="pending()">{{ '不限制' | t }}</label><label>{{ '最大 Token 用量' | t }}<input [attr.aria-label]="'最大 Token 用量' | t" aria-describedby="exploration-token-help" type="number" min="1" max="10000000" step="1" [(ngModel)]="tokens" (ngModelChange)="changed()" [disabled]="pending() || unlimitedTokens" [required]="!unlimitedTokens"><small id="exploration-token-help">{{ unlimitedTokens ? ('不设 Token 上限，持续消耗模型额度，仍展示已知用量' | t) : ('必填正整数，1–10000000；包含探索、学习及辅助请求' | t) }}</small></label></fieldset>
       </div>
       @if (capabilities(); as cap) {
-        <div class="routes">@for (route of cap.routes | keyvalue; track route.key) { <p>{{ route.key === 'learning' ? '学习模型' : '探索模型' }}：<strong>{{ route.value.provider }} / {{ route.value.model }}</strong></p> }</div>
-        @if (!cap.enabled) { <p class="notice">请先启用视觉缓存。</p> }
+        <div class="routes">@for (route of cap.routes | keyvalue; track route.key) { <p>{{ route.key === 'learning' ? ('学习模型' | t) : ('探索模型' | t) }}：<strong>{{ route.value.provider }} / {{ route.value.model }}</strong></p> }</div>
+        @if (!cap.enabled) { <p class="notice">{{ '请先启用视觉缓存。' | t }}</p> }
       }
-      <p>请先在设备上打开目标 App 并避开敏感页面。默认只保留有效时长预算；取消“不限制”可另设步数或 Token 上限。遇到登录、权限或支付窗口会暂停，由你自行处理。只学习访问页面，不保证遍历整个 App。</p>
-      <label class="consent"><input type="checkbox" [(ngModel)]="confirmed" [disabled]="pending()">我确认持续向上方配置的模型服务发送所选 App 的截图，并按本次预算消耗额度；Codex 使用其客户端配置的服务。</label>
-      <div class="actions"><button type="button" (click)="start()" [disabled]="pending() || !valid()">{{ pending() ? '正在确认创建结果…' : '开始探索并学习' }}</button><button type="button" (click)="open.set(false)" [disabled]="pending()">关闭配置</button></div>
+      <p>{{ '请先在设备上打开目标 App 并避开敏感页面。默认只保留有效时长预算；取消“不限制”可另设步数或 Token 上限。遇到登录、权限或支付窗口会暂停，由你自行处理。只学习访问页面，不保证遍历整个 App。' | t }}</p>
+      <label class="consent"><input type="checkbox" [(ngModel)]="confirmed" [disabled]="pending()">{{ '我确认持续向上方配置的模型服务发送所选 App 的截图，并按本次预算消耗额度；Codex 使用其客户端配置的服务。' | t }}</label>
+      <div class="actions"><button type="button" (click)="start()" [disabled]="pending() || !valid()">{{ pending() ? ('正在确认创建结果…' | t) : ('开始探索并学习' | t) }}</button><button type="button" (click)="open.set(false)" [disabled]="pending()">{{ '关闭配置' | t }}</button></div>
     </div>
   }
   @if (tasks().length) {
-    <label class="task-picker">查看任务<select [ngModel]="selected()" (ngModelChange)="selected.set($event); selectTask()">@for (item of tasks(); track item.id) { <option [value]="item.id">{{ item.config.package }} · {{ states[item.status] || item.status }} · {{ item.id.slice(0, 8) }}</option> }</select></label>
-  } @else if (!reading()) { <p>暂无探索任务。配置设备、App 和有限预算后开始。</p> }
+    <label class="task-picker">{{ '查看任务' | t }}<select [ngModel]="selected()" (ngModelChange)="selected.set($event); selectTask()">@for (item of tasks(); track item.id) { <option [value]="item.id">{{ item.config.package }} · {{ ((states[item.status] || item.status) | t) }} · {{ item.id.slice(0, 8) }}</option> }</select></label>
+  } @else if (!reading()) { <p>{{ '暂无探索任务。配置设备、App 和有限预算后开始。' | t }}</p> }
   @if (task(); as current) {
-    <div class="task-summary" aria-live="polite"><strong>{{ states[current.status] || current.status }}</strong><span>{{ reason(current.reason) }}</span></div>
-    <p>{{ phases[current.phase] || '正在检查执行状态' }}</p>
-    <p class="identity">{{ current.config.package }} · {{ current.config.device_serial }}<br>任务 {{ current.id }} · 开始 {{ current.created_at * 1000 | date:'MM-dd HH:mm:ss' }} · 最后更新 {{ current.updated_at * 1000 | date:'HH:mm:ss' }}</p>
+    <div class="task-summary" aria-live="polite"><strong>{{ ((states[current.status] || current.status) | t) }}</strong><span>{{ ((reason(current.reason)) | t) }}</span></div>
+    <p>{{ ((phases[current.phase] || ('正在检查执行状态' | t)) | t) }}</p>
+    <p class="identity">{{ current.config.package }} · {{ current.config.device_serial }}<br>{{ '任务 {0} · 开始 {1} · 最后更新 {2}' | t:[(current.id), (current.created_at * 1000 | date:'MM-dd HH:mm:ss':undefined:i18n.locale()), (current.updated_at * 1000 | date:'HH:mm:ss':undefined:i18n.locale())] }}</p>
     <div class="budgets">
-      <article><span>累计有效时长</span><strong>{{ current.elapsed_ms / 1000 | number:'1.0-1' }} / {{ current.config.duration_minutes * 60 | number }} 秒</strong><small>剩余 {{ (current.config.duration_minutes * 60 - current.elapsed_ms / 1000) > 0 ? (current.config.duration_minutes * 60 - current.elapsed_ms / 1000 | number:'1.0-1') : 0 }} 秒</small></article>
-      <article><span>累计操作步数</span><strong>{{ current.steps | number }} / {{ current.config.max_steps === null ? '不限制' : (current.config.max_steps | number) }}</strong><small>继续本任务不会清零</small></article>
-      <article><span>已知 Token 用量</span><strong>{{ current.tokens | number }} / {{ current.config.max_tokens === null ? '不限制' : (current.config.max_tokens | number) }}</strong><small>{{ current.unsettled ? '存在在途或未结算请求，用量暂不可确认' : '用量已结算；缓存 Token 不重复累加' }}</small></article>
+      <article><span>{{ '累计有效时长' | t }}</span><strong>{{ '{0} / {1} 秒' | t:[(current.elapsed_ms / 1000 | number:'1.0-1':i18n.locale()), (current.config.duration_minutes * 60 | number:'1.0-3':i18n.locale())] }}</strong><small>{{ '剩余 {0} 秒' | t:[((current.config.duration_minutes * 60 - current.elapsed_ms / 1000) > 0 ? (current.config.duration_minutes * 60 - current.elapsed_ms / 1000 | number:'1.0-1':i18n.locale()) : 0)] }}</small></article>
+      <article><span>{{ '累计操作步数' | t }}</span><strong>{{ current.steps | number:'1.0-3':i18n.locale() }} / {{ current.config.max_steps === null ? ('不限制' | t) : (current.config.max_steps | number:'1.0-3':i18n.locale()) }}</strong><small>{{ '继续本任务不会清零' | t }}</small></article>
+      <article><span>{{ '已知 Token 用量' | t }}</span><strong>{{ current.tokens | number:'1.0-3':i18n.locale() }} / {{ current.config.max_tokens === null ? ('不限制' | t) : (current.config.max_tokens | number:'1.0-3':i18n.locale()) }}</strong><small>{{ current.unsettled ? ('存在在途或未结算请求，用量暂不可确认' | t) : ('用量已结算；缓存 Token 不重复累加' | t) }}</small></article>
     </div>
-    <p>探索 {{ current.token_sources['exploration'] || 0 | number }} · 学习 {{ current.token_sources['learning'] || 0 | number }} Token；安全拦截 {{ current.blocked_actions | number }} 次。</p>
+    <p>{{ '探索 {0} · 学习 {1} Token；安全拦截 {2} 次。' | t:[(current.token_sources['exploration'] || 0 | number:'1.0-3':i18n.locale()), (current.token_sources['learning'] || 0 | number:'1.0-3':i18n.locale()), (current.blocked_actions | number:'1.0-3':i18n.locale())] }}</p>
     <div class="actions">
-      @if (current.status === 'running') { <button type="button" (click)="control('pause')" [disabled]="pending()">暂停</button> }
-      @if (resumable(current)) { <button type="button" (click)="control('resume')" [disabled]="pending()">继续（保留累计预算）</button> }
-      @if (!terminal(current) && current.status !== 'stopping') { <button type="button" class="danger" (click)="openStop($event)" [disabled]="pending()">停止</button> }
-      <a [href]="base + '/tasks/' + current.id + '/report'" target="_blank" rel="noopener">查看本地报告</a>
+      @if (current.status === 'running') { <button type="button" (click)="control('pause')" [disabled]="pending()">{{ '暂停' | t }}</button> }
+      @if (resumable(current)) { <button type="button" (click)="control('resume')" [disabled]="pending()">{{ '继续（保留累计预算）' | t }}</button> }
+      @if (!terminal(current) && current.status !== 'stopping') { <button type="button" class="danger" (click)="openStop($event)" [disabled]="pending()">{{ '停止' | t }}</button> }
+      <a [href]="base + '/tasks/' + current.id + '/report'" target="_blank" rel="noopener">{{ '查看本地报告' | t }}</a>
     </div>
-    @if (current.status === 'pausing' || current.status === 'stopping') { <p role="status">不再派发新操作，正在收敛在途请求并释放设备。已经下发的动作无法撤销。</p> }
+    @if (current.status === 'pausing' || current.status === 'stopping') { <p role="status">{{ '不再派发新操作，正在收敛在途请求并释放设备。已经下发的动作无法撤销。' | t }}</p> }
     @if (confirmStop()) {
-      <div class="notice" role="group" aria-label="停止确认" (keydown.escape)="cancelStop()"><p>停止后本任务不能继续；缓存和报告会保留。暂时离开请选择暂停。确认前任务可能仍在运行。</p><div class="actions"><button #stopReturn type="button" (click)="cancelStop()">返回任务</button><button type="button" class="danger" (click)="control('stop')" [disabled]="pending()">确认停止</button></div></div>
+      <div class="notice" role="group" [attr.aria-label]="'停止确认' | t" (keydown.escape)="cancelStop()"><p>{{ '停止后本任务不能继续；缓存和报告会保留。暂时离开请选择暂停。确认前任务可能仍在运行。' | t }}</p><div class="actions"><button #stopReturn type="button" (click)="cancelStop()">{{ '返回任务' | t }}</button><button type="button" class="danger" (click)="control('stop')" [disabled]="pending()">{{ '确认停止' | t }}</button></div></div>
     }
-    <div class="page-counts">@for (count of current.page_counts | keyvalue; track count.key) { <span>{{ pageStates[count.key] || count.key }} {{ count.value }}</span> }</div>
-    <p>页面名称未识别时使用 Activity、包名及指纹兜底。下面是本任务的访问结果，不是 App 总覆盖率；复访命中率请看下方累计缓存效果。</p>
-    <div class="table-scroll"><table><thead><tr><th scope="col">页面 / Activity</th><th scope="col">学习结果</th><th scope="col">原因 / 尝试次数</th></tr></thead><tbody>@for (page of pages(); track page.page_key) { <tr><td>{{ label(page) }}@if (!page.name) { <small>名称未识别</small> }<small>{{ page.activity }}</small><code>{{ page.page_key.slice(0, 16) }}</code></td><td>{{ pageStates[page.status] || page.status }}</td><td>{{ reason(page.reason || '') }}<small>{{ page.attempts }} 次</small></td></tr> } @empty { <tr><td colspan="3">尚未观察到可学习页面。</td></tr> }</tbody></table></div>
-    <div class="actions"><button type="button" (click)="page(-25)" [disabled]="pageOffset() === 0">上一页</button><span>第 {{ pageOffset() / 25 + 1 }} 页</span><button type="button" (click)="page(25)" [disabled]="pages().length < 25">下一页</button></div>
+    <div class="page-counts">@for (count of current.page_counts | keyvalue; track count.key) { <span>{{ ((pageStates[count.key] || count.key) | t) }} {{ count.value }}</span> }</div>
+    <p>{{ '页面名称未识别时使用 Activity、包名及指纹兜底。下面是本任务的访问结果，不是 App 总覆盖率；复访命中率请看下方累计缓存效果。' | t }}</p>
+    <div class="table-scroll"><table><thead><tr><th scope="col">{{ '页面 / Activity' | t }}</th><th scope="col">{{ '学习结果' | t }}</th><th scope="col">{{ '原因 / 尝试次数' | t }}</th></tr></thead><tbody>@for (page of pages(); track page.page_key) { <tr><td>{{ label(page) }}@if (!page.name) { <small>{{ '名称未识别' | t }}</small> }<small>{{ page.activity }}</small><code>{{ page.page_key.slice(0, 16) }}</code></td><td>{{ ((pageStates[page.status] || page.status) | t) }}</td><td>{{ ((reason(page.reason || '')) | t) }}<small>{{ '{0} 次' | t:[(page.attempts)] }}</small></td></tr> } @empty { <tr><td colspan="3">{{ '尚未观察到可学习页面。' | t }}</td></tr> }</tbody></table></div>
+    <div class="actions"><button type="button" (click)="page(-25)" [disabled]="pageOffset() === 0">{{ '上一页' | t }}</button><span>{{ '第 {0} 页' | t:[(pageOffset() / 25 + 1)] }}</span><button type="button" (click)="page(25)" [disabled]="pages().length < 25">{{ '下一页' | t }}</button></div>
   }
 </section>

@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
+
 import { Component, ChangeDetectionStrategy, NgZone, DestroyRef, inject, computed, signal, ViewChild, ElementRef, OnInit } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
@@ -25,7 +28,7 @@ import { AgentService } from '../../services/agent.service';
 @Component({
   selector: 'app-workspace',
   standalone: true,
-  imports: [
+  imports: [TranslatePipe,
     FormsModule,
     AgentStreamComponent,
     ChatInterfaceComponent,
@@ -36,6 +39,7 @@ import { AgentService } from '../../services/agent.service';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class WorkspaceComponent implements OnInit {
+  readonly i18n = inject(I18nService);
   public agentService = inject(AgentService);
   private zone = inject(NgZone);
   private destroyRef = inject(DestroyRef);
@@ -112,13 +116,13 @@ export class WorkspaceComponent implements OnInit {
       const truncated = session.initial_goal.length > 45
         ? session.initial_goal.substring(0, 42) + '...'
         : session.initial_goal;
-      return `Stop current task: "${truncated}"`;
+      return this.i18n.t("Stop current task: \"{0}\"", [truncated]);
     }
     const curId = this.agentService.currentSessionId();
     if (curId) {
-      return `Stop current task (${curId})`;
+      return this.i18n.t("Stop current task ({0})", [curId]);
     }
-    return 'Stop current running task';
+    return this.i18n.t("Stop current running task");
   });
 
   /**

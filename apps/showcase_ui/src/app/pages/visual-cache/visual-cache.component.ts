@@ -1,3 +1,6 @@
+import { UiText, uiMessage } from '../../core/i18n/message';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, computed, inject, signal, viewChild } from '@angular/core';
@@ -63,12 +66,13 @@ export interface CacheStats {
 @Component({
   selector: 'app-visual-cache',
   standalone: true,
-  imports: [CommonModule, FormsModule, CacheExplorationComponent],
+  imports: [TranslatePipe, CommonModule, FormsModule, CacheExplorationComponent],
   templateUrl: './visual-cache.component.html',
   styleUrl: './visual-cache.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class VisualCacheComponent {
+  readonly i18n = inject(I18nService);
   private http = inject(HttpClient);
   private destroyRef = inject(DestroyRef);
   private injector = inject(Injector);
@@ -85,14 +89,14 @@ export class VisualCacheComponent {
   elementsError = signal('');
   confirmingClear = signal(false);
   clearing = signal(false);
-  notice = signal('');
+  notice = signal<UiText>('');
   warmupDevices = signal<WarmupDevice[]>([]);
   warmupDevice = signal('');
   warmupConfirmed = signal(false);
   warmupOpen = signal(false);
   warming = signal(false);
   warmupLoading = signal(false);
-  warmupMessage = signal('');
+  warmupMessage = signal<UiText>('');
   private elementsRequest = 0;
   failureCases = signal<FailurePage | null>(null);
   failureReason = signal('');
@@ -192,7 +196,7 @@ export class VisualCacheComponent {
         this.warming.set(false);
         this.warmupConfirmed.set(false);
         this.warmupMessage.set(result.status === 'already_learned' ? '当前页面已学习，未重复调用模型。' :
-          result.status === 'complete' ? `学习完成，已保存 ${result.stored} 个常用控件。` : '未发现可安全缓存的常用控件；稍后可重试。');
+          result.status === 'complete' ? uiMessage("学习完成，已保存 {0} 个常用控件。", [result.stored]) : '未发现可安全缓存的常用控件；稍后可重试。');
         this.refresh();
       },
       error: response => {
@@ -227,16 +231,16 @@ export class VisualCacheComponent {
 
   count(metric: string): number { return this.stats()?.history?.metrics[metric]?.count ?? 0; }
   savedTime(value: number | null | undefined): string {
-    if (value == null || !Number.isFinite(value)) return '暂无估算';
-    if (value <= 0) return '约 0 秒';
-    if (value < 1000) return '约不到 1 秒';
+    if (value == null || !Number.isFinite(value)) return this.i18n.t("暂无估算");
+    if (value <= 0) return this.i18n.t("约 0 秒");
+    if (value < 1000) return this.i18n.t("约不到 1 秒");
     const seconds = Math.round(value / 1000);
-    if (seconds < 60) return `约 ${seconds} 秒`;
+    if (seconds < 60) return this.i18n.t("约 {0} 秒", [seconds]);
     const minutes = Math.floor(seconds / 60);
     const remainder = seconds % 60;
-    if (minutes < 60) return `约 ${minutes} 分${remainder ? ` ${remainder} 秒` : ''}`;
+    if (minutes < 60) return this.i18n.t("约 {0} 分{1}", [minutes, remainder ? this.i18n.t(' {0} 秒', [remainder]) : '']);
     const hours = Math.floor(minutes / 60);
-    return `约 ${hours} 小时${minutes % 60 ? ` ${minutes % 60} 分` : ''}`;
+    return this.i18n.t("约 {0} 小时{1}", [hours, minutes % 60 ? this.i18n.t(' {0} 分', [minutes % 60]) : '']);
   }
   average(metric: string): number | null {
     const value = this.stats()?.history?.metrics[metric];
@@ -256,7 +260,7 @@ export class VisualCacheComponent {
     const activity = row.activity?.split('.').pop();
     const base = activity || row.application;
     const key = page_key ?? (row.fingerprints.length === 1 ? row.fingerprints[0].page_key : null);
-    return key ? `${base} · ${key.slice(0, 8)}` : `${base} · ${row.pages} 个页面`;
+    return key ? `${base} · ${key.slice(0, 8)}` : this.i18n.t("{0} · {1} 个页面", [base, row.pages]);
   }
   inspect(row: CacheGroup, page_key: string): void {
     this.selection.set({ device_key: row.device_key, application: row.application, page_key,
@@ -304,14 +308,14 @@ export class VisualCacheComponent {
       next: result => {
         this.clearing.set(false);
         this.confirmingClear.set(false);
-        this.notice.set(`已清理 ${result.deleted} 个元素，累计统计已保留。`);
+        this.notice.set(uiMessage("已清理 {0} 个元素，累计统计已保留。", [result.deleted]));
         this.refresh();
       },
       error: () => { this.clearing.set(false); this.elementsError.set('清理失败，缓存未确认删除，请重试。'); }
     });
   }
 
-  reuseName(scope?: string): string { return this.reuseNames[scope ?? 'page_exact'] ?? scope ?? '整页精确匹配'; }
+  reuseName(scope?: string): string { return this.reuseNames[scope ?? 'page_exact'] ?? scope ?? this.i18n.t("整页精确匹配"); }
   loadFailures(offset = 0): void {
     this.showFailures.set(true);
     const request = ++this.failureRequest;

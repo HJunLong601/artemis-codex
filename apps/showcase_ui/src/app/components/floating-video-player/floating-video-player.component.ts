@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
+
 import {
   Component,
   ChangeDetectionStrategy,
@@ -38,12 +41,13 @@ import { locateTimelineTime, sessionTimeToTimelineTime } from '../../utils/recor
 @Component({
   selector: 'app-floating-video-player',
   standalone: true,
-  imports: [FormsModule],
+  imports: [TranslatePipe, FormsModule],
   templateUrl: './floating-video-player.component.html',
   styleUrl: './floating-video-player.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FloatingVideoPlayerComponent implements OnDestroy {
+  readonly i18n = inject(I18nService);
   public agentService = inject(AgentService);
   private zone = inject(NgZone);
 

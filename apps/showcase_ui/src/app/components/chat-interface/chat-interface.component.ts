@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
+
 import { Component, ChangeDetectionStrategy, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -27,12 +30,13 @@ export type { MarkdownSegment, MarkdownLine, NoteMilestone, ParsedNote };
 @Component({
   selector: 'app-chat-interface',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [TranslatePipe, CommonModule, FormsModule],
   templateUrl: './chat-interface.component.html',
   styleUrl: './chat-interface.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ChatInterfaceComponent {
+  readonly i18n = inject(I18nService);
   public agentService = inject(AgentService);
 
   public taskInput: string = '';
@@ -133,7 +137,7 @@ export class ChatInterfaceComponent {
    * Clear all database data/history to start fresh
    */
   public clearHistory(): void {
-    if (!confirm('Are you sure you want to clear all tasks and history? This cannot be undone.')) {
+    if (!confirm(this.i18n.t("Are you sure you want to clear all tasks and history? This cannot be undone."))) {
       return;
     }
     this.isSubmitting.set(true);
@@ -155,7 +159,7 @@ export class ChatInterfaceComponent {
    */
   public deleteTask(sessionId: string, event: MouseEvent): void {
     event.stopPropagation();
-    if (!confirm(`Are you sure you want to delete this task? This cannot be undone.`)) {
+    if (!confirm(this.i18n.t("Are you sure you want to delete this task? This cannot be undone."))) {
       return;
     }
     this.isSubmitting.set(true);

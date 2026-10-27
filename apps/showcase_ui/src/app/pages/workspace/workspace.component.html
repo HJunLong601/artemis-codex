@@ -26,8 +26,8 @@ limitations under the License.
       @if (errorMessage()) {
         <div class="floating-dock-toast error">
           <span class="material-symbols-outlined toast-icon">error</span>
-          <span class="toast-text">{{ errorMessage() }}</span>
-          <button type="button" class="btn-toast-close" (click)="errorMessage.set(null)" aria-label="Close error message">
+          <span class="toast-text">{{ ((errorMessage()) | t) }}</span>
+          <button type="button" class="btn-toast-close" (click)="errorMessage.set(null)" [attr.aria-label]="'Close error message' | t">
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
@@ -89,7 +89,7 @@ limitations under the License.
 
           <!-- Dormant / Capsule Peek View (Visible when mouse is away and input idle) -->
           <div class="capsule-peek-view">
-            <span class="capsule-placeholder">Start a new task...</span>
+            <span class="capsule-placeholder">{{ 'Start a new task...' | t }}</span>
           </div>
 
           <!-- Expanded Full View Content (Visible on hover, focus, or text) -->
@@ -105,8 +105,8 @@ limitations under the License.
                   rows="1"
                   [disabled]="isSubmitting()"
                   [placeholder]="selectedProfile() === 'pro' 
-                    ? 'Pro: plans first, checks results and recovers from blocked steps. For long or complex tasks'
-                    : 'Flash: fast single-look loop for everyday app tasks'"
+                    ? ('Pro: plans first, checks results and recovers from blocked steps. For long or complex tasks' | t)
+                    : ('Flash: fast single-look loop for everyday app tasks' | t)"
                   class="dock-textarea"
                   spellcheck="false"
                 ></textarea>
@@ -115,7 +115,7 @@ limitations under the License.
               <!-- Clear Button (visible when text is entered) -->
               @if (taskInput.trim() && !isSubmitting()) {
                 <button type="button" class="dock-circle-btn btn-clear"
-                  (click)="clearInput($event)" title="Clear input text" aria-label="Clear input text">
+                  (click)="clearInput($event)" [title]="'Clear input text' | t" [attr.aria-label]="'Clear input text' | t">
                   <span class="material-symbols-outlined">close</span>
                 </button>
               }
@@ -136,8 +136,8 @@ limitations under the License.
                 [class.has-content]="!!taskInput.trim()"
                 [disabled]="!taskInput.trim() || isSubmitting()"
                 (click)="submitTask()"
-                [title]="isSubmitting() ? 'Starting task...' : 'Start task (Enter)'"
-                aria-label="Start task"
+                [title]="isSubmitting() ? ('Starting task...' | t) : ('Start task (Enter)' | t)"
+                [attr.aria-label]="'Start task' | t"
                 >
                 @if (isSubmitting()) {
                   <span class="material-symbols-outlined spinning-icon">sync</span>
@@ -152,16 +152,16 @@ limitations under the License.
             <div class="card-footer-row">
               <div class="footer-left-group">
                 <!-- Segmented Architecture Toggle (Flash / Pro) -->
-                <div class="model-profile-toggle" role="group" aria-label="Select Agent Architecture">
+                <div class="model-profile-toggle" role="group" [attr.aria-label]="'Select Agent Architecture' | t">
                   <button type="button" class="profile-toggle-pill" [class.active]="selectedProfile() === 'flash'"
                     (mousedown)="$event.preventDefault()" (click)="setProfile('flash', $event)"
-                    title="Flash: fast single-look loop for everyday app tasks (3–5s/step)">
+                    [title]="'Flash: fast single-look loop for everyday app tasks (3–5s/step)' | t">
                     <span class="material-symbols-outlined pill-icon icon-flash">bolt</span>
                     <span class="pill-label">Flash</span>
                   </button>
                   <button type="button" class="profile-toggle-pill" [class.active]="selectedProfile() === 'pro'"
                     (mousedown)="$event.preventDefault()" (click)="setProfile('pro', $event)"
-                    title="Pro: plans first, checks results and recovers from blocked steps. For long or complex tasks (15–40s/step)">
+                    [title]="'Pro: plans first, checks results and recovers from blocked steps. For long or complex tasks (15–40s/step)' | t">
                     <span class="material-symbols-outlined pill-icon icon-pro">psychology</span>
                     <span class="pill-label">Pro</span>
                   </button>

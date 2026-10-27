@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Translate, sourceText } from '../core/i18n/message';
+
 import { ActionParam } from '../core/models/stream.model';
 import { extractNumbersFromCoordinateValue, isPureDirectionString, parseSequenceCoordinates } from './image-overlay.util';
 
@@ -548,7 +550,7 @@ export function getToolKey(tool: any): string | null {
 /**
  * Get display label for tools (e.g. for pills or headers)
  */
-export function getToolDisplayLabel(tool: any, isFirstSaveNote: boolean = false): string {
+export function getToolDisplayLabel(tool: any, isFirstSaveNote: boolean = false, t: Translate = sourceText): string {
   if (!tool || !tool.name) return '';
   const cleanName = tool.name.replace(/^(_)?exec_/, '');
   const nameLower = cleanName.toLowerCase();
@@ -568,143 +570,143 @@ export function getToolDisplayLabel(tool: any, isFirstSaveNote: boolean = false)
     case 'wait_delay':
     case 'wait': {
       const delay = args.delay_seconds || args.seconds || args.delay || args.duration;
-      return delay ? `Waiting for ${delay} second${Number(delay) > 1 ? 's' : ''}...` : 'Waiting for delay...';
+      return delay ? t("Waiting for {0} second{1}...", [delay, Number(delay) > 1 ? 's' : '']) : t("Waiting for delay...");
     }
     case 'wait_for_text': {
       const text = args.text || args.target_text || '';
-      return text ? `Waiting for text "${text}" to appear on screen` : 'Waiting for text on screen';
+      return text ? t("Waiting for text \"{0}\" to appear on screen", [text]) : t("Waiting for text on screen");
     }
 
     case 'input_text':
     case 'input': {
       const text = args.text || args.input_text || '';
-      return text ? `Entering text "${text}" into field` : 'Entering text into input field';
+      return text ? t("Entering text \"{0}\" into field", [text]) : t("Entering text into input field");
     }
     case 'focus_and_input_text': {
       const text = args.text || args.input_text || '';
-      return text ? `Focusing field and typing "${text}"` : 'Focusing field and entering text';
+      return text ? t("Focusing field and typing \"{0}\"", [text]) : t("Focusing field and entering text");
     }
     case 'focus_and_clear_text':
-      return 'Focusing and clearing field text';
+      return t("Focusing and clearing field text");
 
     case 'click':
     case 'tap': {
       const target = args.target_text || args.text || args.query || '';
-      return target ? `Tapping on "${target}"` : 'Tapping on screen element';
+      return target ? t("Tapping on \"{0}\"", [target]) : t("Tapping on screen element");
     }
     case 'click_sequence':
-      return 'Executing click sequence';
+      return t("Executing click sequence");
     case 'long_press': {
       const target = args.target_text || args.text || '';
-      return target ? `Long pressing on "${target}"` : 'Long pressing screen element';
+      return target ? t("Long pressing on \"{0}\"", [target]) : t("Long pressing screen element");
     }
     case 'swipe': {
       const dir = args.action || args.direction || '';
-      return dir ? `Swiping ${String(dir).toUpperCase()} on screen` : 'Swiping screen';
+      return dir ? t("Swiping {0} on screen", [String(dir).toUpperCase()]) : t("Swiping screen");
     }
     case 'press_key': {
       const key = args.key || args.keycode || '';
-      return key ? `Pressing key ${String(key).toUpperCase()}` : 'Pressing hardware key';
+      return key ? t("Pressing key {0}", [String(key).toUpperCase()]) : t("Pressing hardware key");
     }
 
     case 'save_note':
-      return isFirstSaveNote ? 'Creating note' : 'Saving note';
+      return isFirstSaveNote ? t("Creating note") : t("Saving note");
     case 'read_note':
-      return 'Reading note';
+      return t("Reading note");
     case 'list_notes':
-      return 'Browsing all saved notes';
+      return t("Browsing all saved notes");
     case 'update_note':
-      return 'Updating note';
+      return t("Updating note");
     case 'append_note':
-      return 'Updating note';
+      return t("Updating note");
 
     case 'object_detection': {
       const q = Array.isArray(args.queries) ? args.queries.join(', ') : (args.queries || '');
-      return q ? `Locating on screen: "${q}"` : 'Locating elements on screen';
+      return q ? t("Locating on screen: \"{0}\"", [q]) : t("Locating elements on screen");
     }
     case 'ask_explorer': {
       const query = args.query || args.prompt || '';
-      return query ? `Searching on screen: "${query}"` : 'Searching on screen';
+      return query ? t("Searching on screen: \"{0}\"", [query]) : t("Searching on screen");
     }
     case 'report_failure_analysis': {
       const reason = args.reason || args.analysis || '';
-      return reason ? `Investigating issue: ${reason}` : 'Investigating execution issue';
+      return reason ? t("Investigating issue: {0}", [reason]) : t("Investigating execution issue");
     }
     case 'run_adb_command':
     case 'run_short_adb_command': {
       const cmd = args.command || args.cmd || '';
-      return cmd ? `Running command: ${cmd}` : 'Running system command';
+      return cmd ? t("Running command: {0}", [cmd]) : t("Running system command");
     }
     case 'search_logs':
     case 'read_logs': {
       const q = args.query || args.filter || '';
-      return q ? `Searching logs for "${q}"` : 'Analyzing system logs';
+      return q ? t("Searching logs for \"{0}\"", [q]) : t("Analyzing system logs");
     }
     case 'log_analyzer':
     case 'output_analyzer':
-      return 'Analyzing logs';
+      return t("Analyzing logs");
     case 'diagnoser':
     case 'diagnose':
-      return 'Diagnosing issue';
+      return t("Diagnosing issue");
     case 'video_analyzer':
     case 'video_analyzer_pure':
-      return 'Analyzing screen recording';
+      return t("Analyzing screen recording");
     case 'extract_segment_metadata': {
       const start = args.start_time !== undefined ? `${args.start_time}s` : '';
       const end = args.end_time !== undefined ? `${args.end_time}s` : '';
-      const range = (start && end) ? ` (${start} - ${end})` : (start ? ` (from ${start})` : '');
-      return `Cropping screen recording segment${range}`;
+      const range = (start && end) ? ` (${start} - ${end})` : (start ? t(" (from {0})", [start]) : '');
+      return t("Cropping screen recording segment{0}", [range]);
     }
     case 'spawn_sub_agent': {
       const q = args.specific_query || args.query || args.prompt || '';
-      return q ? `Analyzing recording with sub-agent: "${q}"` : 'Analyzing recording with sub-agent';
+      return q ? t("Analyzing recording with sub-agent: \"{0}\"", [q]) : t("Analyzing recording with sub-agent");
     }
     case 'analyze_audio_only': {
       const q = args.specific_query || args.query || '';
-      return q ? `Analyzing audio track: "${q}"` : 'Analyzing recording audio track';
+      return q ? t("Analyzing audio track: \"{0}\"", [q]) : t("Analyzing recording audio track");
     }
     case 'search_history': {
       const q = args.query || '';
       const range = Array.isArray(args.step_range) && args.step_range.length
-        ? ` in steps ${args.step_range[0]}–${args.step_range[args.step_range.length - 1]}`
+        ? t(" in steps {0}–{1}", [args.step_range[0], args.step_range[args.step_range.length - 1]])
         : '';
-      return q ? `Searching execution history for "${q}"${range}` : `Searching execution history${range}`;
+      return q ? t("Searching execution history for \"{0}\"{1}", [q, range]) : t("Searching execution history{0}", [range]);
     }
     case 'replay_steps': {
       const n = args.start_step;
       const end = args.end_step;
       if (n !== undefined && n !== '' && end !== undefined && end !== null && end !== '' && String(end) !== String(n)) {
-        return `Reviewing steps ${n}–${end}`;
+        return t("Reviewing steps {0}–{1}", [n, end]);
       }
-      return n !== undefined && n !== '' ? `Reviewing step ${n}` : 'Reviewing step details';
+      return n !== undefined && n !== '' ? t("Reviewing step {0}", [n]) : t("Reviewing step details");
     }
     case 'get_step_screenshot': {
       const n = args.step_number;
       const variant = String(args.which || '').toLowerCase();
       if (variant === 'overlay') {
-        return n !== undefined && n !== '' ? `Looking at where step ${n}'s action landed` : 'Looking at where an action landed';
+        return n !== undefined && n !== '' ? t("Looking at where step {0}'s action landed", [n]) : t("Looking at where an action landed");
       }
-      const which = variant === 'post' ? 'after' : 'before';
-      return n !== undefined && n !== '' ? `Looking at the screen ${which} step ${n}` : 'Looking at a step screenshot';
+      const which = variant === 'post' ? t("after") : t("before");
+      return n !== undefined && n !== '' ? t("Looking at the screen {0} step {1}", [which, n]) : t("Looking at a step screenshot");
     }
     case 'probe_device': {
       const kind = args.kind ? String(args.kind).replace(/_/g, ' ') : '';
-      return kind ? `Reading ${kind} from the device` : 'Reading device state';
+      return kind ? t("Reading {0} from the device", [kind]) : t("Reading device state");
     }
     case 'outputter':
     case 'output_synthesis':
-      return 'Synthesizing output report';
+      return t("Synthesizing output report");
     case 'web_search': {
       const q = args.query || '';
-      return q ? `Searching web for "${q}"` : 'Searching the web';
+      return q ? t("Searching web for \"{0}\"", [q]) : t("Searching the web");
     }
     case 'read_url':
-      return 'Fetching web page';
+      return t("Fetching web page");
     case 'compress_history':
-      return getCompressionLabel(tool);
+      return getCompressionLabel(tool, t);
 
     default:
-      return `Executing ${cleanName.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}`;
+      return t("Executing {0}", [cleanName.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')]);
   }
 }
 
@@ -716,55 +718,55 @@ function formatTokenFigure(value: any): string {
 }
 
 /** Format compression progress and token usage for the timeline. */
-export function getCompressionLabel(tool: any): string {
+export function getCompressionLabel(tool: any, t: Translate = sourceText): string {
   const args = getToolArgs(tool) || {};
   const start = Number(args.start_step);
   const end = Number(args.end_step);
   const hasRange = Number.isFinite(start) && Number.isFinite(end) && start > 0 && end > 0;
   const range = hasRange
-    ? (start === end ? `step ${start}` : `steps ${start}–${end}`)
-    : 'earlier steps';
+    ? (start === end ? t("step {0}", [start]) : t("steps {0}–{1}", [start, end]))
+    : t("earlier steps");
   const rangeCapitalized = range.charAt(0).toUpperCase() + range.slice(1);
   const status = String(tool?.status || '').toLowerCase();
   const phase = getCompressionPhase(tool);
 
   if (status === 'failed' || phase === 'failed') {
-    return `Couldn't condense ${range} yet; keeping the full record and retrying later`;
+    return t("Couldn't condense {0} yet; keeping the full record and retrying later", [range]);
   }
   if (status !== 'success') {
     const note = String(args.note || '').toLowerCase();
-    if (note === 'retrying') return `Retrying the memory summary for ${range}…`;
+    if (note === 'retrying') return t("Retrying the memory summary for {0}…", [range]);
     if (note === 'held' || phase === 'ready') {
       const swapAt = Number(args.swap_at_tokens);
       const heldContext = Number(args.context_tokens);
-      const heldParts = [`Short memory for ${range} is ready; keeping the full record until working memory fills up`];
+      const heldParts = [t("Short memory for {0} is ready; keeping the full record until working memory fills up", [range])];
       if (heldContext > 0 && swapAt > 0) {
-        heldParts.push(`≈ ${formatTokenFigure(heldContext)} of ${formatTokenFigure(swapAt)} tokens`);
+        heldParts.push(t('≈ {0} of {1} tokens', [formatTokenFigure(heldContext), formatTokenFigure(swapAt)]));
       }
       return heldParts.join(' · ');
     }
-    return `Condensing ${range} into a short memory to free up room…`;
+    return t("Condensing {0} into a short memory to free up room…", [range]);
   }
 
   const parts: string[] = [];
   const source = Number(args.source_tokens);
   const summary = Number(args.summary_tokens);
   if (args.forced) {
-    parts.push(`${rangeCapitalized} condensed into a recap to free up memory`);
+    parts.push(t('{0} condensed into a recap to free up memory', [rangeCapitalized]));
   } else {
-    parts.push(`${rangeCapitalized} condensed into a short memory`);
+    parts.push(t('{0} condensed into a short memory', [rangeCapitalized]));
     if (source > 0 && summary > 0) {
       const factor = source / summary;
-      const factorText = factor >= 2 ? ` (${Math.round(factor)}× smaller)` : '';
-      parts.push(`${formatTokenFigure(source)} → ${formatTokenFigure(summary)} tokens${factorText}`);
+      const factorText = factor >= 2 ? t(" ({0}× smaller)", [Math.round(factor)]) : '';
+      parts.push(t('{0} → {1} tokens{2}', [formatTokenFigure(source), formatTokenFigure(summary), factorText]));
     }
   }
   const context = Number(args.context_tokens);
   const budget = Number(args.context_budget);
   if (context > 0) {
     parts.push(budget > 0
-      ? `working memory ≈ ${formatTokenFigure(context)} of ${formatTokenFigure(budget)} tokens`
-      : `working memory ≈ ${formatTokenFigure(context)} tokens`);
+      ? t("working memory ≈ {0} of {1} tokens", [formatTokenFigure(context), formatTokenFigure(budget)])
+      : t("working memory ≈ {0} tokens", [formatTokenFigure(context)]));
   }
   return parts.join(' · ');
 }
@@ -799,16 +801,16 @@ export function getCompressionPhase(tool: any): CompressionPhase {
 }
 
 /** One short, non-technical label per compression phase. */
-export function getCompressionPhaseLabel(tool: any): string {
+export function getCompressionPhaseLabel(tool: any, t: Translate = sourceText): string {
   switch (getCompressionPhase(tool)) {
     case 'ready':
-      return 'Summary ready; kept in reserve until the context fills up';
+      return t("Summary ready; kept in reserve until the context fills up");
     case 'applied':
-      return 'Replaced this stretch with its summary';
+      return t("Replaced this stretch with its summary");
     case 'failed':
-      return 'Summary failed; full record kept';
+      return t("Summary failed; full record kept");
     default:
-      return 'Summarizing this stretch';
+      return t("Summarizing this stretch");
   }
 }
 
@@ -897,77 +899,77 @@ export function getToolIcon(tool: any): string {
 /**
  * Get formatted title for a tool call card
  */
-export function getToolTitle(tool: any): string {
-  if (!tool || !tool.name) return 'Tool Call';
+export function getToolTitle(tool: any, t: Translate = sourceText): string {
+  if (!tool || !tool.name) return t("Tool Call");
   const cleanName = tool.name.replace(/^(_)?exec_/, '');
   const name = cleanName.toLowerCase();
   switch (name) {
     case 'click':
     case 'tap':
-      return 'Tapping Element';
+      return t("Tapping Element");
     case 'click_sequence':
-      return 'Executing Click Sequence';
+      return t("Executing Click Sequence");
     case 'long_press':
-      return 'Long Pressing Element';
+      return t("Long Pressing Element");
     case 'input_text':
     case 'input':
-      return 'Entering Text';
+      return t("Entering Text");
     case 'swipe':
     case 'scroll': {
       const args = getToolArgs(tool);
       const dir = args.direction || args.gesture || (typeof args.action === 'string' ? args.action : '');
-      if (dir && isPureDirectionString(dir)) return `Swiping Screen (${String(dir).toUpperCase()})`;
-      return 'Swiping Screen';
+      if (dir && isPureDirectionString(dir)) return t("Swiping Screen ({0})", [String(dir).toUpperCase()]);
+      return t("Swiping Screen");
     }
     case 'drag':
     case 'drag_and_drop':
-      return 'Dragging Screen';
+      return t("Dragging Screen");
     case 'press_key':
-      return 'Pressing Hardware Key';
+      return t("Pressing Hardware Key");
     case 'manage_app':
     case 'launch_app': {
       const args = getToolArgs(tool);
       const rawAction = args.action ? String(args.action).toLowerCase() : '';
-      if (rawAction === 'launch') return 'Launching Application';
-      if (rawAction === 'stop' || rawAction === 'close') return 'Stopping Application';
-      return 'Managing Application';
+      if (rawAction === 'launch') return t("Launching Application");
+      if (rawAction === 'stop' || rawAction === 'close') return t("Stopping Application");
+      return t("Managing Application");
     }
     case 'wait_for_delay':
     case 'wait_delay':
-      return 'Waiting for Delay';
+      return t("Waiting for Delay");
     case 'wait_for_text':
-      return 'Waiting for Text';
+      return t("Waiting for Text");
     case 'object_detection':
-      return 'Locating Elements';
+      return t("Locating Elements");
     case 'ask_explorer':
-      return 'Searching on Screen';
+      return t("Searching on Screen");
     case 'report_failure_analysis':
-      return 'Investigating Issue';
+      return t("Investigating Issue");
     case 'run_adb_command':
     case 'run_short_adb_command':
-      return 'Running System Command';
+      return t("Running System Command");
     case 'web_search':
-      return 'Web Search';
+      return t("Web Search");
     case 'read_url':
-      return 'Fetching Web Page';
+      return t("Fetching Web Page");
     case 'search_logs':
     case 'read_logs':
-      return 'Searching Logs';
+      return t("Searching Logs");
     case 'log_analyzer':
     case 'output_analyzer':
-      return 'Analyzing Logs';
+      return t("Analyzing Logs");
     case 'diagnoser':
     case 'diagnose':
-      return 'Diagnosing Issue';
+      return t("Diagnosing Issue");
     case 'video_analyzer':
     case 'video_analyzer_pure':
-      return 'Analyzing Screen Recording';
+      return t("Analyzing Screen Recording");
     case 'extract_segment_metadata':
-      return 'Cropping Screen Recording';
+      return t("Cropping Screen Recording");
     case 'spawn_sub_agent':
-      return 'Delegating Video Analysis';
+      return t("Delegating Video Analysis");
     case 'analyze_audio_only':
-      return 'Analyzing Audio Track';
+      return t("Analyzing Audio Track");
     default:
       return cleanName.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
   }
@@ -1045,7 +1047,7 @@ export function getToolTargetText(tool: any): string {
 /**
  * Get input label for tools
  */
-export function getToolInputLabel(tool: any): string {
+export function getToolInputLabel(tool: any, t: Translate = sourceText): string {
   if (!tool || !tool.name) return 'Input';
   const name = tool.name.toLowerCase().replace(/^(_)?exec_/, '');
   if (name === 'wait_for_delay' || name === 'wait_delay' || name === 'delay' || name === 'wait') {
@@ -1063,7 +1065,7 @@ export function getToolInputLabel(tool: any): string {
     return 'Key';
   }
   if (name === 'input_text' || name === 'input') {
-    return 'Input Text';
+    return t("Input Text");
   }
   return 'Input';
 }

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Translate, sourceText } from '../core/i18n/message';
+
 import { ActionParam, StepReplayFrame } from '../core/models/stream.model';
 import { extractNumbersFromCoordinateValue, isPureDirectionString, parseSequenceCoordinates, unwrapTraceAction } from './image-overlay.util';
 import { cleanErrorMessage, joinTargetDescriptions } from './tool-formatter.util';
@@ -163,62 +165,62 @@ export function getActionIcon(action: any): string {
 /**
  * Get human-readable title for Android actions
  */
-export function getActionTitle(action: any): string {
+export function getActionTitle(action: any, t: Translate = sourceText): string {
   const act = getActionObject(action);
-  if (!act) return 'Action';
+  if (!act) return t("Action");
   const name = (act.name || act.action || '').toLowerCase();
   switch (name) {
     case 'tap':
     case 'click':
     case 'tap_element':
     case 'click_element':
-      return 'Tapping Element';
+      return t("Tapping Element");
     case 'input':
     case 'input_text':
     case 'focus_and_input_text':
-      return 'Entering Text';
+      return t("Entering Text");
     case 'focus_and_clear_text':
     case 'clear_text':
-      return 'Clearing Text';
+      return t("Clearing Text");
     case 'swipe':
     case 'scroll': {
       const actObj = getActionObject(action);
       const args = actObj?.args && typeof actObj.args === 'object' ? actObj.args : {};
       const dir = actObj?.direction || actObj?.gesture || args.direction || args.gesture || (typeof args.action === 'string' ? args.action : '') || (typeof actObj?.action === 'string' && actObj.action !== name ? actObj.action : '');
       if (dir && isPureDirectionString(dir)) {
-        return `Swiping Screen (${String(dir).toUpperCase()})`;
+        return t("Swiping Screen ({0})", [String(dir).toUpperCase()]);
       }
-      return 'Swiping Screen';
+      return t("Swiping Screen");
     }
     case 'drag':
     case 'drag_and_drop':
-      return 'Dragging Screen';
+      return t("Dragging Screen");
     case 'press_key':
     case 'press_home':
     case 'press_back':
-      return 'Pressing Hardware Key';
+      return t("Pressing Hardware Key");
     case 'launch_app':
     case 'open_app':
-      return 'Launching Application';
+      return t("Launching Application");
     case 'stop_app':
     case 'close_app':
-      return 'Stopping Application';
+      return t("Stopping Application");
     case 'manage_app': {
       const actObj = getActionObject(action);
       const actStr = (actObj?.action || actObj?.args?.action || '').toLowerCase();
-      if (actStr === 'launch') return 'Launching Application';
-      if (actStr === 'stop' || actStr === 'close') return 'Stopping Application';
-      return 'Managing Application';
+      if (actStr === 'launch') return t("Launching Application");
+      if (actStr === 'stop' || actStr === 'close') return t("Stopping Application");
+      return t("Managing Application");
     }
     case 'wait_for_delay':
     case 'delay':
     case 'wait':
-      return 'Waiting for Delay';
+      return t("Waiting for Delay");
     case 'long_press':
     case 'long_press_on':
-      return 'Long Pressing Element';
+      return t("Long Pressing Element");
     case 'click_sequence':
-      return 'Clicking Sequence';
+      return t("Clicking Sequence");
     default:
       return name.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
   }
@@ -262,7 +264,7 @@ export function getActionTargetText(action: any): string {
 /**
  * Get input label for Android action
  */
-export function getActionInputLabel(action: any): string {
+export function getActionInputLabel(action: any, t: Translate = sourceText): string {
   const act = getActionObject(action);
   if (!act) return 'Input';
   const name = (act.name || act.action || '').toLowerCase();
@@ -282,7 +284,7 @@ export function getActionInputLabel(action: any): string {
     return 'Key';
   }
   if (name === 'input_text' || name.includes('input')) {
-    return 'Input Text';
+    return t("Input Text");
   }
   return 'Input';
 }
