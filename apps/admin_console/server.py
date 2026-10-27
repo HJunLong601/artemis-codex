@@ -181,6 +181,9 @@ async def on_startup():
 
 async def on_shutdown():
     """Stop task and IPC children before the UI server exits."""
+    from apps.admin_console.services.cache_exploration import manager as exploration_manager
+
+    await exploration_manager.shutdown()
     state.is_shutting_down = True
     state.shutdown_event.set()
     task_queue_service._broadcast_event("server_shutdown", {"status": "stopping"})
@@ -243,6 +246,9 @@ app.include_router(tasks.router)
 app.include_router(replay.router)
 app.include_router(system.router)
 app.include_router(visual_cache.router)
+from apps.admin_console.routers import cache_exploration
+
+app.include_router(cache_exploration.router)
 
 # Mount cloud gateway router for Frappe / Cloud integration if present
 try:

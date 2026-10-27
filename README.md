@@ -227,6 +227,16 @@ The Web console's **Page Cache / 页面缓存** (`/cache`) provides page/element
 
 Page names never participate in cache matching. Dashboard groups stay stable by device, package and Activity; unnamed pages show an Activity/package and fingerprint prefix. Candidate queries filter target and Activity before applying limits, reducing misses for older positions. Separate scope-admission skip counters do not affect cache miss rates.
 
+Choose **Configure task / 配置新任务 → Start exploration and learning / 开始探索并学习** on `/cache` to explore one Android app and learn visited pages. Explicitly select an authorized device and installed package and set a finite time budget (1–1440 minutes). **Actions and Tokens default to Unlimited / 不限制**, leaving time as the only budget; optionally disable Unlimited to set action (1–20000) or Token (1–10000000) limits. Confirm screenshot transmission/model usage. Exploration uses the configured `operator`; learning uses `utils.object_detector`, without silently switching providers. Open the target app on the device first.
+
+Pause drains in-flight work and releases the device; resume reobserves the screen and preserves cumulative budgets. Stop is terminal and retains the cache/report. Closing the browser does not stop the task; backend restarts never automatically restart exploration. Only verified navigation, scrolling and Back are available; deletion, sending, sharing, purchasing, recording and account changes are excluded. Unknown semantics and sensitive/out-of-app states are skipped or paused. This learns stable pages actually visited, not every page in the app; XML-locatable pages still receive learning checks, and complete compatible inventories avoid another learning call.
+
+All exploration/learning calls count toward usage, even when limits are disabled. With a Token limit, insufficient reserved capacity prevents another request, but an in-flight request can exceed it; this is not a billing hard cap. Unlimited can continuously consume model quota during the configured time. Unknown usage pauses the task rather than becoming zero. Task progress/reports stay in `cache-exploration.sqlite3` in the local application data directory. Full-session video, original page screenshots and complete model replies are not additionally retained by default. See the [usage and verification guide](./docs/cache-exploration.md).
+
+<p align="center"><img src="./docs/assets/cache-exploration-budgets.png" alt="Cumulative time, actions and Token budgets from real-device acceptance; device and task identifiers excluded" width="900" /></p>
+
+<p align="center"><img src="./docs/assets/cache-exploration-unlimited.png" alt="Time-only defaults with independently selectable unlimited actions and Tokens" width="400" /></p>
+
 Only position metadata and fingerprints are stored locally, with no screenshots or full model responses. Configure the cache in `config/artemis.jsonc`:
 
 ```jsonc

@@ -11,6 +11,7 @@
     </button>
   </header>
 
+  <app-cache-exploration />
   @if (error()) {
     <div class="notice error" role="alert">{{ error() }} @if (stats()) { <span>下方保留上次读取的数据。</span> }</div>
   }

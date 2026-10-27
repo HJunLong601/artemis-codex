@@ -97,6 +97,7 @@ class ModelEndpoint(BaseModel):
     api_base: str | None = Field(default=None, description="Custom API endpoint base URL")
     temperature: float = Field(default=0.0, description="Sampling temperature")
     max_tokens: int | None = Field(default=None, description="Maximum completion tokens")
+    max_retries: int | None = Field(default=None, ge=0, description="Optional SDK retry limit; None preserves provider defaults")
     timeout_seconds: float = Field(default=60.0, description="Request timeout in seconds")
     is_multimodal: bool = Field(
         default=True, description="Whether endpoint accepts image/video inputs"
@@ -126,6 +127,7 @@ class ModelEndpoint(BaseModel):
             self.model_name,
             self.temperature,
             self.max_tokens,
+            self.max_retries,
             self.timeout_seconds,
             self.thinking_budget,
             self.thinking_level,
@@ -248,6 +250,7 @@ class ModelFactory:
                 "model": endpoint.model_name,
                 "temperature": endpoint.temperature,
                 "max_output_tokens": endpoint.max_tokens,
+                "max_retries": endpoint.max_retries,
                 "api_key": api_key,
                 "timeout": endpoint.timeout_seconds,
                 "thinking_budget": endpoint.thinking_budget,
@@ -285,6 +288,7 @@ class ModelFactory:
                 "model_name": endpoint.model_name,
                 "temperature": endpoint.temperature,
                 "max_output_tokens": endpoint.max_tokens,
+                "max_retries": endpoint.max_retries,
                 "timeout": endpoint.timeout_seconds,
                 "thinking_budget": endpoint.thinking_budget,
                 "safety_settings": {
@@ -311,6 +315,7 @@ class ModelFactory:
                 "model": endpoint.model_name,
                 "temperature": endpoint.temperature,
                 "max_tokens": endpoint.max_tokens,
+                "max_retries": endpoint.max_retries,
                 "api_key": api_key,
                 "base_url": base_url,
                 "timeout": endpoint.timeout_seconds,
@@ -334,6 +339,8 @@ class ModelFactory:
             kwargs = {
                 "model": endpoint.model_name,
                 "temperature": endpoint.temperature,
+                "max_retries": endpoint.max_retries,
+                "max_tokens": endpoint.max_tokens,
                 "api_key": api_key,
                 "timeout": endpoint.timeout_seconds,
             }
@@ -364,6 +371,7 @@ class ModelFactory:
                 api_key=api_key,
                 base_url=endpoint.api_base or "https://openrouter.ai/api/v1",
                 timeout=endpoint.timeout_seconds,
+                **({"max_retries": endpoint.max_retries} if endpoint.max_retries is not None else {}),
             )
 
         elif provider == ModelProvider.XAI:
@@ -380,6 +388,7 @@ class ModelFactory:
                 api_key=api_key,
                 base_url=endpoint.api_base or "https://api.x.ai/v1",
                 timeout=endpoint.timeout_seconds,
+                **({"max_retries": endpoint.max_retries} if endpoint.max_retries is not None else {}),
             )
 
         elif provider in (ModelProvider.OLLAMA, ModelProvider.VLLM, ModelProvider.CUSTOM):
@@ -393,6 +402,7 @@ class ModelFactory:
                 "model": endpoint.model_name,
                 "temperature": endpoint.temperature,
                 "max_tokens": endpoint.max_tokens,
+                "max_retries": endpoint.max_retries,
                 "api_key": api_key,
                 "base_url": base_url,
                 "timeout": endpoint.timeout_seconds,

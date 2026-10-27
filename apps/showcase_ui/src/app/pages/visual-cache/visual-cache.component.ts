@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, computed, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { CacheExplorationComponent } from './cache-exploration.component';
 
 export interface CacheGroup {
   device_key: string;
@@ -62,7 +63,7 @@ export interface CacheStats {
 @Component({
   selector: 'app-visual-cache',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CacheExplorationComponent],
   templateUrl: './visual-cache.component.html',
   styleUrl: './visual-cache.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush

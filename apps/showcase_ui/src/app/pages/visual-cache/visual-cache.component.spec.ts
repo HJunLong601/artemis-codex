@@ -30,6 +30,8 @@ describe('Visual cache page identity', () => {
     http.expectOne('/api/system/visual-cache').flush(stats([]));
   });
   afterEach(() => {
+    // The independently tested exploration panel reads status even when cache statistics are empty.
+    http.match('/api/system/visual-cache/exploration/tasks').forEach(request => request.flush({ items: [] }));
     http.verify();
   });
 
