@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage
 from PIL import Image
 import pytest
 
+import artemis.llm.codex_app_server as artemis_provider
 from artemis.llm.codex_app_server import CodexAppServerChatModel
 from artemis.llm.image_inputs import prepare_image_bytes, prepare_image_messages
 
@@ -22,6 +23,11 @@ def default_image_environment(monkeypatch):
     for name in os.environ:
         if name.startswith(("ARTEMIS_CODEX_IMAGE_", "CODEX_CLIENT_IMAGE_")):
             monkeypatch.delenv(name)
+
+    def unexpected_client(**_):
+        raise AssertionError("Image unit tests must mock the Artemis inference client")
+
+    monkeypatch.setattr(artemis_provider, "client_for_running_loop", unexpected_client)
 
 
 def encode(size=(1080, 2400), mode="RGB", color="navy", format="PNG", **kwargs):
@@ -166,7 +172,7 @@ async def test_actual_app_server_handoff_is_webp_and_temp_files_are_cleaned(
 
     client = AsyncMock()
     client.run_completion.side_effect = complete
-    monkeypatch.setattr(provider, "_client_for_running_loop", lambda **_: client)
+    monkeypatch.setattr(artemis_provider, "client_for_running_loop", lambda **_: client)
     raw = encode()
     message = HumanMessage(
         content=[
@@ -201,7 +207,7 @@ async def test_explicit_preprocessing_switch_preserves_benchmark_png(monkeypatch
 
     client = AsyncMock()
     client.run_completion.side_effect = complete
-    monkeypatch.setattr(provider, "_client_for_running_loop", lambda **_: client)
+    monkeypatch.setattr(artemis_provider, "client_for_running_loop", lambda **_: client)
     message = HumanMessage(
         content=[
             {
