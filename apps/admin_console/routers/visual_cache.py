@@ -1,12 +1,14 @@
 """Read-only statistics for the retained visual-location cache."""
 
 from contextlib import closing
+import asyncio
 import json
 import os
 import sqlite3
 import time
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from apps.admin_console.routers.visual_cache_details import (
@@ -23,6 +25,32 @@ from artemis.utils.visual_location_cache import (
 from artemis.utils.visual_page_elements import MAX_PAGE_ELEMENTS, validated_page_name
 
 router = APIRouter(prefix="/api/system", tags=["system"])
+
+
+class WarmupRequest(BaseModel):
+    device_serial: str = Field(min_length=1, max_length=256, pattern=r"\S")
+    confirm_model_call: Literal[True]
+
+
+@router.post("/visual-cache/warmup")
+async def warm_visual_cache_page(request: Request, body: WarmupRequest):
+    from apps.admin_console.routers.codex_auth import require_local
+    from apps.admin_console.services.visual_cache_warmup import warm_current_page
+    from artemis.runtime import DeviceRegistryError
+
+    require_local(request)
+    if request.headers.get("x-artemis-cache-intent") != "warmup":
+        raise HTTPException(403, "Explicit page warmup intent is required.")
+    try:
+        return await asyncio.wait_for(warm_current_page(body.device_serial), timeout=90)
+    except HTTPException:
+        raise
+    except DeviceRegistryError:
+        raise HTTPException(409, "Select a connected, authorized Android device.") from None
+    except TimeoutError:
+        raise HTTPException(504, "Page warmup timed out; the device lock was released.") from None
+    except Exception:
+        raise HTTPException(503, "Page warmup failed; check device and model diagnostics.") from None
 
 
 @router.get("/visual-cache")
@@ -48,6 +76,7 @@ def get_visual_cache_stats():
             "queries": 0,
             "hits": 0,
             "hit_rate": None,
+            "warm_reuse": {"queries": 0, "hits": 0, "hit_rate": None},
             "estimated_saved_ms": None,
             "estimated_hits": 0,
             "misses": {},

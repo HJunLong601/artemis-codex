@@ -49,6 +49,8 @@ def read_history(db):
         k.removeprefix("miss_"): v["count"] for k, v in metrics.items() if k.startswith("miss_")
     }
     queries = hits + sum(misses.values())
+    warm_queries = metrics.get("warm_queries", {}).get("count", 0)
+    warm_hits = metrics.get("warm_hits", {}).get("count", 0)
     bypasses = (
         dict(db.execute("SELECT reason,count FROM cache_bypasses"))
         if "cache_bypasses" in tables
@@ -94,6 +96,11 @@ def read_history(db):
         queries=queries,
         hits=hits,
         hit_rate=hits / queries if queries else None,
+        warm_reuse={
+            "queries": warm_queries,
+            "hits": warm_hits,
+            "hit_rate": warm_hits / warm_queries if warm_queries else None,
+        },
         estimated_saved_ms=estimated_saved_ms,
         estimated_hits=estimated_hits,
         misses=misses,

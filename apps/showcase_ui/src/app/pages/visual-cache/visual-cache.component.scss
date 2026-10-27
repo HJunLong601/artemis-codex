@@ -25,6 +25,12 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .counting-note .material-symbols-outlined { font-size: 17px; margin-top: 2px; flex-shrink: 0; }
 .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px; }
 .panel { padding: 24px; min-width: 0; }
+.warmup { margin-bottom: 20px; }
+.warmup .panel-heading { flex-wrap: wrap; }
+.warmup-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; margin-top: 16px; }
+.warmup-controls label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; min-width: 0; max-width: 100%; }
+.warmup-controls .warmup-confirm { flex-direction: row; align-items: center; line-height: 1.6; }
+.warmup-controls select { width: 100%; }
 h2 { font-size: 16px; margin: 0; }
 .panel-heading > span { font-size: 12px; color: #718198; }
 .bar-item { margin-top: 23px; }
@@ -90,18 +96,13 @@ td small { display: block; font-size: 10px; color: #8190a4; margin-top: 6px; }
 .page-name { min-width: 90px; max-width: 180px; overflow-wrap: anywhere; }
 
 .history, .inventory, .element-detail { margin: 20px 0; }
-.history .metrics { grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 20px 0 14px; }
-.history .metric { grid-column: span 2; min-width: 0; }
-.history .metric:nth-last-child(-n + 2) { grid-column: span 3; }
-.time-saved strong { font-size: 28px; overflow-wrap: anywhere; }
-@media (max-width: 1000px) {
-  .history .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .history .metric, .history .metric:nth-last-child(-n + 2) { grid-column: auto; }
-  .history .time-saved { grid-column: 1 / -1; }
-}
-@media (max-width: 480px) {
-  .history .metrics { grid-template-columns: minmax(0, 1fr); }
-}
+// Size cards by available container space, never by item count/order or viewport.
+// Flex growth also fills the final row when metrics are added or removed.
+.history .metrics { display: flex; flex-wrap: wrap; margin: 20px 0 14px; }
+.history .metric { flex: 1 1 17rem; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.history .metric > span, .history .metric strong, .history .metric small { min-width: 0; overflow-wrap: anywhere; }
+.history .metric strong { font-size: clamp(24px, 2.4vw, 32px); }
+.history .time-saved strong { font-size: clamp(24px, 2.2vw, 28px); }
 .reason-list, .detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
 .reason-list > span { padding: 6px 10px; border: 1px solid var(--border-color, #dce2ed); border-radius: 8px; font-size: 13px; }
 .inventory-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-color, #dce2ed); }

@@ -35,10 +35,12 @@ interface InventoryState {
   device_key: string; application: string; page_key: string; status: string; expected: number;
   retained: number; retry_after: number; updated_at: number; failures: number;
 }
+interface WarmupDevice { serial: string; canonical_id: string; name: string; platform: string; state: string; is_busy: boolean }
 export interface CacheStats {
   probation_limit?: number;
   history?: {
     since: number | null; queries: number; hits: number; hit_rate: number | null;
+    warm_reuse?: { queries: number; hits: number; hit_rate: number | null };
     estimated_saved_ms?: number | null; estimated_hits?: number;
     metrics: Record<string, { count: number; total_ms: number }>;
     misses: Record<string, number>; inventory: InventoryState[]; inventory_counts: Record<string, number>;
@@ -83,6 +85,13 @@ export class VisualCacheComponent {
   confirmingClear = signal(false);
   clearing = signal(false);
   notice = signal('');
+  warmupDevices = signal<WarmupDevice[]>([]);
+  warmupDevice = signal('');
+  warmupConfirmed = signal(false);
+  warmupOpen = signal(false);
+  warming = signal(false);
+  warmupLoading = signal(false);
+  warmupMessage = signal('');
   private elementsRequest = 0;
   failureCases = signal<FailurePage | null>(null);
   failureReason = signal('');
@@ -94,7 +103,7 @@ export class VisualCacheComponent {
   readonly reuseNames: Record<string, string> = { page_exact: '整页精确匹配', page_local: '整页结构 + 局部校验',
     bottom_navigation: '固定区域 · 底部导航栏', bottom_controls: '固定区域 · 底部固定控件区', top_toolbar: '固定区域 · 顶部工具栏', side_navigation: '固定区域 · 侧边导航' };
   readonly missNames: Record<string, string> = {
-    page_missing: '页面尚未学习', target_missing: '页面中无此目标', local_guard_failed: '局部校验不一致',
+    page_missing: '无可复用页面记录（累计查询次数）', target_missing: '页面中无此目标', local_guard_failed: '局部校验不一致',
     ambiguous: '目标不唯一', invalid_location: '无效坐标', ignored_region: '位于忽略区域',
     stale_generation: '识别期间缓存已失效', region_guard_failed: '区域校验不一致', region_nodes_changed: '区域节点或控件状态变化', region_pixels_changed: '区域像素变化',
     region_layout_changed: '固定区域布局变化', region_unavailable: '无法确认固定区域',
@@ -152,6 +161,49 @@ export class VisualCacheComponent {
   });
 
   constructor() { this.refresh(); }
+
+  openWarmup(): void {
+    if (this.warming() || this.warmupLoading()) return;
+    this.warmupOpen.set(true);
+    this.warmupDevice.set('');
+    this.warmupConfirmed.set(false);
+    this.warmupDevices.set([]);
+    this.warmupMessage.set('');
+    this.warmupLoading.set(true);
+    this.http.get<{ devices: WarmupDevice[] }>('/api/devices').pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: data => {
+        this.warmupDevices.set(data.devices.filter(device => device.platform === 'android' && device.state === 'ready'));
+        this.warmupLoading.set(false);
+      },
+      error: () => { this.warmupLoading.set(false); this.warmupMessage.set('无法读取设备，请检查设备连接后重新打开预热入口。'); }
+    });
+  }
+
+  startWarmup(): void {
+    const device = this.warmupDevices().find(item => item.canonical_id === this.warmupDevice());
+    if (this.warming() || !this.stats()?.enabled || !this.warmupConfirmed() || !device || device.is_busy) return;
+    this.warming.set(true);
+    this.warmupMessage.set('正在学习当前页面，请保持页面不变；不会点击或翻页。');
+    this.http.post<{ status: string; stored: number }>('/api/system/visual-cache/warmup', {
+      device_serial: device.canonical_id, confirm_model_call: true
+    }, { headers: { 'X-Artemis-Cache-Intent': 'warmup' } }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: result => {
+        this.warming.set(false);
+        this.warmupConfirmed.set(false);
+        this.warmupMessage.set(result.status === 'already_learned' ? '当前页面已学习，未重复调用模型。' :
+          result.status === 'complete' ? `学习完成，已保存 ${result.stored} 个常用控件。` : '未发现可安全缓存的常用控件；稍后可重试。');
+        this.refresh();
+      },
+      error: response => {
+        this.warming.set(false);
+        this.warmupConfirmed.set(false);
+        const message = response.status === 409 ? '设备忙碌、页面变化或学习冷却中，请保持设备空闲并检查模型配置后重试。' :
+          response.status === 504 ? '学习超时，已释放设备；请检查模型后重试。' : '学习失败，请检查后台设备和模型诊断后重试。';
+        this.warmupMessage.set(message);
+        this.refresh();
+      }
+    });
+  }
 
   refresh(): void {
     if (this.loading()) return;

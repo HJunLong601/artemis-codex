@@ -215,6 +215,10 @@ explicitly enabled. It is not required for the default XML-plus-Codex-vision pat
 <a id="visual-location-cache"></a>
 ## Visual Location Cache and Dashboard
 
+The dashboard's **No reusable page record (cumulative target queries)** reason counts misses, not unique unlearned pages. The separate **post-learning revisit hit rate** counts subsequent visual target queries after successful learning in the same device/app/Activity/layout (exact page fingerprint without a layout), excluding initial cold queries, warmup requests and XML-only locating. New counters are not reconstructed from old data; misses after invalidation/eviction remain included.
+
+On `/cache`, explicitly select an idle authorized Android device and confirm screenshot/model usage to **warm the current page**. This observation-only operation learns up to 20 common controls using the configured visual model; it never taps, navigates, launches apps or traverses historical screenshots. Avoid sensitive pages and keep the screen unchanged. Busy devices, changed pages and learning cooldowns are rejected; already-complete pages skip inference. The request is bounded to 90 seconds with device-lock cleanup. Manual warmup requires caching enabled but does not require automatic `batch_prefetch`; iOS is not yet exposed here.
+
 Locating follows **ADB/UI hierarchy → local visual location cache → OCR/model**. Each device retains 10,000 positions by default. One visual request can learn up to 20 extra visible controls; multi-target queries send only unresolved targets to the model.
 
 Reuse supports exact pages, guarded local targets, and fixed regions. Device, app, Activity, dimensions, and target evidence must match; obstructions, moved targets, and ambiguity prevent reuse. Entries reuse positions; actions and result verification still use the normal execution flow.

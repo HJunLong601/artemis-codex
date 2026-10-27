@@ -372,6 +372,10 @@ class VisualLocationCache(CacheStorage):
                         self._key(scope),
                     )
                 self._event(db, scope, "prefetch_" + status)
+                if status == "complete":
+                    from artemis.utils.visual_cache_learning import mark_learned
+
+                    mark_learned(db, scope)
                 self._prune(db, scope.device_key)
         except (OSError, sqlite3.Error, ValueError, TypeError):
             logger.debug("Page inventory write failed; keeping normal locating")
@@ -568,6 +572,9 @@ class VisualLocationCache(CacheStorage):
                     is not None
                 )
                 promoted = set()
+                from artemis.utils.visual_cache_learning import was_learned
+
+                learned = was_learned(db, scope)
                 for query in dict.fromkeys(queries):
                     records = self._rows(
                         db, scope, query=query, namespace=namespace, include_page=include_page
@@ -588,6 +595,10 @@ class VisualLocationCache(CacheStorage):
                         db, scope, query, namespace, include_page, records, structural, page_exists
                     )
                     self._event(db, scope, reason if match else "miss_" + reason)
+                    if learned:
+                        self._event(db, scope, "warm_queries")
+                        if match:
+                            self._event(db, scope, "warm_hits")
                     if not match:
                         record_failure(db, scope, query, reason, candidate)
                     logger.info(
