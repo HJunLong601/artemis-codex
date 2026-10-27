@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -62,7 +63,9 @@ def test_atomic_patch_preserves_comments_non_models_and_runtime_routing(config):
     assert runtime.planner.model == "next-main"
     assert runtime.utils.object_detector.reasoning_effort == "high"
     assert not list(config.parent.glob(".artemis-model-*"))
-    assert config.stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":
+        # Windows stat() does not expose POSIX owner/group permission bits.
+        assert config.stat().st_mode & 0o777 == 0o600
 
 
 def test_snapshot_only_exposes_editable_fields_and_credential_presence(config):
@@ -108,6 +111,36 @@ def test_invalid_patch_keeps_original(config, path, value):
 def test_invalid_merged_config_is_never_written(config):
     with pytest.raises(service.SettingsError):
         service.save(service.snapshot()["version"], [edit("default.fallback.model", remove=True)])
+    assert config.read_text() == TEXT
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b'{"default":',
+        b"\xffPRIVATE-TEST-SECRET",
+        b'{"default":{"provider":"codex","model":"test"},"nodes":{"operator":null}}',
+        b'{"default":{"provider":"unsupported","model":"PRIVATE-TEST-SECRET"}}',
+    ],
+)
+def test_invalid_config_read_is_sanitized_without_modifying_file(config, payload):
+    config.write_bytes(payload)
+    with pytest.raises(service.SettingsError) as error:
+        service.snapshot()
+    assert error.value.status == 503
+    assert "PRIVATE" not in str(error.value)
+    assert config.read_bytes() == payload
+
+
+def test_unreadable_config_returns_sanitized_settings_error(config, monkeypatch):
+    def denied(_path):
+        raise PermissionError("PRIVATE-TEST-SECRET")
+
+    monkeypatch.setattr(type(config), "read_bytes", denied)
+    with pytest.raises(service.SettingsError) as error:
+        service.snapshot()
+    assert error.value.status == 503
+    assert "PRIVATE" not in str(error.value)
     assert config.read_text() == TEXT
 
 
@@ -219,7 +252,8 @@ def test_credential_persistence_preserves_other_env_and_activates_only_after_wri
     service.persist_key("openai", "PRIVATE-TEST-SECRET")
     assert dotenv_values(path, interpolate=False)["OPENAI_API_KEY"] == "PRIVATE-TEST-SECRET"
     assert "# keep this comment\nOTHER_SETTING=unchanged\n" in path.read_text()
-    assert path.stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":
+        assert path.stat().st_mode & 0o777 == 0o600
     assert calls == [(("openai", "PRIVATE-TEST-SECRET"), {"persist_to_env": False})]
     before = path.read_bytes()
     monkeypatch.setattr(

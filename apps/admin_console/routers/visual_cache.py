@@ -50,7 +50,9 @@ async def warm_visual_cache_page(request: Request, body: WarmupRequest):
     except TimeoutError:
         raise HTTPException(504, "Page warmup timed out; the device lock was released.") from None
     except Exception:
-        raise HTTPException(503, "Page warmup failed; check device and model diagnostics.") from None
+        raise HTTPException(
+            503, "Page warmup failed; check device and model diagnostics."
+        ) from None
 
 
 @router.get("/visual-cache")

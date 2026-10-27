@@ -119,7 +119,7 @@ def read_file():
         return path, text, raw, hashlib.sha256(data).hexdigest()
     except SettingsError:
         raise
-    except Exception:
+    except (OSError, ValueError, TypeError, AttributeError, RecursionError):
         raise SettingsError("模型配置无法解析，请先修复文件；原文件没有被修改。", 503) from None
 
 
@@ -259,7 +259,7 @@ def save(version, edits):
         try:
             candidate = load_jsonc(io.StringIO(updated))
             LLMConfig.model_validate(_expand_default_into_nodes(candidate))
-        except Exception:
+        except (ValueError, TypeError, AttributeError, RecursionError):
             raise SettingsError("修改后模型配置不完整或无效；原文件没有被修改。") from None
         if updated != text:
             if path.read_bytes() != text.encode("utf-8"):
