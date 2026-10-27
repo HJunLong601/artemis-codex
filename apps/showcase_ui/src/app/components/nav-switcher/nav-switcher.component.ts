@@ -47,6 +47,10 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         <span class="material-symbols-outlined tab-icon">database</span>
         <span class="tab-label">页面缓存</span>
       </a>
+      <a routerLink="/settings/models" routerLinkActive="active" class="nav-tab-btn" title="可视化配置默认模型与角色模型">
+        <span class="material-symbols-outlined tab-icon">tune</span>
+        <span class="tab-label">模型配置</span>
+      </a>
     </nav>
   `,
   changeDetection: ChangeDetectionStrategy.Eager,

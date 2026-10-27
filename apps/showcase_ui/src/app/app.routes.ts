@@ -24,5 +24,6 @@ export const routes: Routes = [
   { path: 'workspace', component: WorkspaceComponent },
   { path: 'check', component: LegacyWorkspaceComponent },
   { path: 'cache', loadComponent: () => import('./pages/visual-cache/visual-cache.component').then(m => m.VisualCacheComponent) },
+  { path: 'settings/models', loadComponent: () => import('./pages/model-settings/model-settings.component').then(m => m.ModelSettingsComponent) },
   { path: '**', redirectTo: '' }
 ];

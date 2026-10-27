@@ -2,7 +2,7 @@
   <div class="heading"><h2>安全 Monkey 与页面学习</h2><div class="actions"><button type="button" (click)="configure()" [disabled]="pending()">配置新任务</button><button type="button" (click)="refresh()" [disabled]="reading()">{{ reading() ? '读取中…' : '刷新任务' }}</button></div></div>
   <p>在一个 Android App 内安全探索，学习实际访问的稳定页面。不会删除、发送、购买或修改账号。</p>
   <p class="warning">关闭网页不会停止后台任务。Token 在请求结束后结算，在途请求可能超过设置额度；预算控制不是账单硬上限。</p>
-  <p><a href="/" target="_blank" rel="noopener">打开主页 Setup Guide（设备诊断 / 模型登录）</a>；已连接的模型无需配置无关 Provider 的凭证。</p>
+  <p><a href="/settings/models">模型配置与登录</a> · <a href="/" target="_blank" rel="noopener">主页 Setup Guide（设备诊断）</a>；已连接的模型无需配置无关 Provider 的凭证。</p>
   @if (message()) { <p class="notice" role="status">{{ message() }}</p> }
   @if (stale()) { <p class="notice" role="alert">状态未确认，下方为最后一次读取结果。</p> }
   @if (open()) {

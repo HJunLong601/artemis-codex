@@ -166,7 +166,9 @@ ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
 <a id="model-configuration"></a>
 ## 模型与图片配置
 
-编辑 [`config/artemis.jsonc`](./config/artemis.jsonc)，修改后重启 ARTEMIS/MCP。配置文件只放模型与运行设置，其他 Provider 的密钥放在被 Git 忽略的 `.env`。
+后台导航新增 **模型配置**（`/settings/models`）：可直接配置默认模型、各角色覆盖、备用模型及推理参数，也可配置 Provider API Key 和打开 Codex 登录。保存后用于新任务；外部 MCP 会话需要重启。[可视化配置说明](./docs/model-settings.md)。
+
+仍支持手动编辑 [`config/artemis.jsonc`](./config/artemis.jsonc)，手动修改后重启 ARTEMIS/MCP。配置文件只放模型与运行设置，其他 Provider 的密钥放在被 Git 忽略的 `.env`。
 
 | 配置项 | 用途 |
 |---|---|

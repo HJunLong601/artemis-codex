@@ -118,8 +118,11 @@
   .floating-nav-switcher {
     left: 12px;
     max-width: calc(100vw - 24px);
+    overflow-x: auto;
+    scrollbar-width: none;
 
     .nav-tab-btn { padding: 0 10px; font-size: 12px; }
+    .nav-tab-btn .tab-icon { display: none; }
   }
 }
 

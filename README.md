@@ -169,7 +169,9 @@ Restart ARTEMIS/MCP after editing `.env`. See [device and emulator details](./do
 <a id="model-configuration"></a>
 ## Model and Image Configuration
 
-Edit [`config/artemis.jsonc`](./config/artemis.jsonc), then restart ARTEMIS/MCP. Keep model/runtime settings here and alternative provider credentials in the Git-ignored `.env`.
+Open **Model Settings** in the console navigation (`/settings/models`) to edit the default model, role overrides, fallback models and reasoning parameters, or configure provider API keys and Codex login. Changes apply to new tasks; restart external MCP sessions. [Visual configuration guide](./docs/model-settings.md).
+
+Manual editing of [`config/artemis.jsonc`](./config/artemis.jsonc) remains supported; restart ARTEMIS/MCP after manual changes. Keep model/runtime settings here and alternative provider credentials in the Git-ignored `.env`.
 
 | Key | Purpose |
 |---|---|

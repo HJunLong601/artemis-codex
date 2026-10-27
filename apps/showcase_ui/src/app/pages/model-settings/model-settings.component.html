@@ -1,0 +1,82 @@
+<main>
+  <header><div><p class="eyebrow">ARTEMIS / SETTINGS</p><h1>模型配置</h1></div>
+    <button type="button" (click)="load()" [disabled]="busy()">重新加载（放弃未保存编辑）</button></header>
+  <p>可视化修改与手动编辑配置文件使用同一份数据。仅保存改动字段，保留注释及其他设置。</p>
+  <p class="notice">保存后用于新任务；已运行任务保持原模型。外部 MCP 会话需重启。已暂停的 Monkey 任务若模型发生变化，需要停止后新建并重新确认。</p>
+  @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
+  @if (message()) { <p role="status" class="success">{{ message() }}</p> }
+  @if (draft; as config) {
+    <section aria-label="模型路由设置">
+      <div class="section-heading"><h2>模型路由</h2><span>{{ config.filename }}</span></div>
+      <p>角色空项继承默认配置。修改默认模型不会覆盖角色已有的单独配置，展开角色可以调整；模型名称可自由填写，支持情况以实际推理为准。</p>
+      @for (role of routes(); track role) {
+        <details [open]="role === 'default'" class="route">
+          <summary><strong>{{ labels[role] || role }}</strong><span>{{ summary(role) }}</span></summary>
+          @for (fallback of [false, true]; track fallback) {
+            <fieldset [disabled]="busy()">
+              <legend>{{ fallback ? '备用模型（Fallback）' : '主模型' }}</legend>
+              <div class="fields">
+                <label>提供商<select [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' 提供商'"
+                  [ngModel]="value(role, fallback, 'provider')" (ngModelChange)="set(role, fallback, 'provider', $event)">
+                  @if (role !== 'default') { <option value="">{{ inherited(role, fallback, 'provider') }}</option> }
+                  @for (provider of config.providers; track provider) { <option [value]="provider">{{ provider }}</option> }
+                </select></label>
+                <label>模型名称<input type="text" maxlength="200" [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' 模型名称'"
+                  [placeholder]="inherited(role, fallback, 'model')" [ngModel]="value(role, fallback, 'model')"
+                  (ngModelChange)="set(role, fallback, 'model', $event)" /></label>
+                <label>推理强度<select [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' 推理强度'"
+                  [ngModel]="value(role, fallback, 'reasoning_effort')" (ngModelChange)="set(role, fallback, 'reasoning_effort', $event)">
+                  <option value="">{{ inherited(role, fallback, 'reasoning_effort') }}</option>
+                  @for (effort of efforts; track effort) { <option [value]="effort">{{ effort }}</option> }
+                </select></label>
+              </div>
+              <details class="advanced"><summary>高级参数</summary><div class="fields">
+                <label>Temperature（0–2）<input type="number" min="0" max="2" step="0.1"
+                  [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' temperature'" [placeholder]="inherited(role, fallback, 'temperature')"
+                  [ngModel]="value(role, fallback, 'temperature')" (ngModelChange)="set(role, fallback, 'temperature', $event)" /></label>
+                @if (!fallback) {
+                  <label>请求超时（秒，1–3600）<input type="number" min="1" max="3600"
+                    [attr.aria-label]="role + ' timeout'" [placeholder]="inherited(role, false, 'timeout')"
+                    [ngModel]="value(role, false, 'timeout')" (ngModelChange)="set(role, false, 'timeout', $event)" /></label>
+                }
+                <label>Thinking Level<select [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' thinking_level'"
+                  [ngModel]="value(role, fallback, 'thinking_level')" (ngModelChange)="set(role, fallback, 'thinking_level', $event)">
+                  <option value="">{{ inherited(role, fallback, 'thinking_level') }}</option>
+                  @for (level of thoughts; track level) { <option [value]="level">{{ level }}</option> }
+                </select></label>
+                <label>Thinking Budget（-1–1000000）<input type="number" min="-1" max="1000000"
+                  [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' thinking_budget'" [placeholder]="inherited(role, fallback, 'thinking_budget')"
+                  [ngModel]="value(role, fallback, 'thinking_budget')" (ngModelChange)="set(role, fallback, 'thinking_budget', $event)" /></label>
+                @for (flag of ['include_thoughts', 'enable_grounding']; track flag) {
+                  <label>{{ flag }}<select [attr.aria-label]="role + (fallback ? ' 备用' : '') + ' ' + flag"
+                    [ngModel]="value(role, fallback, flag)" (ngModelChange)="set(role, fallback, flag, $event)">
+                    <option value="">{{ inherited(role, fallback, flag) }}</option><option [ngValue]="true">开启</option><option [ngValue]="false">关闭</option>
+                  </select></label>
+                }
+              </div><p>不同提供商支持的参数不同；保存进行结构校验，不会自动调用付费推理。</p></details>
+            </fieldset>
+          }
+        </details>
+      }
+      <div class="save-bar"><button class="primary" type="button" (click)="save()" [disabled]="busy() || !dirty()">{{ busy() ? '处理中…' : '保存模型配置' }}</button>
+        <span>{{ dirty() ? '有未保存的修改' : '与文件一致' }}</span></div>
+    </section>
+    <section aria-label="模型凭证"><h2>登录与 API Key</h2>
+      <p>Codex 使用后台运行环境的登录态，无需填写其他提供商的 Key。API Key 单独保存在本机 .env，不写入模型 JSON，也不回显。</p>
+      <button type="button" (click)="showLogin.set(!showLogin())">{{ showLogin() ? '收起 Codex 登录' : '打开 Codex 登录与推理验证' }}</button>
+      @if (showLogin()) { <app-codex-auth /> }
+      <div class="credential-status">@for (entry of ['google', 'openai', 'anthropic', 'openrouter', 'xai', 'ocr']; track entry) {
+        <span>{{ entry }}：{{ original()?.credentials?.[entry] ? '已配置' : '未配置' }}</span>
+      }</div>
+      <fieldset [disabled]="credentialBusy()"><legend>配置提供商凭证</legend><div class="fields">
+        <label>凭证提供商<select aria-label="凭证提供商" [(ngModel)]="credentialProvider">
+          @for (provider of ['google', 'openai', 'anthropic', 'openrouter', 'xai', 'ocr']; track provider) { <option [value]="provider">{{ provider }}</option> }
+        </select></label>
+        <label>新的 API Key<input type="password" aria-label="新的 API Key" autocomplete="new-password" [(ngModel)]="credentialKey" /></label>
+      </div><p>“验证并保存”会将新 Key 发送到所选提供商的现有验证接口。留空不会清除已有凭证。</p>
+      <button type="button" (click)="saveCredential()" [disabled]="!credentialKey.trim()">{{ credentialBusy() ? '验证中…' : '验证并保存 API Key' }}</button></fieldset>
+      @if (credentialMessage()) { <p role="status">{{ credentialMessage() }}</p> }
+      <p>Vertex AI 使用本机 ADC；自定义 API 地址沿用现有 OPENAI_BASE_URL 环境设置。本页不更改这些连接参数。</p>
+    </section>
+  } @else if (busy()) { <p role="status">读取配置中…</p> }
+</main>

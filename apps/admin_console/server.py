@@ -246,9 +246,10 @@ app.include_router(tasks.router)
 app.include_router(replay.router)
 app.include_router(system.router)
 app.include_router(visual_cache.router)
-from apps.admin_console.routers import cache_exploration
+from apps.admin_console.routers import cache_exploration, model_settings
 
 app.include_router(cache_exploration.router)
+app.include_router(model_settings.router)
 
 # Mount cloud gateway router for Frappe / Cloud integration if present
 try:

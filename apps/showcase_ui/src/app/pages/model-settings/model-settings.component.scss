@@ -1,0 +1,28 @@
+:host { display: block; color: #172b4d; }
+main { max-width: 1120px; margin: 0 auto; padding: 84px 24px 48px; }
+header, .section-heading, .save-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+h1 { margin: 4px 0; font-size: 30px; } h2 { font-size: 20px; margin: 0 0 12px; }
+p { line-height: 1.65; overflow-wrap: anywhere; }
+.eyebrow { color: #526884; font-size: 12px; letter-spacing: .1em; margin: 0; }
+section { background: #fff; border: 1px solid #dbe4ee; border-radius: 16px; padding: 22px; margin-top: 20px; min-width: 0; }
+.notice { background: #edf4ff; padding: 14px; border-radius: 10px; }
+.route { border-top: 1px solid #e3eaf2; padding: 14px 0; }
+summary { cursor: pointer; overflow-wrap: anywhere; }
+.route > summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.route > summary span { color: #526884; font-size: 13px; }
+fieldset { border: 1px solid #dce5ee; border-radius: 10px; padding: 16px; margin: 18px 0 8px; min-width: 0; }
+legend { font-weight: 600; padding: 0 6px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 14px; }
+label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; min-width: 0; }
+input, select { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid #bcccdc; border-radius: 7px; padding: 10px; font: inherit; color: inherit; background: white; }
+button { border: 1px solid #bcccdc; border-radius: 8px; padding: 10px 14px; background: white; color: inherit; cursor: pointer; font: inherit; }
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #1967d2; outline-offset: 3px; }
+.primary { background: #1967d2; color: white; border-color: #1967d2; }
+.save-bar { justify-content: flex-start; margin-top: 20px; }
+.save-bar span, .advanced p { color: #526884; font-size: 13px; }
+.advanced { margin-top: 16px; } .advanced .fields { margin-top: 16px; }
+.credential-status { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 20px 0; font-size: 13px; }
+.error { color: #a32323; background: #fff1f1; padding: 12px; border-radius: 8px; }
+.success { color: #176338; background: #eaf7ef; padding: 12px; border-radius: 8px; }
+@media (max-width: 600px) { main { padding: 76px 12px 24px; } section { padding: 16px; } h1 { font-size: 26px; } }
