@@ -345,6 +345,16 @@ def format_minimal_list_with_elements(
     added_items = []  # list of tuples: (text, cx, cy)
     items_bounds = []  # list of tuples: (idx, (left, top, right, bottom))
 
+    def state_token(value: Any) -> str:
+        """Render XML strings/helper booleans as true/false; missing or invalid state is '?'.
+
+        value is one raw control attribute. Return model-facing text only,
+        without mutating the node or inferring false from missing evidence.
+        """
+        # Preserve Python False instead of treating it like an absent attribute.
+        token = str(value).strip().lower()
+        return token if token in ("true", "false") else "?"
+
     def normalize_bounds(left: int, top: int, right: int, bottom: int) -> str:
         n_left = int(max(0, min(1000, left * 1000 / width)))
         n_top = int(max(0, min(1000, top * 1000 / height)))
@@ -366,6 +376,22 @@ def format_minimal_list_with_elements(
         bounds_str = node.get("bounds")
         bounds = parse_bounds(bounds_str)
 
+        # Android emits checked=false on ordinary labels too; show toggle state only for stateful controls.
+        stateful = state_token(node.get("checkable")) == "true" or (
+            "checkable" not in node and "checked" in node
+        )
+        # The XML control owns state even when fused OCR supplies its displayed label.
+        state_suffix = (
+            f" | checked:{state_token(node.get('checked'))} enabled:{state_token(node.get('enabled'))}"
+            if stateful
+            else " | enabled:false"
+            if state_token(node.get("enabled")) == "false"
+            else ""
+        )
+        # Preserve observed attributes for code-side checks; no inferred state is inserted in metadata.
+        state_attributes = {
+            key: node[key] for key in ("checked", "enabled", "selected", "checkable") if key in node
+        }
         ocr_elements = node.get("ocr_elements")
         registered = False
 
@@ -379,7 +405,9 @@ def format_minimal_list_with_elements(
                         continue
 
                     norm_bounds = normalize_bounds(left, top, right, bottom)
-                    lines.append(f"[{idx}] OCR Text: '{ocr['text']}' | Bounds: {norm_bounds}")
+                    lines.append(
+                        f"[{idx}] OCR Text: '{ocr['text']}' | Bounds: {norm_bounds}{state_suffix}"
+                    )
                     items_bounds.append((idx, (left, top, right, bottom)))
 
                     elements.append(
@@ -391,6 +419,7 @@ def format_minimal_list_with_elements(
                             "class": node.get("class"),
                             "resource_id": node.get("resource-id"),
                             "is_ocr": True,
+                            **state_attributes,
                         }
                     )
                     labels.append(str(idx))
@@ -412,7 +441,7 @@ def format_minimal_list_with_elements(
 
             norm_bounds = normalize_bounds(left, top, right, bottom)
             kind = "Text" if text.strip() else "Hint"
-            line = f"[{idx}] {kind}: '{shown}' | Bounds: {norm_bounds}"
+            line = f"[{idx}] {kind}: '{shown}' | Bounds: {norm_bounds}{state_suffix}"
             if error:
                 line += f" | Error: '{error}'"
             lines.append(line)
@@ -426,6 +455,7 @@ def format_minimal_list_with_elements(
                 "class": node.get("class"),
                 "resource_id": node.get("resource-id"),
                 "is_ocr": False,
+                **state_attributes,
             }
             if not text.strip():
                 element["is_hint"] = True
