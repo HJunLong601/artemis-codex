@@ -89,6 +89,8 @@ def _calculate_overlap_ratio(ocr_bounds: dict[str, int], xml_bounds: dict[str, i
 
 def _detect_status_bar_height(xml_hierarchy: list[dict[str, Any]], screen_height: int) -> int:
     """Try to detect status bar height from XML, fallback to 4% of screen height."""
+    # Pixel height follows the same 12% top-strip limit as UI filtering; dialogs cannot shift OCR offscreen.
+    max_status_bar_height = int(screen_height * 0.12)
     for node in xml_hierarchy:
         package = node.get("package") or node.get("packageName")
         bounds_str = node.get("bounds")
@@ -96,7 +98,7 @@ def _detect_status_bar_height(xml_hierarchy: list[dict[str, Any]], screen_height
         # Look for systemui at the top
         if package == "com.android.systemui":
             bounds = _parse_bounds(bounds_str)
-            if bounds and bounds["top"] == 0:
+            if bounds and bounds["top"] == 0 and 0 < bounds["bottom"] <= max_status_bar_height:
                 return bounds["bottom"]
 
     return int(screen_height * 0.04)

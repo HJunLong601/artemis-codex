@@ -450,6 +450,11 @@ def _detect_fixed_system_bars(
     """
     fixed_bars = []
 
+    # Physical system bars are thin: maximum heights in pixels, relative to this viewport.
+    max_bottom_bar_height = int(screen_height * 0.15)
+    # Full-screen SystemUI dialogs also start at y=0; identity alone cannot establish a top bar.
+    max_top_bar_height = int(screen_height * 0.12)
+
     def check_scrollable(node: dict[str, Any]) -> bool:
         if node.get("scrollable") is True or str(node.get("scrollable", "")).lower() == "true":
             return True
@@ -468,6 +473,11 @@ def _detect_fixed_system_bars(
             width = bounds["right"] - bounds["left"]
             height = bounds["bottom"] - bounds["top"]
             package_name = str(node.get("package") or node.get("packageName") or "").lower()
+            # Both platform and Google runtime-permission packages own dialogs, never fixed bars.
+            is_permission_dialog = package_name in (
+                "com.android.permissioncontroller",
+                "com.google.android.permissioncontroller",
+            )
             res_id = str(node.get("resource-id") or node.get("resourceId") or "").lower()
             class_name = str(node.get("className") or node.get("class") or "").lower()
 
@@ -487,16 +497,24 @@ def _detect_fixed_system_bars(
             )
 
             # Check bottom fixed bar (e.g., bottom navigation bar / system navigation bar)
-            if bounds["bottom"] >= screen_height and is_full_width and height > 0:
-                if is_high_conf_id or (25 <= height <= int(screen_height * 0.15)):
+            if (
+                not is_permission_dialog
+                and bounds["bottom"] >= screen_height
+                and is_full_width
+                and 0 < height <= max_bottom_bar_height
+            ):
+                if is_high_conf_id or height >= 25:
                     fixed_bars.append(bounds.copy())
                     return  # Don't recurse into children of confirmed fixed bars
 
             # Check top fixed bar (e.g., status bar / top action bar)
-            if bounds["top"] <= 0 and is_full_width and height > 0:
-                if package_name == "com.android.systemui" or (
-                    15 <= height <= int(screen_height * 0.12)
-                ):
+            if (
+                not is_permission_dialog
+                and bounds["top"] <= 0
+                and is_full_width
+                and 0 < height <= max_top_bar_height
+            ):
+                if package_name == "com.android.systemui" or height >= 15:
                     fixed_bars.append(bounds.copy())
                     return
 
