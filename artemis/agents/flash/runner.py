@@ -141,17 +141,29 @@ class FlashRunner:
     """Reactive, ultra-fast agent execution loop supporting all VLM providers."""
 
     def __init__(self, ctx: ArtemisContext, goal: str, max_turns: int | None = None):
+        """Prepare one task's reactive loop and model-independent progress limits.
+
+        ctx owns device/trace resources; goal is the requested task text.
+        max_turns overrides the total response count (None uses config, 0 is
+        unlimited). The separate quiet-streak limit is loaded from config.
+        Construction prepares helpers; execution and external cleanup belong
+        to the caller's task lifecycle. Instances must not be shared by tasks.
+        """
         self.ctx = ctx
         self.goal = goal
         try:
             cfg = load_agent_config()
             self.max_turns = max_turns if max_turns is not None else cfg.flash.max_turns
+            # Per-run tool-less response limit; independent from the optional total-turn cap.
+            self.max_silent_turns = cfg.flash.max_silent_turns
             self.step_summarizer_cfg = cfg.flash.step_summarizer
             self.memory_runtime_cfg = cfg.memory.runtime
             self.transcript_cfg = cfg.memory.transcript
             self.chunking_cfg = cfg.memory.chunking
         except Exception:
             self.max_turns = max_turns if max_turns is not None else 0
+            # Match the validated config default when configuration cannot be loaded.
+            self.max_silent_turns = 5
             self.step_summarizer_cfg = StepSummarizerConfig()
             self.memory_runtime_cfg = MemoryRuntimeConfig()
             self.transcript_cfg = MemoryTranscriptConfig()
@@ -1078,6 +1090,13 @@ class FlashRunner:
 
     @trace(type="agent", name="FlashRunner")
     async def run(self, state: State) -> dict:
+        """Execute this task until a report, configured turn cap, or quiet-streak failure.
+
+        state carries the current task/observation and receives existing action
+        updates. Return status/explanation; repeated tool-less replies produce
+        failed rather than success. Model/device exceptions and cancellation
+        propagate to the task owner; counters live only for this coroutine run.
+        """
         limit = self.turn_limit
         logger.info(
             f"Starting Artemis Flash reactive loop for goal: {self.goal}"
@@ -1100,6 +1119,9 @@ class FlashRunner:
         current_xml_list = xml_list
         previous_turn: _TurnRecord | None = None
         pending_notices: list[str] = []
+
+        # Only consecutive completed responses without any tool call consume this per-run budget.
+        silent_turns = 0
 
         while limit is None or turns < limit:
             turns += 1
@@ -1180,11 +1202,19 @@ class FlashRunner:
                 if is_final:
                     final_report = {"status": "failed", "explanation": raw_text}
                     break
+                silent_turns += 1
+                if self.max_silent_turns and silent_turns >= self.max_silent_turns:
+                    final_report = {
+                        "status": "failed",
+                        "explanation": f"flash_silent_turn_limit: {silent_turns} consecutive turns without tool calls.",
+                    }
+                    break
                 pending_notices.append(_NO_TOOL_CALL_NOTICE)
                 ledger.stage_turn(messages[turn_base:])
                 previous_turn = _TurnRecord()
                 continue
 
+            silent_turns = 0
             # Process tool calls
             turn = _TurnRecord()
             (

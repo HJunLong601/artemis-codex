@@ -96,6 +96,24 @@ network details.
 
 ![Wireless pairing and separate connection port, with all device inputs empty](assets/wireless-adb-pairing.png)
 
+## Agent no-progress limits
+
+Flash and Pro retain their existing task execution paths. Consecutive responses
+without progress now fail the task instead of allowing indefinite model calls:
+
+- `agent.flash.max_silent_turns`: defaults to 5 consecutive responses with no
+  tool calls. Any tool call resets the count; 0 disables this guard. This is
+  independent of `agent.flash.max_turns`, whose 0 still means unlimited total
+  turns.
+- `agent.pro.execution.max_no_action_turns`: defaults to 4, accepts 1–20.
+  Helper-only turns and ordinary replies count. Executable decisions or a
+  completed plan reset the count; continuous plans still require user stop.
+  Ordinary model replies remain in the transcript for diagnosis.
+
+These limits apply to Flash/Pro. Safe cache exploration has its own worker,
+cumulative budgets and pause/stop lifecycle; its controls are unchanged.
+No-progress termination is a failed task, never a successful assertion result.
+
 ## Android emulator without a physical device
 
 `ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true` is the default. Automatic Android

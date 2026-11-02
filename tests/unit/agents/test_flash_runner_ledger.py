@@ -437,6 +437,64 @@ _INITIAL_OBSERVATION = ("shot0.png", b"IMG0", "[1] Settings")
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("limit,quiet_count,success", [(3, 3, False), (0, 6, True)])
+async def test_silent_turn_guard_bounds_only_consecutive_empty_responses(
+    mock_context, limit, quiet_count, success
+):
+    """Given an unlimited run, fail after the configured quiet streak; zero disables only this guard.
+
+    Model/executor outputs are synthetic. Verify exact request count and terminal
+    status without a device, inference request or leaked model reply in errors.
+    """
+    # A refusal is one representative ordinary response with no executable tool call.
+    quiet = AIMessage(content="", response_metadata={"stop_reason": "refusal"})
+    with (
+        patch("artemis.controllers.unified_controller.get_driver"),
+        patch(
+            "artemis.agents.flash.runner.capture_screenshot_and_parse_ui",
+            AsyncMock(return_value=_INITIAL_OBSERVATION),
+        ),
+    ):
+        # Existing loop harness records real ledger iterations while mocking only external model/device boundaries.
+        runner = _make_runner(mock_context, [quiet] * quiet_count + [_report()], max_turns=0)
+        runner.max_silent_turns = limit
+        # The run must stop itself rather than exhausting the fake response sequence.
+        result = await runner.run(State(initial_goal="Synthetic task"))
+    assert result["status"] == ("completed" if success else "failed")
+    assert runner._invoke_model.await_count == quiet_count + int(success)
+    if not success:
+        assert "flash_silent_turn_limit" in result["explanation"]
+
+
+@pytest.mark.asyncio
+async def test_action_resets_flash_quiet_streak(mock_context):
+    """Two quiet turns separated by a real action-tool result must not trip a limit of three."""
+    # Synthetic replies exercise the real action dispatch and streak reset, without operating a device.
+    quiet = AIMessage(content="Waiting for a decision.")
+    # This fake action is handled by the existing mocked executor.
+    action = AIMessage(
+        content="Continue.",
+        tool_calls=[{"name": "click", "args": {"target": 1}, "id": "fixture-action"}],
+    )
+    with (
+        patch("artemis.controllers.unified_controller.get_driver"),
+        patch(
+            "artemis.agents.flash.runner.capture_screenshot_and_parse_ui",
+            AsyncMock(return_value=_INITIAL_OBSERVATION),
+        ),
+    ):
+        # Reset must happen on the tool-bearing turn before the second quiet streak begins.
+        runner = _make_runner(
+            mock_context, [quiet, quiet, action, quiet, quiet, _report()], max_turns=0
+        )
+        runner.max_silent_turns = 3
+        # Completion must remain reachable despite four nonconsecutive quiet responses.
+        result = await runner.run(State(initial_goal="Synthetic task"))
+    assert result["status"] == "completed"
+    assert runner._invoke_model.await_count == 6
+
+
+@pytest.mark.asyncio
 async def test_run_builds_prompt_from_ledger_with_session_offsets(mock_context):
     """Turn 2 must see: the static system prefix, the committed turn 1 (its
     tail, the AI message, text-only tool messages that already carry each

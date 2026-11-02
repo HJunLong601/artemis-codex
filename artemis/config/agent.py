@@ -784,6 +784,12 @@ class FlashProfileConfig(BaseModel):
             " task simply runs until it reports its status."
         ),
     )
+    # Consecutive completed responses without tool calls; 0 disables this guard, not the total-turn cap.
+    max_silent_turns: int = Field(
+        default=5,
+        ge=0,
+        description="Fail Flash after consecutive tool-less turns; 0 disables this guard.",
+    )
     explorer_mode: ExplorerVersion = Field(
         default="flash",
         description="Perception mode for Flash runner ('flash' for 1-shot detection).",
@@ -812,6 +818,13 @@ class ProExplorerConfig(BaseModel):
 class ExecutionConfig(BaseModel):
     """Validator execution tiers for the Pro profile."""
 
+    # Cross-turn limit owned by each Operator instance; helper-only replies count, completed plans do not.
+    max_no_action_turns: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        description="Fail Pro after consecutive turns without executable decisions or a completed plan.",
+    )
     max_burst_actions: int = Field(
         default=4,
         ge=2,

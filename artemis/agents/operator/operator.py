@@ -103,7 +103,13 @@ def _described(value: Any) -> str | None:
     return None
 
 
+class OperatorNoActionLimitError(RuntimeError):
+    """End a Pro run as a failure when completed Operator turns repeatedly propose no executable decision."""
+
+
 class OperatorNode:
+    """Task-scoped Pro decision node; preserve transcript feedback and bound consecutive no-decision turns."""
+
     def __init__(
         self,
         ctx: ArtemisContext,
@@ -112,6 +118,14 @@ class OperatorNode:
         last_n_detailed: int = 1,
         transcript_config=None,
     ):
+        """Prepare one graph task's Operator without sharing progress counters across tasks.
+
+        ctx owns device/trace/model routing. tools and prompt_components add
+        optional helpers (None uses defaults); last_n_detailed is the legacy
+        detailed-history count, default one. transcript_config optionally
+        overrides configured history rendering. Load validated execution limits;
+        configuration errors propagate. The graph owns this instance's lifetime.
+        """
         self.ctx = ctx
         self.tools = tools or []
         self.prompt_components = prompt_components or []
@@ -145,6 +159,12 @@ class OperatorNode:
         # model call). Legacy-path fallback only: with a transcript ledger the
         # ledger's own ``last_turn_silent`` is authoritative.
         self._previous_turn_silent: bool = False
+        # Consecutive no-decision turns belong to this task's existing Operator lifetime, not a global registry.
+        self._no_action_turns = 0
+        from artemis.config import load_agent_config
+
+        # The validated per-task config allows 1..20 completed no-decision turns, default four.
+        self._max_no_action_turns = load_agent_config().pro.execution.max_no_action_turns
 
     def _previous_turn_was_silent(self) -> bool:
         """Whether the previous turn carried no visible reasoning text.
@@ -578,7 +598,9 @@ class OperatorNode:
                     logger.error(f"Failed to parse function_call fallback: {e}")
 
             if not response.tool_calls:
-                logger.warning("LLM stopped without calling any tool. Encouraging action.")
+                # Keep ordinary replies in the transcript so a stopped run retains the model's visible feedback.
+                current_messages.append(response)
+                logger.warning("Operator returned no executable tool call.")
                 break
 
             current_messages.append(response)
@@ -867,6 +889,14 @@ class OperatorNode:
     @agent_lifecycle_logging("Operator", logger)
     @trace(type="agent", name="operator")
     async def __call__(self, state: State):
+        """Produce this graph turn's decisions from state and stage its visible feedback.
+
+        state supplies task history and the current observation. Return graph
+        updates with decisions or None for helper-only turns. After completed
+        turns, fail with OperatorNoActionLimitError at the configured no-decision
+        streak. Cancellation propagates before progress accounting; the graph
+        task owner remains responsible for device/resource cleanup.
+        """
         state = strict_state(state, "operator")
         # 1. Get perception data from state (populated by Perception node)
         operator_raw_data = getattr(state, "operator_raw_data", {}) or {}
@@ -983,6 +1013,12 @@ class OperatorNode:
         # step id and validator result exist.
         self._stage_transcript_turn(messages)
 
+        self._record_progress(
+            action_result,
+            self._read_task_plan_text(),
+            user_stopped=bool(getattr(state, "user_stop_requested", False)),
+        )
+
         # 9. Update State
         structured_decisions = json.dumps(action_result) if action_result else None
 
@@ -996,6 +1032,31 @@ class OperatorNode:
             "subagent_calls": ((state.subagent_calls or []) + new_subagent_calls),
             "operator_tool_limit_exceeded": tool_limit_exceeded,
         }
+
+    def _record_progress(
+        self, actions: list[dict] | None, plan_text: str | None, *, user_stopped: bool = False
+    ) -> None:
+        """Count completed no-decision turns; fail instead of repeatedly consuming the task's model budget.
+
+        actions contains this turn's executable decisions, or None/empty for
+        helper-only and ordinary replies. plan_text is the current task plan;
+        user_stopped permits a continuous plan to finish only after explicit stop.
+        Reset on decisions or an actually completed plan. Raise
+        OperatorNoActionLimitError at the configured count. No I/O or parallel
+        lifecycle state is introduced; cancelled model awaits never reach here.
+        """
+        # Use the existing plan parser and completion semantics, including continuous-loop rules.
+        snapshot = parse_plan(plan_text or "")
+        if actions or (
+            snapshot.all_top_level_done and (not snapshot.continuous_top_level or user_stopped)
+        ):
+            self._no_action_turns = 0
+            return
+        self._no_action_turns += 1
+        if self._no_action_turns >= self._max_no_action_turns:
+            raise OperatorNoActionLimitError(
+                f"operator_no_action_limit: {self._no_action_turns} consecutive turns without an executable decision or completed plan."
+            )
 
     def _plan_ledger_gate_enabled(self) -> bool:
         try:
