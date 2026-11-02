@@ -771,7 +771,13 @@
                           <span class="material-symbols-outlined chip-icon">
                             phone_android
                           </span>
-                          <span>{{ dev.model || dev.serial }}</span>
+                          <!-- Show the transport serial so USB and Wi-Fi entries of one phone remain distinguishable. -->
+                          <span class="device-chip-label">
+                            <span>{{ dev.model || dev.serial }}</span>
+                            @if (dev.model) {
+                              <small>{{ dev.serial }}</small>
+                            }
+                          </span>
                           @if (dev.serial === activeDevice()?.serial) {
                             <span class="active-check">{{ '✓ Active' | t }}</span>
                           }
@@ -1376,22 +1382,46 @@
                           <label class="wifi-label">{{ 'Device IP Address' | t }}</label>
                           <div class="wifi-input-wrap">
                             <span class="material-symbols-outlined wrap-icon">router</span>
-                            <input type="text" class="wifi-input" [ngModel]="wifiHost()" (ngModelChange)="wifiHost.set($event)"
+                            <input type="text" class="wifi-input" aria-label="Wireless phone IP" [ngModel]="wifiHost()" (ngModelChange)="wifiHost.set($event)"
+                              [disabled]="isPairingWifi() || isConnectingWifi()"
                               [placeholder]="'e.g. 192.168.1.108' | t" spellcheck="false" />
                           </div>
                         </div>
                   
+                      </div>
+                      <h4 class="wifi-step-title">{{ '1. Pair this computer (first connection only)' | t }}</h4>
+                      <p class="wifi-step-hint">{{ 'On Android 11+, open Wireless debugging > Pair device with pairing code. Keep the dialog open. Already paired devices can skip this step.' | t }}</p>
+                      <div class="wifi-form-row" role="group" aria-label="Wireless ADB pairing">
                         <div class="wifi-input-col port-col">
-                          <label class="wifi-label">{{ 'Port' | t }}</label>
+                          <label class="wifi-label">{{ 'Pairing port' | t }}</label>
+                          <div class="wifi-input-wrap"><input type="text" class="wifi-input" inputmode="numeric" aria-label="Wireless pairing port"
+                            [ngModel]="wifiPairPort()" (ngModelChange)="wifiPairPort.set($event)" [disabled]="isPairingWifi() || isConnectingWifi()" /></div>
+                        </div>
+                        <div class="wifi-input-col port-col">
+                          <label class="wifi-label">{{ 'Pairing code (6 digits)' | t }}</label>
+                          <div class="wifi-input-wrap"><input type="password" class="wifi-input" inputmode="numeric" maxlength="6" autocomplete="off" aria-label="Wireless pairing code"
+                            [ngModel]="wifiPairCode()" (ngModelChange)="wifiPairCode.set($event)" [disabled]="isPairingWifi() || isConnectingWifi()" /></div>
+                        </div>
+                        <div class="wifi-btn-col"><button type="button" class="btn-wifi-connect" (click)="pairWifiDevice()"
+                          [disabled]="isPairingWifi() || isConnectingWifi() || isRemoteAdbServer() || !wifiHost().trim() || !wifiPairPort().trim() || wifiPairCode().length !== 6">
+                          {{ (isPairingWifi() ? 'Pairing...' : 'Pair device') | t }}</button></div>
+                      </div>
+                      @if (wifiPairMessage()) { <p class="wifi-step-hint" role="status">{{ wifiPairMessage() | t }}</p> }
+                      <h4 class="wifi-step-title">{{ '2. Connect the paired phone' | t }}</h4>
+                      <p class="wifi-step-hint">{{ 'Close the pairing dialog and enter the port on the Wireless debugging main screen. This is different from the pairing port. Pairing alone does not mean connected.' | t }}</p>
+                      <div class="wifi-form-row" role="group" aria-label="Wireless ADB connection">
+                        <div class="wifi-input-col port-col">
+                          <label class="wifi-label">{{ 'Connection port' | t }}</label>
                           <div class="wifi-input-wrap">
                             <span class="material-symbols-outlined wrap-icon">tag</span>
-                            <input type="text" class="wifi-input" [ngModel]="wifiPort()" (ngModelChange)="wifiPort.set($event)"
+                            <input type="text" class="wifi-input" inputmode="numeric" aria-label="Wireless connection port" [ngModel]="wifiPort()" (ngModelChange)="wifiPort.set($event)"
+                              [disabled]="isPairingWifi() || isConnectingWifi()"
                               placeholder="5555" spellcheck="false" />
                           </div>
                         </div>
                   
                         <div class="wifi-btn-col">
-                          <button type="button" class="btn-wifi-connect" [disabled]="isConnectingWifi() || isRemoteAdbServer() || !wifiHost().trim()"
+                          <button type="button" class="btn-wifi-connect" [disabled]="isConnectingWifi() || isPairingWifi() || isRemoteAdbServer() || !wifiHost().trim() || !wifiPort().trim()"
                             (click)="connectWifiDevice()">
                             @if (isConnectingWifi()) {
                             <span class="material-symbols-outlined spinning">sync</span>
@@ -1422,6 +1452,7 @@
                     <div class="callout-text">
 
                       {{ 'Find IP & port in phone' | t }} <strong>{{ 'Settings > Developer Options > Wireless Debugging' | t }}</strong>.
+                      {{ 'Legacy TCP/IP devices can use port 5555 after USB setup. For one phone connected by USB and Wi-Fi, select only one transport for tasks.' | t }}
                       </div>
                     </div>
                   </div>
@@ -1594,7 +1625,13 @@
                           <span class="material-symbols-outlined chip-icon">
                             phone_android
                           </span>
-                          <span>{{ dev.model || dev.serial }}</span>
+                          <!-- Show the transport serial so USB and Wi-Fi entries of one phone remain distinguishable. -->
+                          <span class="device-chip-label">
+                            <span>{{ dev.model || dev.serial }}</span>
+                            @if (dev.model) {
+                              <small>{{ dev.serial }}</small>
+                            }
+                          </span>
                           @if (dev.serial === activeDevice()?.serial) {
                             <span class="active-check">{{ '✓ Active' | t }}</span>
                           }

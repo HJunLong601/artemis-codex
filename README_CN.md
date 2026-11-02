@@ -165,6 +165,8 @@ ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
 
 修改 `.env` 后重启 ARTEMIS/MCP。详细选择规则、路径发现和验收步骤见 [设备与模拟器说明](./docs/testing.md#android-emulator-without-a-physical-device)。
 
+后台 **更改连接 → 无线 ADB** 支持 Android 11 及以上的配对码流程，分开填写配对弹窗中的端口/配对码，以及无线调试主页面的连接端口。已配对设备和旧式 TCP/IP 设备可直接连接。[无线配置与验收说明](./docs/testing.md#wireless-adb-pairing-and-connection)。
+
 <a id="console-language"></a>
 ## 控制台界面语言
 

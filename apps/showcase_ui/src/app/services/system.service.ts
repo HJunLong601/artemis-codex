@@ -448,6 +448,20 @@ export class SystemService {
   }
 
   /**
+   * Pair with one phone using its first-time Wireless debugging code dialog.
+   * host is the phone IP; port is the pairing TCP port (1–65535), not the
+   * connection port; pairingCode is six ASCII digits including leading zeroes.
+   * Returns pair_result.success/message only. HTTP failures propagate to the
+   * caller without logging the request or changing readiness/device selection.
+   * The cold observable performs one bounded server exchange per subscription;
+   * success establishes trust and does not claim the device is connected.
+   */
+  public pairWirelessAdb(host: string, port: number, pairingCode: string): Observable<{pair_result: {success: boolean; message: string}}> {
+    return this.http.post<{pair_result: {success: boolean; message: string}}>('/api/system/adb/pair',
+      {host, port, pairing_code: pairingCode}, {headers: {'X-Artemis-ADB-Intent': 'pair'}});
+  }
+
+  /**
    * Fetch the process-wide ADB server endpoint used by Artemis.
    */
   public fetchAdbServerStatus(): Observable<AdbServerStatus> {

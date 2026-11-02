@@ -399,6 +399,71 @@ class ReadinessEngine:
 
         return emulator_manager.dismiss()
 
+    async def pair_wireless_adb(self, host: str, port: int, pairing_code: str) -> dict[str, Any]:
+        """Pair this workstation with a phone through the official ADB prompt.
+
+        Args:
+            host: API-validated phone IP, with brackets around IPv6 addresses.
+            port: Explicit pairing-dialog TCP port, an integer in 1..65535.
+            pairing_code: API-validated six ASCII digits; held in memory only.
+
+        Returns:
+            A success flag and a fixed user-facing message. Pairing is trust
+            establishment, not proof of an active device transport. No raw ADB
+            output or code is returned or logged.
+
+        The coroutine offloads a subprocess with a 15-second deadline, pins it
+        to the selected local server, and closes stdin when the command ends.
+        A cancelled await cannot extend the subprocess beyond that deadline.
+        Unsupported clients, transport failures and timeouts return failure;
+        this method neither reconnects devices nor changes server preferences.
+        """
+        # Freeze the current server so a concurrent preference edit cannot redirect trust.
+        endpoint = adb_server_connection.current_endpoint()
+        if not endpoint.is_local_default:
+            return {"success": False, "message": "Switch to local ADB before pairing a device."}
+        # Resolve the same installed platform-tools executable used by existing connections.
+        adb_path = toolchain.resolve("adb") or "adb"
+        # Pairing and connection ports are distinct values supplied by the phone UI.
+        target = f"{host}:{port}"
+
+        def _pair_sync() -> dict[str, Any]:
+            """Run one bounded pairing exchange; capture output solely for success detection.
+
+            Captures the validated target/code and local endpoint from this
+            invocation. The code goes to stdin, never argv. Returns a sanitized
+            result on every expected OS/timeout failure and releases pipe handles
+            through subprocess.run; no device or application action is performed.
+            """
+            try:
+                # Only this child inherits the frozen endpoint; parent environment stays unchanged.
+                environment = endpoint.apply_to_environment(os.environ.copy())
+                # Raw output may include a prompt; it must never leave this function.
+                result = subprocess.run(
+                    [adb_path, "pair", target],
+                    input=pairing_code + "\n",
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    env=environment,
+                )
+                # A zero exit alone is insufficient: old clients may not support pairing.
+                success = result.returncode == 0 and "successfully paired to" in result.stdout.lower()
+                return {
+                    "success": success,
+                    "message": (
+                        "Paired. Enter the connection port from the Wireless debugging main screen."
+                        if success else
+                        "Pairing failed. Check the pairing port and code, keep the dialog open, and use current platform-tools."
+                    ),
+                }
+            except subprocess.TimeoutExpired:
+                return {"success": False, "message": "Pairing timed out. Reopen the pairing-code dialog and retry."}
+            except OSError:
+                return {"success": False, "message": "Could not run ADB pairing. Check platform-tools and the network."}
+
+        return await asyncio.to_thread(_pair_sync)
+
     async def connect_wireless_adb(self, host: str, port: int = 5555) -> dict[str, Any]:
         """Connect to an Android device over Wi-Fi via adb connect."""
         if not adb_server_connection.current_endpoint().is_local_default:

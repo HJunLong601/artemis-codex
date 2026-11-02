@@ -168,6 +168,8 @@ ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
 
 Restart ARTEMIS/MCP after editing `.env`. See [device and emulator details](./docs/testing.md#android-emulator-without-a-physical-device) for selection, discovery, and acceptance steps.
 
+The console's **Change Connection → Wireless ADB** supports Android 11+ pairing codes and connection as separate steps. Enter the pairing-dialog port/code first, then the connection port from the phone's main Wireless debugging screen. Already-paired and legacy TCP/IP devices can connect directly. [Wireless setup and verification](./docs/testing.md#wireless-adb-pairing-and-connection).
+
 <a id="console-language"></a>
 ## Console Language
 

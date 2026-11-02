@@ -43,6 +43,59 @@ explore the application with ARTEMIS, and preserve screenshots and traces before
 authoring or updating device interaction tests. Passing the default suite does
 not establish real-device acceptance or live model availability.
 
+## Wireless ADB pairing and connection
+
+The console's **System Setup → Android Device & Emulator Connection → Change
+Connection → Wireless ADB** now offers the official Android 11+ pairing-code
+flow. The phone and workstation must share a reachable Wi-Fi network, and the
+console must use the local ADB server. Use current Android platform-tools with
+`adb pair` support; no extra driver, rooting or phone automation framework is
+required. See the [Android wireless debugging documentation](https://developer.android.com/tools/adb#connect-to-a-device-over-wi-fi).
+
+1. Enable Wireless debugging on the phone. In **Pair device with pairing code**,
+   keep the dialog open and copy its phone IP, pairing port and six-digit code
+   into the console's first step. A code may start with zero.
+2. Click **Pair device**. Success establishes trust only; it does not claim the
+   phone is connected. The code is erased on submission, passed to the official
+   CLI through stdin rather than argv, and excluded from responses and logs.
+   No model inference is needed for pairing.
+3. Close the phone's pairing dialog. In the console's second step, enter the
+   separate connection port from the Wireless debugging main screen and click
+   **Connect**. The pairing port is not reused as a connection port. Readiness
+   and device inventory refresh through the existing connection flow.
+4. Select the wireless entry explicitly when USB and wireless entries both
+   exist. They currently have different ADB serials, cache identities and locks;
+   do not run concurrent tasks through both entries of the same physical phone.
+
+Already-paired phones can skip step 1. Legacy devices configured for TCP/IP over
+USB can still connect on port 5555; the existing API retains that default.
+Invalid explicit ports never silently fall back to 5555. Expired/wrong codes,
+unreachable phones, an old CLI or remote-server mode produce a failure without
+automatic retries. Pairing is bounded to 15 seconds; re-open the phone dialog
+before retrying. QR-code pairing, mDNS discovery UI, automatic reconnection and
+USB/Wi-Fi identity unification are outside this change.
+
+Relevant executable checks are
+`tests/unit/admin_console/test_wireless_adb_pairing.py`,
+`tests/unit/core/test_adb_server_connection.py`,
+`apps/showcase_ui/src/app/pages/home/home-wireless.component.spec.ts`, and
+`apps/showcase_ui/src/app/services/system-wireless.service.spec.ts`.
+Mocks validate boundaries and failure handling; real-device acceptance must
+separately prove console pairing, connection, screenshots/hierarchy and actual
+actions on the explicit wireless serial. Never store pairing-code screenshots,
+SSID/BSSID, real device addresses or credentials in public test artifacts.
+
+Real-device validation completed console pairing, cleared the pairing code,
+and connected using the separate connection port. An explicit wireless transport
+passed the screenshot and hierarchy probe; a Flash task opened a settings
+subpage and returned without changing settings. Device-picker entries now show
+their transport serial below the model to distinguish USB and Wi-Fi.
+Backend regression: 326 passed, 2 skipped; frontend regression: 243 passed;
+production frontend build passed. Public artifacts omit device identifiers and
+network details.
+
+![Wireless pairing and separate connection port, with all device inputs empty](assets/wireless-adb-pairing.png)
+
 ## Android emulator without a physical device
 
 `ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true` is the default. Automatic Android

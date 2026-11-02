@@ -21,7 +21,7 @@ import secrets
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr, StrictInt, field_validator
 
 from artemis.core.diagnostics import readiness_engine
 from artemis.core.diagnostics.adb_server_connection import (
@@ -152,6 +152,65 @@ class ConnectAdbRequest(BaseModel):
 
     host: str = Field(description="IP address of Android device")
     port: int = Field(default=5555, description="Port number")
+
+
+class PairAdbRequest(ConnectAdbRequest):
+    """A first-time trust exchange, separate from the existing connect request.
+
+    Validates the pairing phone IP. The pairing port must be explicit, with no
+    5555 fallback; the one-use code is redacted from Pydantic representations.
+    Exact code validation is performed by the handler so errors never echo it.
+    """
+
+    # TCP port shown in the phone's pairing-code dialog; never the connect-port default.
+    port: StrictInt = Field(ge=1, le=65535)
+    # Six ASCII digits, including possible leading zeroes; never persisted or returned.
+    pairing_code: SecretStr
+
+    @field_validator("host")
+    @classmethod
+    def validate_phone_ip(cls, value: str) -> str:
+        """Normalize a pairing phone address without restricting the legacy connect API.
+
+        value is the phone IP (surrounding whitespace/brackets are accepted).
+        Return a compressed IP, bracketed for IPv6 so HOST:PORT is unambiguous.
+        Raise ValueError for URLs, hostnames or malformed pairing addresses
+        before any subprocess runs; there are no network/filesystem side effects.
+        """
+        # Only the new pairing payload normalizes its address; existing connect callers stay compatible.
+        address = ipaddress.ip_address(value.strip().strip("[]"))
+        return f"[{address.compressed}]" if address.version == 6 else address.compressed
+
+
+# Keep the typed OpenAPI contract while sanitizing validation failures inside this one sensitive route.
+@router.post("/adb/pair", openapi_extra={"requestBody": {
+    "required": True, "content": {"application/json": {"schema": PairAdbRequest.model_json_schema()}}
+}})
+async def pair_wireless_adb(request: Request):
+    """Accept an explicit same-origin pairing request and return trust status only.
+
+    request supplies the loopback/origin/intent boundary and JSON body with
+    phone IP, pairing-dialog port and one-use code. Return pair_result with a
+    sanitized success/message pair. Reject missing intent or nonlocal access
+    with 403 and invalid codes with a generic 422, without invoking ADB. The
+    awaited engine command has a 15-second process deadline; no readiness or
+    inference probe runs because pairing does not imply a connected device.
+    """
+    from apps.admin_console.routers.codex_auth import require_local
+
+    require_local(request)
+    if request.headers.get("x-artemis-adb-intent") != "pair":
+        raise HTTPException(403, "Explicit wireless pairing intent is required.")
+    try:
+        # Default missing-field errors include the entire input body; keep that body off the wire.
+        payload = PairAdbRequest.model_validate(await request.json())
+    except (ValueError, TypeError):
+        raise HTTPException(422, "Enter the phone IP, pairing port and six-digit pairing code.") from None
+    # Extract only for this command; preserve leading zeroes and never echo invalid input.
+    code = payload.pairing_code.get_secret_value()
+    if len(code) != 6 or not code.isascii() or not code.isdecimal():
+        raise HTTPException(422, "Enter the six-digit pairing code shown on the phone.")
+    return {"pair_result": await readiness_engine.pair_wireless_adb(payload.host, payload.port, code)}
 
 
 @router.post("/adb/connect")

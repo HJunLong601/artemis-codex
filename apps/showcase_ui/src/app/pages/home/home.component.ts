@@ -165,6 +165,14 @@ export class HomeComponent implements OnInit, OnDestroy {
   public isConnectingWifi = signal<boolean>(false);
   public wifiConnectMessage = signal<UiText | null>(null);
   public wifiConnectError = signal<string | null>(null);
+  /** Pairing-dialog TCP port (1–65535); empty until explicitly entered, never reused as the connection port. */
+  public wifiPairPort = signal('');
+  /** One-use six-digit code; memory-only and cleared on submission, never copied into a command preview. */
+  public wifiPairCode = signal('');
+  /** True only while the pairing HTTP exchange is pending; serializes pair/connect button actions. */
+  public isPairingWifi = signal(false);
+  /** Sanitized pairing feedback; success describes trust only, without claiming an active transport. */
+  public wifiPairMessage = signal<string | null>(null);
   public adbRestartFeedback = signal<string | null>(null);
   public showConnectionMethods = signal<boolean>(false);
 
@@ -846,17 +854,82 @@ export class HomeComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Parse a TCP port for either explicit pairing or connection, with no silent fallback.
+   * value is decimal text from the form; return an integer in 1–65535 or null
+   * for empty, fractional, suffixed or out-of-range input. No state or I/O changes.
+   */
+  private wifiPortNumber(value: string): number | null {
+    /** Trimmed decimal input; leading zeroes are valid and do not imply octal. */
+    const text = value.trim();
+    /** Numeric TCP port; NaN remains invalid rather than becoming port 5555. */
+    const port = /^\d+$/.test(text) ? Number(text) : NaN;
+    return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null;
+  }
+
+  /**
+   * Submit first-time trust pairing using the shared phone IP and separate pairing port/code.
+   * No arguments; reads the current form. Rejects remote-server mode and invalid
+   * fields locally. Clears the code before dispatch, never logs it, and releases
+   * the busy flag on both HTTP success and failure. On success clears the
+   * connection-port field so the user must enter the distinct main-screen port;
+   * does not start a connection, run inference or change the selected device.
+   */
+  public pairWifiDevice(): void {
+    if (this.isPairingWifi() || this.isConnectingWifi()) return;
+    /** Phone IP shared by the pair and connect steps; the API validates and normalizes it. */
+    const host = this.wifiHost().trim();
+    /** Pairing-dialog port in 1–65535, or null when the explicit input is invalid. */
+    const port = this.wifiPortNumber(this.wifiPairPort());
+    /** Sensitive one-use input captured only for this request, including leading zeroes. */
+    const code = this.wifiPairCode();
+    this.wifiPairCode.set('');
+    this.wifiPairMessage.set(null);
+    if (this.isRemoteAdbServer()) {
+      this.wifiPairMessage.set('Switch to local ADB before pairing a device.');
+      return;
+    }
+    if (!host || port === null || !/^[0-9]{6}$/.test(code)) {
+      this.wifiPairMessage.set('Enter the phone IP, pairing port and six-digit pairing code.');
+      return;
+    }
+    this.isPairingWifi.set(true);
+    this.systemService.pairWirelessAdb(host, port, code).subscribe({
+      next: result => {
+        this.isPairingWifi.set(false);
+        this.wifiPairMessage.set(result.pair_result.message);
+        if (result.pair_result.success) this.wifiPort.set('');
+      },
+      error: () => {
+        this.isPairingWifi.set(false);
+        this.wifiPairMessage.set('Pairing failed. Reopen the pairing-code dialog and check the IP, port and code.');
+      }
+    });
+  }
+
+  /**
+   * Connect a paired phone (or legacy TCP/IP device) through the existing driver setup.
+   * No arguments; reads the phone IP and explicit connection port, not the
+   * pairing port. Invalid ports never fall back silently. Busy/remote mode
+   * blocks dispatch; success refreshes readiness through SystemService and
+   * shows feedback, while failures keep inputs for correction. No pairing or
+   * inference occurs here. The existing success notification expires after 4 s.
+   */
   public connectWifiDevice(): void {
+    if (this.isConnectingWifi() || this.isPairingWifi()) return;
     if (this.isRemoteAdbServer()) {
       this.wifiConnectError.set('Switch to local ADB before connecting a Wireless ADB device.');
       return;
     }
+    /** Phone IP validated by the backend; it is not an ADB server endpoint. */
     const host = this.wifiHost().trim();
-    const portStr = this.wifiPort().trim() || '5555';
-    const port = parseInt(portStr, 10) || 5555;
+    /** Exact connection-port input; it can differ from the pairing dialog's port. */
+    const portStr = this.wifiPort().trim();
+    /** Valid TCP port in 1–65535, or null; do not silently redirect to 5555. */
+    const port = this.wifiPortNumber(portStr);
 
-    if (!host) {
-      this.wifiConnectError.set('Please enter a valid IP address.');
+    if (!host || port === null) {
+      this.wifiConnectError.set('Enter the phone IP and a connection port from 1 to 65535.');
       return;
     }
 
@@ -875,9 +948,9 @@ export class HomeComponent implements OnInit, OnDestroy {
           this.wifiConnectError.set(cr?.message || 'Connection failed. Please check phone IP & Wi-Fi.');
         }
       },
-      error: (err) => {
+      error: () => {
         this.isConnectingWifi.set(false);
-        this.wifiConnectError.set(err?.error?.detail || 'Failed to connect. Please check adb connection.');
+        this.wifiConnectError.set('Connection failed. Check the phone IP and connection port.');
       }
     });
   }

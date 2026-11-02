@@ -1812,8 +1812,11 @@ $text-light: #94a3b8;
               display: inline-flex;
               align-items: center;
               gap: 5px;
-              padding: 0 10px;
-              height: 30px;
+              // Two-line transport labels wrap within narrow layouts, including long mDNS serials.
+              padding: 5px 10px;
+              min-height: 30px;
+              max-width: 100%;
+              height: auto;
               background: #ffffff;
               border: 1px solid $card-border;
               border-radius: 6px;
@@ -1823,6 +1826,20 @@ $text-light: #94a3b8;
               color: $text-secondary;
               cursor: pointer;
               transition: all 0.15s ease;
+
+              // Keep model and transport identity together without widening the device picker.
+              .device-chip-label {
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+                text-align: left;
+                overflow-wrap: anywhere;
+
+                small {
+                  font-size: 10px;
+                  font-weight: 400;
+                }
+              }
 
               .chip-icon {
                 font-size: 14px;
@@ -3026,6 +3043,9 @@ $text-light: #94a3b8;
           }
 
           /* Interactive Wi-Fi Form Box */
+          // Pair/connect steps reuse the wrapping input rows so narrow panels never need fixed widths.
+          .wifi-step-title { margin: 8px 0 0; font-size: 13px; }
+          .wifi-step-hint { margin: 0; line-height: 1.6; overflow-wrap: anywhere; font-size: 12px; }
           .wifi-interactive-box {
             background: #f8fafc;
             border: 1px solid $card-border;
