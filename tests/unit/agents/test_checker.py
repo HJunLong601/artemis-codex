@@ -50,6 +50,77 @@ def _mock_ctx(**setup_kwargs):
     return ctx
 
 
+@pytest.mark.asyncio
+async def test_final_retry_separates_checkpoint_authority_from_previous_final_findings():
+    """A repair retry must keep checkpoint evidence authoritative and expose earlier final findings as revisable.
+
+    Build a synthetic mixed ledger, capture the real prompt, and verify no
+    ledger entries disappear or mutate, including an irrevocable failed assert.
+    All model, device and trace-output boundaries are mocked.
+    """
+    # The existing context helper supplies an isolated DataEngine with no device history.
+    ctx = _mock_ctx()
+    # Marker strings distinguish checkpoint evidence from prior final verify/assert records.
+    ledger = [
+        {
+            "checkpoint_id": "fixture",
+            "attempt_id": "fixture#1",
+            "kind": "verify",
+            "item_text": "Fixture checkpoint",
+            "status": "passed",
+            "evidence": "CHECKPOINT-EVIDENCE",
+        },
+        {
+            "checkpoint_id": "final",
+            "attempt_id": "final#1",
+            "kind": "verify",
+            "item_text": "Fixture repaired criterion",
+            "status": "failed",
+            "evidence": "OLD-FINAL-EVIDENCE",
+        },
+        {
+            "checkpoint_id": "final",
+            "attempt_id": "final#1",
+            "kind": "assert",
+            "item_text": "Fixture assertion",
+            "status": "failed",
+            "evidence": "ASSERT-FAILURE",
+        },
+    ]
+    # A shallow copy is sufficient because this path must not edit any record.
+    original = [dict(record) for record in ledger]
+    with (
+        patch("artemis.agents.checker.checker._run_check_loop", new_callable=AsyncMock) as loop,
+        patch("artemis.agents.checker.checker.build_checker_tools", return_value=[]),
+        patch(
+            "artemis.agents.checker.checker._capture_final_screen",
+            AsyncMock(return_value=(None, "")),
+        ),
+        patch("artemis.agents.checker.checker._persist_stream"),
+    ):
+        await run_final_check(
+            ctx,
+            goal="Fixture task",
+            plan_text="- [x] Fixture",
+            ledger=ledger,
+            check_items=[_ci()],
+            attempt_id="final#2",
+        )
+    # Inspect the exact request sent to the mocked model loop rather than a separate formatter.
+    messages = loop.call_args.args[1]
+    # The first human block contains the actual final-review evidence sections.
+    prompt = messages[1].content[0]["text"]
+    # Earlier final results must not appear under the checkpoint-authoritative heading.
+    authority = prompt.split("# Verdict Ledger", 1)[1].split("\n# ", 1)[0]
+    assert "CHECKPOINT-EVIDENCE" in authority
+    assert "OLD-FINAL-EVIDENCE" not in authority
+    assert "ASSERT-FAILURE" not in authority
+    assert "Previous Final Reviews" in prompt
+    assert "OLD-FINAL-EVIDENCE" in prompt and "ASSERT-FAILURE" in prompt
+    assert "an assert that ever failed stays failed" in messages[0].content
+    assert ledger == original
+
+
 # --- probe_device: enumerated table, programmatic argv (§8 item 12) ------------------
 
 

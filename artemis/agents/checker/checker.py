@@ -825,13 +825,26 @@ async def run_final_check(
     screenshot_b64, minimal_list = await _capture_final_screen(ctx)
     steps = _load_steps(ctx)
 
+    from artemis.graph.checkpoints import FINAL_CHECKPOINT_ID
+
+    # Checkpoints describe the original completion moment and retain their existing authority.
+    checkpoint_ledger = [
+        record for record in ledger if record.get("checkpoint_id") != FINAL_CHECKPOINT_ID
+    ]
+    # Previous final reviews triggered repair; preserve their evidence without freezing verify results.
+    previous_final_reviews = [
+        record for record in ledger if record.get("checkpoint_id") == FINAL_CHECKPOINT_ID
+    ]
+
     human_text = (
         f"# User's Original Goal\n{goal}\n\n"
         f"# User guidance received during the run\n{_format_user_guidance(ctx, steps)}\n\n"
         f"# Final Task Plan\n{plan_text or '(no plan)'}\n\n"
         f"# Declared Check Items\n{_format_check_items(items)}\n\n"
         f"# Verdict Ledger (checkpoint results, authoritative for on_complete"
-        f" items)\n{_format_ledger(ledger)}\n\n"
+        f" items)\n{_format_ledger(checkpoint_ledger)}\n\n"
+        f"# Previous Final Reviews (NOT authoritative; re-evaluate repaired verify items)\n"
+        f"{_format_ledger(previous_final_reviews)}\n\n"
         f"# Execution History (summaries)\n{_format_history(ctx, steps=steps)}\n\n"
         f"# Final Screen Elements\n{minimal_list}"
     )

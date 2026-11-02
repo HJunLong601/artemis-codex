@@ -114,6 +114,13 @@ These limits apply to Flash/Pro. Safe cache exploration has its own worker,
 cumulative budgets and pause/stop lifecycle; its controls are unchanged.
 No-progress termination is a failed task, never a successful assertion result.
 
+## Final verification after repair
+
+Pro final-check retries reconsider repaired `verify` findings using evidence
+recorded after the previous final review. Checkpoint verdicts retain their
+existing authority; any failed `assert` remains failed. Earlier final reviews
+stay visible as repair context and are never removed from the stored ledger.
+
 ## Android emulator without a physical device
 
 `ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true` is the default. Automatic Android
