@@ -58,3 +58,34 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+// Low-specificity defaults prevent newly added controls from falling back to
+// platform-native buttons. Existing component/variant styles remain authoritative.
+:where(button) {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .8);
+  color: #475569;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, box-shadow .15s;
+}
+:where(button:hover:not(:disabled)) { background-color: #f8fafc; border-color: #bfdbfe; }
+:where(button:focus-visible) { outline: 2px solid #1a73e8; outline-offset: 2px; }
+:where(button:disabled) { cursor: not-allowed; }
+:where(button[aria-busy="true"]) { cursor: wait; }
+.material-symbols-outlined:is(.spinning, .spin, .spinning-icon) {
+  display: inline-block;
+  transform-origin: center;
+  animation: console-control-spin .8s linear infinite;
+}
+@keyframes console-control-spin { to { transform: rotate(360deg); } }
