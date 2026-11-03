@@ -168,7 +168,40 @@ ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
 
 Restart ARTEMIS/MCP after editing `.env`. See [device and emulator details](./docs/testing.md#android-emulator-without-a-physical-device) for selection, discovery, and acceptance steps.
 
-The console's **Change Connection → Wireless ADB** supports Android 11+ pairing codes and connection as separate steps. Enter the pairing-dialog port/code first, then the connection port from the phone's main Wireless debugging screen. Already-paired and legacy TCP/IP devices can connect directly. [Wireless setup and verification](./docs/testing.md#wireless-adb-pairing-and-connection).
+<a id="wifi-adb"></a>
+## Wi-Fi ADB: One-click USB Setup and Wireless Pairing
+
+Open **System Setup → Android Device & Emulator Connection → Change Connection → Wireless ADB** in the console.
+
+### Phone connected over USB: one-click Wi-Fi ADB
+
+1. Connect the phone and computer to the same reachable Wi-Fi network. Attach the phone over USB, enable USB debugging and authorize this computer on the phone.
+2. Click **Auto-connect Wi-Fi ADB**. No IP or pairing code is needed. One authorized USB phone connects directly; multiple phones require explicit selection.
+3. ARTEMIS reads the phone's actual Wi-Fi IPv4 address, enables TCP/IP debugging on port 5555, connects and matches the wireless hardware identity to the USB phone. Existing valid connections are verified and reused; busy source/target transports are not restarted.
+4. Wait for **“Wi-Fi ADB connected and verified. You can unplug USB.”** before unplugging. Select the wireless serial (`PHONE_IP:5555`) in the device list for tasks. When USB and Wi-Fi entries represent the same phone, select only one transport.
+
+This uses the host's discovered ADB tool and the phone's real address; Android 11 code pairing is not required for USB-assisted setup. Verified connections return immediately and background polling refreshes inventory without waiting for model credential checks. Local ADB mode is required. Use manual setup below if no authorized USB phone is available, a unique Wi-Fi address cannot be identified or the network is unreachable.
+
+### No USB cable: Android 11+ manual pairing
+
+1. On the phone, open **Settings → Developer Options → Wireless debugging → Pair device with pairing code** and keep the dialog open.
+2. Enter the phone IP, the dialog's **pairing port**, and its six-digit code in the console, then click **Pair device**. Codes are cleared on submission and excluded from command arguments, responses and logs.
+3. After pairing, close the phone's pairing dialog. Enter the separate **connection port** shown on the Wireless debugging main screen and click **Connect**. Pairing establishes trust only; pairing and connection ports are not interchangeable.
+
+Already-paired phones can skip pairing. Devices with TCP/IP debugging already enabled can connect using their actual IP and port. Do not use an example IP as the phone's address or assume an Android 11+ dynamic connection port is 5555.
+
+### Turning off TCP/IP debugging and troubleshooting
+
+USB-assisted setup enables a TCP/IP debugging listener on port 5555. Use a trusted Wi-Fi network; the listener may remain enabled after a failed connection. Reconnect USB and run the following to restore USB debugging without restarting the workstation's entire ADB server:
+
+```sh
+adb devices -l
+adb -s YOUR_USB_SERIAL usb
+```
+
+Replace `YOUR_USB_SERIAL` with the USB serial from the device list. After a network change or phone reboot, check the actual IP and connection status again rather than assuming the previous connection still works.
+
+See [automatic USB-to-Wi-Fi setup and verification](./docs/testing.md#automatic-wi-fi-connection-from-usb) and [wireless pairing and connection](./docs/testing.md#wireless-adb-pairing-and-connection).
 
 <a id="console-language"></a>
 ## Console Language

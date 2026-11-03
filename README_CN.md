@@ -165,7 +165,40 @@ ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
 
 修改 `.env` 后重启 ARTEMIS/MCP。详细选择规则、路径发现和验收步骤见 [设备与模拟器说明](./docs/testing.md#android-emulator-without-a-physical-device)。
 
-后台 **更改连接 → 无线 ADB** 支持 Android 11 及以上的配对码流程，分开填写配对弹窗中的端口/配对码，以及无线调试主页面的连接端口。已配对设备和旧式 TCP/IP 设备可直接连接。[无线配置与验收说明](./docs/testing.md#wireless-adb-pairing-and-connection)。
+<a id="wifi-adb"></a>
+## Wi-Fi ADB：USB 一键连接与无线配对
+
+在控制台打开 **系统设置与环境检查 → Android 设备与模拟器连接 → 更改连接 → 无线 ADB**。
+
+### 已通过 USB 连接手机：一键连接 Wi-Fi ADB
+
+1. 将手机与电脑连接到同一可互通的 Wi-Fi 网络，通过 USB 连接手机，开启 USB 调试并在手机上授权这台电脑。
+2. 点击 **自动连接 Wi-Fi ADB**。无需手动填写 IP 或配对码；只有一台已授权 USB 手机时直接连接，多台时先选择目标手机。
+3. ARTEMIS 从手机读取实际 Wi-Fi IPv4 地址，启用 5555 TCP/IP 调试并连接，核对无线端与 USB 端的设备身份。已有的有效无线连接会直接验证复用，正在执行任务的相关连接不会被重启。
+4. 看到 **“Wi-Fi ADB 已连接并验证，可以拔掉 USB 数据线”** 后再拔线；在设备列表中选择无线序列号（`手机IP:5555`）执行任务。同一手机同时显示 USB 与 Wi-Fi 时，只选择其中一个连接。
+
+此方式使用本机已发现的 ADB 工具和手机的真实地址，不要求 Android 11 配对码。自动连接成功会立即反馈，设备列表通过后台轮询刷新，不等待模型凭据检查。需要本机 ADB 模式；无授权 USB 手机、无法确定唯一 Wi-Fi 地址或网络不可达时，可使用下方手动方式。
+
+### 没有 USB：Android 11+ 手动配对
+
+1. 在手机打开 **设置 → 开发者选项 → 无线调试 → 使用配对码配对设备**，保持配对弹窗开启。
+2. 在控制台输入手机 IP、弹窗中的**配对端口**与六位配对码，点击 **配对设备**。配对码提交后清空，不写入命令参数、响应或日志。
+3. 配对成功后，关闭手机配对弹窗，将无线调试主页面显示的**连接端口**填入控制台，再点击 **连接**。配对只建立信任，配对端口与连接端口不可混用。
+
+已配对手机可跳过配对步骤；已启用 TCP/IP 调试的设备可直接输入实际 IP 与端口连接。不要把示例 IP 当作手机实际地址，也不要把 Android 11+ 的动态连接端口默认当成 5555。
+
+### 关闭 TCP/IP 调试与排查
+
+USB 一键连接会启用手机的 5555 TCP/IP 调试监听，请在可信 Wi-Fi 网络使用。连接失败时该监听可能仍开启。通过 USB 重新连接后执行以下命令可恢复 USB 调试模式，无需重启整台电脑的 ADB 服务：
+
+```sh
+adb devices -l
+adb -s YOUR_USB_SERIAL usb
+```
+
+`YOUR_USB_SERIAL` 替换为设备列表中的 USB 序列号。网络切换或手机重启后，先重新检查实际 IP 和连接状态，不假定旧连接仍可用。
+
+更多说明见 [USB 自动连接与验证](./docs/testing.md#automatic-wi-fi-connection-from-usb) 和 [无线配对与连接](./docs/testing.md#wireless-adb-pairing-and-connection)。
 
 <a id="console-language"></a>
 ## 控制台界面语言
