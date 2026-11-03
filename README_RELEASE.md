@@ -2,7 +2,7 @@
 
 状态 / Status：待发布 / Unreleased（2026-11-03）。版本号与标签保持不变。
 
-范围 / Scope：自 `1.0.5`（`a69c1d1`）起的 main 更新，包含此前 5 个提交与本次自动连接、设备锁修复。可直接用于更新目录的简短摘要见 [docs/releases/README.md](docs/releases/README.md)。
+范围 / Scope：自 `1.0.5`（`a69c1d1`）起的 main 更新，包含此前 5 个提交与本次自动连接、设备锁修复。
 
 ## 中文
 
