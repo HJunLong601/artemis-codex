@@ -160,7 +160,9 @@ export class HomeComponent implements OnInit, OnDestroy {
   public isRefreshingDiagnostics = signal<boolean>(false);
 
   // Wireless ADB Interactive connection signals
-  public wifiHost = signal<string>('192.168.1.100');
+  public wifiHost = signal<string>('');
+  public wifiUsbCandidates = signal<{serial: string; model: string}[]>([]);
+  public wifiUsbSerial = signal('');
   public wifiPort = signal<string>('5555');
   public isConnectingWifi = signal<boolean>(false);
   public wifiConnectMessage = signal<UiText | null>(null);
@@ -865,6 +867,34 @@ export class HomeComponent implements OnInit, OnDestroy {
     /** Numeric TCP port; NaN remains invalid rather than becoming port 5555. */
     const port = /^\d+$/.test(text) ? Number(text) : NaN;
     return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null;
+  }
+
+  /** Discover a USB phone or request selection, then show its verified Wi-Fi transport. */
+  public autoConnectWifiDevice(): void {
+    if (this.isConnectingWifi() || this.isPairingWifi() || this.isRemoteAdbServer()) return;
+    this.isConnectingWifi.set(true);
+    this.wifiConnectMessage.set(null);
+    this.wifiConnectError.set(null);
+    this.systemService.autoConnectWirelessAdb(this.wifiUsbSerial() || undefined).subscribe({
+      next: res => {
+        this.isConnectingWifi.set(false);
+        const result = res.connect_result;
+        this.wifiUsbCandidates.set(result.candidates || []);
+        if (result.success) {
+          this.wifiHost.set(result.host);
+          this.wifiPort.set(String(result.port));
+          this.wifiConnectMessage.set(result.message);
+          this.wifiUsbSerial.set('');
+        } else {
+          this.wifiConnectError.set(result.message);
+          if (!result.candidates) this.wifiUsbSerial.set('');
+        }
+      },
+      error: () => {
+        this.isConnectingWifi.set(false);
+        this.wifiConnectError.set('Automatic connection failed. Check USB authorization and Wi-Fi. TCP/IP debugging may remain enabled.');
+      }
+    });
   }
 
   /**

@@ -1377,6 +1377,41 @@
                   
                     <!-- Interactive Wi-Fi Connection Generator Box -->
                     <div class="wifi-interactive-box">
+                      <h4 class="wifi-step-title">{{ 'Automatic connection via USB' | t }}</h4>
+                      <p class="wifi-step-hint">{{ 'Connect and authorize a USB phone on the same Wi-Fi. This enables TCP/IP debugging on port 5555. Use adb usb over USB to turn it off.' | t }}</p>
+                      <div class="wifi-form-row">
+                        @if (wifiUsbCandidates().length > 1) {
+                          <div class="wifi-input-col">
+                            <label class="wifi-label" for="wifi-usb-device">{{ 'Choose the USB phone to connect.' | t }}</label>
+                            <select id="wifi-usb-device" class="wifi-input" [ngModel]="wifiUsbSerial()" (ngModelChange)="wifiUsbSerial.set($event)" [disabled]="isConnectingWifi() || isPairingWifi()">
+                              <option value="">{{ 'Select a phone' | t }}</option>
+                              @for (phone of wifiUsbCandidates(); track phone.serial) {
+                                <option [value]="phone.serial">{{ phone.model }} · {{ phone.serial }}</option>
+                              }
+                            </select>
+                          </div>
+                        }
+                        <div class="wifi-btn-col"><button type="button" class="btn-wifi-connect" (click)="autoConnectWifiDevice()"
+                          [disabled]="isConnectingWifi() || isPairingWifi() || isRemoteAdbServer() || (wifiUsbCandidates().length > 1 && !wifiUsbSerial())">
+                          <span class="material-symbols-outlined">{{ isConnectingWifi() ? 'sync' : 'wifi' }}</span>
+                          {{ (isConnectingWifi() ? 'Connecting...' : 'Auto-connect Wi-Fi ADB') | t }}
+                        </button></div>
+                      </div>
+                        @if (wifiConnectMessage()) {
+                        <div class="wifi-status-alert success" role="status">
+                          <span class="material-symbols-outlined">check_circle</span>
+                          <span>{{ (wifiConnectMessage()) | t }}</span>
+                        </div>
+                        }
+                        @if (wifiConnectError()) {
+                        <div class="wifi-status-alert error" role="alert">
+                          <span class="material-symbols-outlined">error</span>
+                          <span>{{ (wifiConnectError()) | t }}</span>
+                        </div>
+                        }
+
+                      <p class="wifi-step-hint">{{ 'Or connect manually below' | t }}</p>
+
                       <div class="wifi-form-row">
                         <div class="wifi-input-col ip-col">
                           <label class="wifi-label">{{ 'Device IP Address' | t }}</label>
@@ -1434,18 +1469,6 @@
                         </div>
                         </div>
                         
-                        @if (wifiConnectMessage()) {
-                        <div class="wifi-status-alert success">
-                          <span class="material-symbols-outlined">check_circle</span>
-                          <span>{{ (wifiConnectMessage()) | t }}</span>
-                        </div>
-                        }
-                        @if (wifiConnectError()) {
-                        <div class="wifi-status-alert error">
-                          <span class="material-symbols-outlined">error</span>
-                          <span>{{ (wifiConnectError()) | t }}</span>
-                        </div>
-                        }
                     </div>
                   <div class="info-callout-box">
                     <span class="material-symbols-outlined callout-icon">help_outline</span>

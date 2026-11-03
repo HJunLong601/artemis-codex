@@ -448,19 +448,27 @@ class ReadinessEngine:
                     env=environment,
                 )
                 # A zero exit alone is insufficient: old clients may not support pairing.
-                success = result.returncode == 0 and "successfully paired to" in result.stdout.lower()
+                success = (
+                    result.returncode == 0 and "successfully paired to" in result.stdout.lower()
+                )
                 return {
                     "success": success,
                     "message": (
                         "Paired. Enter the connection port from the Wireless debugging main screen."
-                        if success else
-                        "Pairing failed. Check the pairing port and code, keep the dialog open, and use current platform-tools."
+                        if success
+                        else "Pairing failed. Check the pairing port and code, keep the dialog open, and use current platform-tools."
                     ),
                 }
             except subprocess.TimeoutExpired:
-                return {"success": False, "message": "Pairing timed out. Reopen the pairing-code dialog and retry."}
+                return {
+                    "success": False,
+                    "message": "Pairing timed out. Reopen the pairing-code dialog and retry.",
+                }
             except OSError:
-                return {"success": False, "message": "Could not run ADB pairing. Check platform-tools and the network."}
+                return {
+                    "success": False,
+                    "message": "Could not run ADB pairing. Check platform-tools and the network.",
+                }
 
         return await asyncio.to_thread(_pair_sync)
 

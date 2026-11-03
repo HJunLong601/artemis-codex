@@ -96,6 +96,28 @@ network details.
 
 ![Wireless pairing and separate connection port, with all device inputs empty](assets/wireless-adb-pairing.png)
 
+## Automatic Wi-Fi connection from USB
+
+The Wireless ADB panel also offers **Auto-connect Wi-Fi ADB**. Connect and
+authorize the phone over USB on the same Wi-Fi first. The local-only explicit
+request discovers the installed ADB tool and the phone's actual Wi-Fi IPv4
+address, enables `adb -s SERIAL tcpip 5555`, connects and verifies the hardware
+serial over the wireless transport. Multiple USB phones require selection;
+emulators, unauthorized devices, remote ADB servers and busy source/target
+transports are rejected. An already verified wireless transport is reused.
+Subprocesses and restart retries are bounded. Manual pairing remains available.
+
+This enables a TCP/IP debugging listener; it is not the Android 11 pairing-code
+flow. Keep to a trusted Wi-Fi network. Reconnect USB and run
+`adb -s USB_SERIAL usb` to restore USB-only debugging. A failed network connection
+can leave TCP/IP mode enabled. The UI does not silently change the selected task
+transport; when the same phone has USB and Wi-Fi entries, select one for tasks.
+
+Regression coverage: `tests/unit/admin_console/test_wireless_adb_auto.py` and
+the home wireless component tests. Current-device acceptance verified the
+identity and screenshot/hierarchy over Wi-Fi with the USB cable still attached;
+physical unplug/reboot/network-change acceptance is separate.
+
 ## Agent no-progress limits
 
 Flash and Pro retain their existing task execution paths. Consecutive responses

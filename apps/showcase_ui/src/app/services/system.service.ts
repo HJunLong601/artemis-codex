@@ -432,9 +432,13 @@ export class SystemService {
     );
   }
 
-  /**
-   * Connect to an Android device over Wi-Fi
-   */
+  /** Explicit USB-to-Wi-Fi setup; readiness refreshes through existing polling. */
+  public autoConnectWirelessAdb(serial?: string): Observable<any> {
+    return this.http.post<any>('/api/system/adb/auto-connect', {serial},
+      {headers: {'X-Artemis-ADB-Intent': 'auto-connect'}});
+  }
+
+  /** Connect to an Android device over Wi-Fi. */
   public connectWirelessAdb(host: string, port: number = 5555): Observable<any> {
     return this.http.post<any>('/api/system/adb/connect', { host, port }).pipe(
       tap({

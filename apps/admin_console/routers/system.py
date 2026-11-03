@@ -183,9 +183,15 @@ class PairAdbRequest(ConnectAdbRequest):
 
 
 # Keep the typed OpenAPI contract while sanitizing validation failures inside this one sensitive route.
-@router.post("/adb/pair", openapi_extra={"requestBody": {
-    "required": True, "content": {"application/json": {"schema": PairAdbRequest.model_json_schema()}}
-}})
+@router.post(
+    "/adb/pair",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {"application/json": {"schema": PairAdbRequest.model_json_schema()}},
+        }
+    },
+)
 async def pair_wireless_adb(request: Request):
     """Accept an explicit same-origin pairing request and return trust status only.
 
@@ -205,12 +211,37 @@ async def pair_wireless_adb(request: Request):
         # Default missing-field errors include the entire input body; keep that body off the wire.
         payload = PairAdbRequest.model_validate(await request.json())
     except (ValueError, TypeError):
-        raise HTTPException(422, "Enter the phone IP, pairing port and six-digit pairing code.") from None
+        raise HTTPException(
+            422, "Enter the phone IP, pairing port and six-digit pairing code."
+        ) from None
     # Extract only for this command; preserve leading zeroes and never echo invalid input.
     code = payload.pairing_code.get_secret_value()
     if len(code) != 6 or not code.isascii() or not code.isdecimal():
         raise HTTPException(422, "Enter the six-digit pairing code shown on the phone.")
-    return {"pair_result": await readiness_engine.pair_wireless_adb(payload.host, payload.port, code)}
+    return {
+        "pair_result": await readiness_engine.pair_wireless_adb(payload.host, payload.port, code)
+    }
+
+
+class AutoConnectAdbRequest(BaseModel):
+    serial: str | None = Field(default=None, max_length=256)
+
+
+@router.post("/adb/auto-connect")
+async def auto_connect_wireless_adb(request: Request, payload: AutoConnectAdbRequest):
+    """Explicit local-console action; never trust a caller-supplied phone IP."""
+    from apps.admin_console.routers.codex_auth import require_local
+    from artemis.core.diagnostics.wireless_adb import auto_connect_wireless
+
+    require_local(request)
+    if request.headers.get("x-artemis-adb-intent") != "auto-connect":
+        raise HTTPException(403, "Explicit automatic connection intent is required.")
+    result = await auto_connect_wireless(payload.serial)
+    if result["success"]:
+        readiness_engine.invalidate_cache()
+        # Readiness is already polled by the UI. Unrelated credential/toolchain
+        # diagnostics must not delay this verified connection's response.
+    return {"connect_result": result}
 
 
 @router.post("/adb/connect")

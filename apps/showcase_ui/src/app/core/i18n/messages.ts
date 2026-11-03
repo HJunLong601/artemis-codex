@@ -1,5 +1,22 @@
 /** Console-owned copy; source text keys. Keep placeholders in both catalogs in sync. */
 export const EN: Readonly<Record<string, string>> = {
+  "Automatic connection via USB": "Automatic connection via USB",
+  "Auto-connect Wi-Fi ADB": "Auto-connect Wi-Fi ADB",
+  "Connect and authorize a USB phone on the same Wi-Fi. This enables TCP/IP debugging on port 5555. Use adb usb over USB to turn it off.": "Connect and authorize a USB phone on the same Wi-Fi. This enables TCP/IP debugging on port 5555. Use adb usb over USB to turn it off.",
+  "Or connect manually below": "Or connect manually below",
+  "Select a phone": "Select a phone",
+  "Switch to local ADB before automatic connection.": "Switch to local ADB before automatic connection.",
+  "Connect and authorize a USB phone first.": "Connect and authorize a USB phone first.",
+  "Choose the USB phone to connect.": "Choose the USB phone to connect.",
+  "The selected USB phone is no longer available.": "The selected USB phone is no longer available.",
+  "Automatic Wi-Fi setup requires a physical USB phone.": "Automatic Wi-Fi setup requires a physical USB phone.",
+  "Could not verify the USB phone identity.": "Could not verify the USB phone identity.",
+  "Could not identify one Wi-Fi address. Connect the phone to Wi-Fi or use manual connection.": "Could not identify one Wi-Fi address. Connect the phone to Wi-Fi or use manual connection.",
+  "Wi-Fi device identity did not match the USB phone.": "Wi-Fi device identity did not match the USB phone.",
+  "Wi-Fi ADB connected and verified. You can unplug USB.": "Wi-Fi ADB connected and verified. You can unplug USB.",
+  "Wi-Fi connection failed. Keep USB connected, check the network, or use manual pairing. TCP/IP debugging may remain enabled.": "Wi-Fi connection failed. Keep USB connected, check the network, or use manual pairing. TCP/IP debugging may remain enabled.",
+  "The USB phone is busy. Wait for its task to finish.": "The USB phone is busy. Wait for its task to finish.",
+  "Automatic connection failed. Check USB authorization and Wi-Fi. TCP/IP debugging may remain enabled.": "Automatic connection failed. Check USB authorization and Wi-Fi. TCP/IP debugging may remain enabled.",
   // Wireless pairing is a trust step, separate from the existing transport connection.
   "1. Pair this computer (first connection only)": "1. Pair this computer (first connection only)",
   "On Android 11+, open Wireless debugging > Pair device with pairing code. Keep the dialog open. Already paired devices can skip this step.": "On Android 11+, open Wireless debugging > Pair device with pairing code. Keep the dialog open. Already paired devices can skip this step.",
@@ -1331,6 +1348,23 @@ export const EN: Readonly<Record<string, string>> = {
 };
 
 export const ZH: Readonly<Record<string, string>> = {
+  "Automatic connection via USB": "通过 USB 自动连接",
+  "Auto-connect Wi-Fi ADB": "自动连接 Wi-Fi ADB",
+  "Connect and authorize a USB phone on the same Wi-Fi. This enables TCP/IP debugging on port 5555. Use adb usb over USB to turn it off.": "手机连接 USB 并授权，与电脑处于同一 Wi-Fi。此操作启用 5555 端口调试；连接 USB 后可运行 adb usb 关闭。",
+  "Or connect manually below": "也可在下方手动连接",
+  "Select a phone": "请选择手机",
+  "Switch to local ADB before automatic connection.": "请先切换到本机 ADB，再自动连接。",
+  "Connect and authorize a USB phone first.": "请先通过 USB 连接手机并授权调试。",
+  "Choose the USB phone to connect.": "请选择要连接的 USB 手机。",
+  "The selected USB phone is no longer available.": "所选 USB 手机已断开，请重新选择。",
+  "Automatic Wi-Fi setup requires a physical USB phone.": "自动 Wi-Fi 连接需要通过 USB 连接的真机。",
+  "Could not verify the USB phone identity.": "无法核对 USB 手机身份，请重新连接。",
+  "Could not identify one Wi-Fi address. Connect the phone to Wi-Fi or use manual connection.": "无法确定唯一的 Wi-Fi 地址，请连接 Wi-Fi 或使用手动连接。",
+  "Wi-Fi device identity did not match the USB phone.": "Wi-Fi 设备与 USB 手机身份不匹配，未确认连接成功。",
+  "Wi-Fi ADB connected and verified. You can unplug USB.": "Wi-Fi ADB 已连接并验证，可以拔掉 USB 数据线。",
+  "Wi-Fi connection failed. Keep USB connected, check the network, or use manual pairing. TCP/IP debugging may remain enabled.": "Wi-Fi 连接失败，请保留 USB 连接、检查网络或手动配对。TCP/IP 调试可能仍处于开启状态。",
+  "The USB phone is busy. Wait for its task to finish.": "USB 手机正在执行任务，请等待任务结束。",
+  "Automatic connection failed. Check USB authorization and Wi-Fi. TCP/IP debugging may remain enabled.": "自动连接失败，请检查 USB 授权与 Wi-Fi。TCP/IP 调试可能仍处于开启状态。",
   // Match English source keys; pairing success never claims a connected device.
   "1. Pair this computer (first connection only)": "1. 配对这台电脑（首次连接时需要）",
   "On Android 11+, open Wireless debugging > Pair device with pairing code. Keep the dialog open. Already paired devices can skip this step.": "Android 11 及以上：打开“无线调试 → 使用配对码配对设备”，保持弹窗开启。已配对的设备可跳过这一步。",

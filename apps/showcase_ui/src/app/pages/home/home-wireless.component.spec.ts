@@ -15,12 +15,13 @@ describe('Home wireless pairing', () => {
   /** Per-case remote-server preference; no real server configuration is changed. */
   let remote: boolean;
   /** Public service spies record only synthetic test values and never contact ADB. */
-  let service: {pairWirelessAdb: jasmine.Spy; connectWirelessAdb: jasmine.Spy};
+  let service: {autoConnectWirelessAdb: jasmine.Spy; pairWirelessAdb: jasmine.Spy; connectWirelessAdb: jasmine.Spy};
 
   /** Create an injected controller with local-server defaults; all effects and spies die with TestBed. */
   beforeEach(() => {
     pairing = new Subject(); remote = false;
     service = {
+      autoConnectWirelessAdb: jasmine.createSpy('autoConnectWirelessAdb').and.returnValue(of({connect_result: {success: true, host: '192.0.2.10', port: 5555, message: 'verified'}})),
       pairWirelessAdb: jasmine.createSpy('pairWirelessAdb').and.returnValue(pairing),
       connectWirelessAdb: jasmine.createSpy('connectWirelessAdb').and.returnValue(of({connect_result: {success: false, message: 'not connected'}}))
     };
@@ -76,4 +77,28 @@ describe('Home wireless pairing', () => {
       expect(service.connectWirelessAdb).not.toHaveBeenCalled();
     });
   }
+  it('auto-connects without manual IP and fills the verified address', () => {
+    component.wifiHost.set('');
+    component.autoConnectWifiDevice();
+    expect(service.autoConnectWirelessAdb).toHaveBeenCalledOnceWith(undefined);
+    expect(component.wifiHost()).toBe('192.0.2.10');
+    expect(component.wifiPort()).toBe('5555');
+    expect(component.isConnectingWifi()).toBeFalse();
+  });
+
+  it('waits for explicit selection when several USB phones are present', () => {
+    service.autoConnectWirelessAdb.and.returnValue(of({connect_result: {success: false, message: 'choose', candidates: [{serial: 'USB1', model: 'One'}, {serial: 'USB2', model: 'Two'}]}}));
+    component.autoConnectWifiDevice();
+    expect(component.wifiUsbCandidates().length).toBe(2);
+    component.wifiUsbSerial.set('USB2');
+    component.autoConnectWifiDevice();
+    expect(service.autoConnectWirelessAdb).toHaveBeenCalledWith('USB2');
+  });
+
+  it('blocks overlapping and remote automatic connection requests', () => {
+    component.isPairingWifi.set(true); component.autoConnectWifiDevice();
+    component.isPairingWifi.set(false); remote = true; component.autoConnectWifiDevice();
+    expect(service.autoConnectWirelessAdb).not.toHaveBeenCalled();
+  });
+
 });
