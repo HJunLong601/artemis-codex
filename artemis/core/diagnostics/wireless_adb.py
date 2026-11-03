@@ -36,6 +36,7 @@ async def auto_connect_wireless(serial: str | None = None) -> dict:
     def connect() -> dict:
         lease = None
         wireless_lease = None
+        phase = "discover_usb"
         try:
             candidates = []
             connected = set()
@@ -67,6 +68,7 @@ async def auto_connect_wireless(serial: str | None = None) -> dict:
                 source, "Automatic Wi-Fi ADB setup", lock_scope=endpoint.identity
             )
             lease.acquire(blocking=False)
+            phase = "read_usb_identity_and_wifi"
             if run("-s", source, "shell", "getprop", "ro.kernel.qemu") == "1":
                 return {
                     "success": False,
@@ -102,10 +104,21 @@ async def auto_connect_wireless(serial: str | None = None) -> dict:
             )
             wireless_lease.acquire(blocking=False)
 
-            def verify_connection() -> dict:
-                if run("-s", target, "get-state") != "device":
+            def verify_connection(wait_deadline: float | None = None) -> dict:
+                def command_timeout() -> float:
+                    if wait_deadline is None:
+                        return 5
+                    remaining = wait_deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise RuntimeError("Wireless verification deadline reached")
+                    return min(3, remaining)
+
+                if run("-s", target, "get-state", timeout=command_timeout()) != "device":
                     raise RuntimeError("Wireless transport is not ready")
-                if run("-s", target, "shell", "getprop", "ro.serialno") != identity:
+                if (
+                    run("-s", target, "shell", "getprop", "ro.serialno", timeout=command_timeout())
+                    != identity
+                ):
                     return {
                         "success": False,
                         "message": "Wi-Fi device identity did not match the USB phone.",
@@ -123,31 +136,49 @@ async def auto_connect_wireless(serial: str | None = None) -> dict:
                     return verify_connection()
                 except (RuntimeError, subprocess.TimeoutExpired):
                     pass  # Stale transport: perform the explicit setup below.
-            run("-s", source, "tcpip", "5555", timeout=10)
-            # adbd restarts after tcpip. Connect attempts are bounded and never
-            # enable the listener a second time or disconnect other transports.
-            for attempt in range(3):
+            phase = "enable_tcpip"
+            try:
+                run("-s", source, "tcpip", "5555", timeout=10)
+            except (RuntimeError, subprocess.TimeoutExpired):
+                # Restarting adbd can drop its USB command response even when
+                # TCP/IP was enabled. Verify the result; never restart it twice.
+                pass
+            phase = "wait_for_wireless"
+            deadline = time.monotonic() + 20
+            # USB disappearance is expected during adbd restart. Keep checking
+            # the wireless transport, allowing time for restart and RSA auth.
+            # Both the elapsed-time budget and attempt count bound this wait.
+            for attempt in range(40):
+                if time.monotonic() >= deadline:
+                    break
                 if attempt:
                     time.sleep(0.5)
+                    if time.monotonic() >= deadline:
+                        break
                 try:
-                    output = run("connect", target)
+                    output = run(
+                        "connect", target, timeout=min(3, max(0.1, deadline - time.monotonic()))
+                    )
                     if "connected to" in output.lower():
-                        return verify_connection()
+                        return verify_connection(deadline)
                 except (RuntimeError, subprocess.TimeoutExpired):
                     continue
             return {
                 "success": False,
                 "message": "Wi-Fi connection failed. Keep USB connected, check the network, or use manual pairing. TCP/IP debugging may remain enabled.",
+                "stage": phase,
             }
         except DeviceBusyError:
             return {
                 "success": False,
                 "message": "The USB phone is busy. Wait for its task to finish.",
             }
-        except (OSError, subprocess.TimeoutExpired, RuntimeError, ValueError):
+        except (OSError, subprocess.TimeoutExpired, RuntimeError, ValueError) as exc:
             return {
                 "success": False,
                 "message": "Automatic connection failed. Check USB authorization and Wi-Fi. TCP/IP debugging may remain enabled.",
+                "stage": phase,
+                "error_type": type(exc).__name__,
             }
         finally:
             if wireless_lease is not None:

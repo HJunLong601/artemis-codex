@@ -105,7 +105,10 @@ address, enables `adb -s SERIAL tcpip 5555`, connects and verifies the hardware
 serial over the wireless transport. Multiple USB phones require selection;
 emulators, unauthorized devices, remote ADB servers and busy source/target
 transports are rejected. An already verified wireless transport is reused.
-Subprocesses and restart retries are bounded. Manual pairing remains available.
+Subprocesses and restart retries are bounded. Enabling TCP/IP restarts adbd, so
+a brief USB disconnect is expected. A lost USB command reply does not immediately
+mean failure: setup verifies the wireless result for up to 20 seconds, without
+restarting adbd again. Manual pairing remains available.
 
 This enables a TCP/IP debugging listener; it is not the Android 11 pairing-code
 flow. Keep to a trusted Wi-Fi network. Reconnect USB and run

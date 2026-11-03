@@ -137,7 +137,7 @@ def test_connection_failure_has_bounded_attempts_and_releases_device(phone, monk
     monkeypatch.setattr(wifi.time, "sleep", lambda _: None)
     replies[("connect", "192.0.2.10:5555")] = RuntimeError("failed")
     assert not asyncio.run(wifi.auto_connect_wireless())["success"]
-    assert calls.count(("connect", "192.0.2.10:5555")) == 3
+    assert calls.count(("connect", "192.0.2.10:5555")) == 40
     replies[("connect", "192.0.2.10:5555")] = "connected to 192.0.2.10:5555"
     assert asyncio.run(wifi.auto_connect_wireless())["success"]
 
@@ -218,3 +218,44 @@ def test_transient_post_restart_observation_failure_is_retried(phone, monkeypatc
     monkeypatch.setattr(wifi.time, "sleep", lambda _: None)
     assert asyncio.run(wifi.auto_connect_wireless())["success"]
     assert calls.count(("connect", "192.0.2.10:5555")) == 2
+
+
+@pytest.mark.parametrize(
+    "lost_reply", [RuntimeError("USB response closed"), subprocess.TimeoutExpired("adb tcpip", 10)]
+)
+def test_lost_tcpip_reply_still_verifies_result_without_restarting_twice(phone, lost_reply):
+    calls, replies = phone
+    replies[("-s", "USB1", "tcpip", "5555")] = lost_reply
+    assert asyncio.run(wifi.auto_connect_wireless())["success"]
+    assert calls.count(("-s", "USB1", "tcpip", "5555")) == 1
+
+
+def test_slow_adbd_recovery_survives_more_than_three_observations(phone, monkeypatch):
+    calls, _ = phone
+    real_run = wifi.subprocess.run
+    polls = 0
+
+    def delayed(argv, **kwargs):
+        nonlocal polls
+        if argv[-1] == "get-state":
+            polls += 1
+            if polls <= 5:
+                return subprocess.CompletedProcess(argv, 1, "", "device offline")
+        return real_run(argv, **kwargs)
+
+    monkeypatch.setattr(wifi.subprocess, "run", delayed)
+    monkeypatch.setattr(wifi.time, "sleep", lambda _: None)
+    assert asyncio.run(wifi.auto_connect_wireless())["success"]
+    assert polls == 6
+    assert calls.count(("-s", "USB1", "tcpip", "5555")) == 1
+
+
+def test_wireless_wait_stops_at_deadline_and_reports_stage(phone, monkeypatch):
+    calls, replies = phone
+    replies[("connect", "192.0.2.10:5555")] = RuntimeError("not ready")
+    clock = [0.0]
+    monkeypatch.setattr(wifi.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(wifi.time, "sleep", lambda _: clock.__setitem__(0, clock[0] + 25))
+    result = asyncio.run(wifi.auto_connect_wireless())
+    assert not result["success"] and result["stage"] == "wait_for_wireless"
+    assert calls.count(("connect", "192.0.2.10:5555")) <= 2
