@@ -32,7 +32,11 @@ class Manager:
         store = self.store()
         if not store.reserve_launch(task_id):
             return
-        env = dict(os.environ, ARTEMIS_EXPLORATION_PARENT_PID=str(os.getpid()))
+        env = dict(
+            os.environ,
+            ARTEMIS_EXPLORATION_PARENT_PID=str(os.getpid()),
+            ARTEMIS_EXPLORATION_PARENT_CREATED_AT=str(psutil.Process().create_time()),
+        )
         endpoint = store.get(task_id)["config"].get("adb_endpoint")
         if isinstance(endpoint, dict):
             AdbEndpoint.from_mapping(endpoint).apply_to_environment(env)

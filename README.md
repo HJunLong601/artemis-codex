@@ -209,6 +209,10 @@ adb -s YOUR_USB_SERIAL usb
 
 Replace `YOUR_USB_SERIAL` with the USB serial from the device list. After a network change or phone reboot, check the actual IP and connection status again rather than assuming the previous connection still works.
 
+Android task screenshot, hierarchy and foreground reads retry transient transport failures up to three times, with a 12-second recovery window in addition to each read's own I/O timeout. Recovery reconnects only the selected wireless endpoint (including mDNS), without restarting the ADB server. Inputs check/recover the connection before dispatch; an uncertain tap or text entry is never automatically replayed.
+
+Safe Monkey skips cache learning on changing pages instead of pausing exploration. Navigation on a dynamic page requires matching current app/Activity, XML target identity and bounds, and unchanged pixels within the navigation controls before dispatch. Cache writes still require the original page to match; changed results are discarded and the next frame is observed.
+
 See [automatic USB-to-Wi-Fi setup and verification](./docs/testing.md#automatic-wi-fi-connection-from-usb) and [wireless pairing and connection](./docs/testing.md#wireless-adb-pairing-and-connection).
 
 <a id="console-language"></a>

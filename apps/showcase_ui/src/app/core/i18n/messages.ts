@@ -1,5 +1,11 @@
 /** Console-owned copy; source text keys. Keep placeholders in both catalogs in sync. */
 export const EN: Readonly<Record<string, string>> = {
+  "页面动态变化，已跳过缓存学习": "Dynamic page; cache learning skipped",
+  "设备已断开或未授权，请重新连接后继续": "Device disconnected or unauthorized. Reconnect it, then continue.",
+  "无法读取设备画面，请检查手机解锁状态和 ADB 连接，重新连接后继续": "Cannot capture the device screen. Check that the phone is unlocked and ADB is connected, then reconnect and continue.",
+
+  "前台页面持续变化或无法识别，请等待目标 App 稳定后继续": "Foreground screen keeps changing or cannot be identified. Wait for the target app to settle, then continue.",
+  "前台页面校验未通过，请打开目标 App，等待页面稳定后继续": "Foreground verification failed. Open the target app, wait for it to settle, then continue.",
   "Disconnecting...": "Disconnecting...",
   "Disconnect": "Disconnect",
   "Disconnect wireless device": "Disconnect wireless device",
@@ -1363,6 +1369,12 @@ export const EN: Readonly<Record<string, string>> = {
 };
 
 export const ZH: Readonly<Record<string, string>> = {
+  "页面动态变化，已跳过缓存学习": "页面动态变化，已跳过缓存学习",
+  "设备已断开或未授权，请重新连接后继续": "设备已断开或未授权，请重新连接后继续",
+  "无法读取设备画面，请检查手机解锁状态和 ADB 连接，重新连接后继续": "无法读取设备画面，请检查手机解锁状态和 ADB 连接，重新连接后继续",
+
+  "前台页面持续变化或无法识别，请等待目标 App 稳定后继续": "前台页面持续变化或无法识别，请等待目标 App 稳定后继续",
+  "前台页面校验未通过，请打开目标 App，等待页面稳定后继续": "前台页面校验未通过，请打开目标 App，等待页面稳定后继续",
   "Disconnecting...": "断开中…",
   "Disconnect": "断开",
   "Disconnect wireless device": "断开无线设备",

@@ -21,10 +21,36 @@ from artemis.utils.visual_location_cache import configured_cache, cache_config_f
 from artemis.utils.visual_page_elements import inventory_instruction, page_name_instruction
 from artemis.llm.structured import parse_structured
 from artemis.llm.reliability import classify_failure
+from artemis.runtime.process_probe import pid_is_alive
+from artemis.runtime.device_registry import DeviceNotFoundError, DeviceNotReadyError
 
 
 class Pause(RuntimeError):
     pass
+
+
+def backend_is_alive() -> bool:
+    """Verify the original backend through launcher ancestors and PID birth time.
+
+    Windows venv redirectors can be the direct parent even though the backend
+    is still an ancestor. A reused PID or unrelated live process is not enough.
+    Without a supervising backend, standalone/test workers retain their behavior.
+    """
+    expected = os.getenv("ARTEMIS_EXPLORATION_PARENT_PID")
+    if not expected:
+        return True
+    try:
+        pid = int(expected)
+        stamp = os.getenv("ARTEMIS_EXPLORATION_PARENT_CREATED_AT")
+        created = float(stamp) if stamp is not None else None
+        if not pid_is_alive(pid, created):
+            return False
+        return any(
+            parent.pid == pid and (created is None or abs(parent.create_time() - created) < 0.1)
+            for parent in psutil.Process().parents()
+        )
+    except (ValueError, TypeError, psutil.Error):
+        return False
 
 
 class Runner:
@@ -38,12 +64,12 @@ class Runner:
         self.clock_error = False
         self.scroll_depth = {}
         self.last_scroll = None
+        self.dynamic_page = False
 
     def check(self, admitted=False):
         if self.clock_error:
             raise Pause("accounting_unknown")
-        parent = os.getenv("ARTEMIS_EXPLORATION_PARENT_PID")
-        if parent and os.getppid() != int(parent):
+        if not backend_is_alive():
             raise Pause("backend_exited")
         task = self.store.get(self.task_id)
         if task["status"] != "running" or task["epoch"] != self.epoch:
@@ -80,21 +106,77 @@ class Runner:
     async def observe(self):
         from apps.admin_console.services.visual_cache_warmup import observe
 
-        scope, screen = await observe(self.driver, self.ctx, self.cache)
-        if scope.application != self.config["package"]:
-            raise Pause("target_app_not_foreground")
-        if not screen.ui_hierarchy_xml or unsafe_window(screen.ui_hierarchy_xml):
-            raise Pause("sensitive_or_unobservable_window")
-        return scope, screen
+        from fastapi import HTTPException
+
+        # App/Activity transitions can straddle screenshot capture. Discard those
+        # frames and retry briefly; never learn or act on a mismatched snapshot.
+        for attempt in range(3):
+            self.check()
+            try:
+                scope, screen = await observe(self.driver, self.ctx, self.cache)
+            except HTTPException as exc:
+                if exc.status_code != 409:
+                    raise
+                if attempt == 2:
+                    raise Pause("foreground_unstable") from None
+                await asyncio.sleep(0.3)
+                continue
+            except RuntimeError as exc:
+                if str(exc) not in {
+                    "Failed to capture device screenshot",
+                    "Previous screen capture is still running",
+                }:
+                    raise
+                raise Pause("device_observation_failed") from None
+            if scope.application != self.config["package"]:
+                raise Pause("target_app_not_foreground")
+            if not screen.ui_hierarchy_xml or unsafe_window(screen.ui_hierarchy_xml):
+                raise Pause("sensitive_or_unobservable_window")
+            return scope, screen
+
+    def same_navigation_frame(self, before, before_screen, after, after_screen):
+        """Allow only unchanged XML navigation outside changing content pixels."""
+        from PIL import ImageChops
+
+        if (
+            not before.activity
+            or (before.application, before.activity, before.image_size, before.generation)
+            != (after.application, after.activity, after.image_size, after.generation)
+            or before.image is None
+            or after.image is None
+        ):
+            return False
+
+        def nodes(screen):
+            return [
+                n
+                for n in elements(
+                    screen.ui_hierarchy_xml, self.config["package"], (screen.width, screen.height)
+                )
+                if n["navigation"]
+            ]
+
+        old, fresh = nodes(before_screen), nodes(after_screen)
+        if not old or old != fresh:
+            return False
+        return all(
+            ImageChops.difference(
+                before.image.crop(tuple(node["bounds"])).convert("RGB"),
+                after.image.crop(tuple(node["bounds"])).convert("RGB"),
+            ).getbbox()
+            is None
+            for node in old
+        )
 
     async def stable(self):
-        previous, _ = await self.guarded(self.observe)
-        for _ in range(10):
+        self.dynamic_page = False
+        previous, previous_screen = await self.guarded(self.observe)
+        for _ in range(3):
             await self.guarded(lambda: asyncio.sleep(0.3), timeout=2)
             scope, screen = await self.guarded(self.observe)
             if scope.page_key == previous.page_key and scope.generation == previous.generation:
                 return scope, screen
-            previous = scope
+            previous, previous_screen = scope, screen
         self.store.page(
             self.task_id,
             previous.page_key,
@@ -103,7 +185,10 @@ class Runner:
             name="",
             reason="page_unstable",
         )
-        raise Pause("page_unstable")
+        # Instability disqualifies cache learning, not navigation planning.
+        # Dynamic pages must still pass the separate target check before a tap.
+        self.dynamic_page = True
+        return previous, previous_screen
 
     async def model(self, role, prompt, screen):
         task = self.check()
@@ -198,7 +283,13 @@ class Runner:
                 raise ValueError("invalid_inventory")
             current, _ = await self.guarded(self.observe)
             if (current.page_key, current.generation) != (scope.page_key, scope.generation):
-                raise Pause("page_changed_during_learning")
+                self.store.page(
+                    self.task_id,
+                    scope.page_key,
+                    status="unstable",
+                    reason="page_changed_during_learning",
+                )
+                return False  # Discard this inventory; re-observe without pausing exploration.
 
             def write():
                 self.cache.put_page_elements(scope, parsed["common_elements"], lease=lease)
@@ -263,7 +354,7 @@ class Runner:
             ):
                 self.stack.append(self.previous)
             self.previous_action = None
-            if await self.learn(scope, screen) is False:
+            if not self.dynamic_page and await self.learn(scope, screen) is False:
                 continue
             self.check()
             nodes = elements(
@@ -283,7 +374,7 @@ class Runner:
                         self.task_id, scope.page_key + ":" + action["key"]
                     ):
                         available.append(proposal)
-                if node["scrollable"]:
+                if node["scrollable"] and not self.dynamic_page:
                     for direction in ("up", "down"):
                         proposal = {
                             "action": "scroll",
@@ -302,7 +393,7 @@ class Runner:
                             self.task_id, scope.page_key + ":" + action["key"]
                         ):
                             available.append(proposal)
-            if self.stack:
+            if self.stack and not self.dynamic_page:
                 available.append({"action": "back"})
             if not available:
                 return "safe_branches_exhausted"
@@ -330,8 +421,13 @@ class Runner:
                 self.store.blocked(self.task_id)
                 raise Pause("unsafe_or_unknown_action")
             current, fresh = await self.guarded(self.observe)
-            if (scope.page_key, scope.generation) != (current.page_key, current.generation):
-                raise Pause("page_changed_before_action")
+            if self.dynamic_page:
+                if selected.get("action") != "navigate" or not self.same_navigation_frame(
+                    scope, screen, current, fresh
+                ):
+                    raise Pause("target_changed_before_action")
+            elif (scope.page_key, scope.generation) != (current.page_key, current.generation):
+                continue  # Re-plan on the new frame instead of executing stale coordinates.
             fresh_nodes = elements(
                 fresh.ui_hierarchy_xml, self.config["package"], (fresh.width, fresh.height)
             )
@@ -434,6 +530,8 @@ async def run(path, task_id):
         status, reason = "paused", str(exc)
     except DeviceBusyError:
         status, reason = "paused", "device_busy"
+    except (DeviceNotFoundError, DeviceNotReadyError):
+        status, reason = "paused", "device_disconnected"
     except Conflict as exc:
         reason = str(exc)
         status = (

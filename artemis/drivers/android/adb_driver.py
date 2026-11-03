@@ -21,7 +21,9 @@ from pathlib import Path
 import re
 from typing import Any, Literal
 
-from adbutils import AdbClient, AdbDevice
+from adbutils import AdbClient, AdbDevice, AdbError
+from artemis.runtime.adb_recovery import retry_device_read
+from artemis.runtime.adb_endpoint import AdbEndpoint, current_adb_endpoint
 from artemis.config.paths import get_temp_dir
 from artemis.drivers.base import BaseDeviceDriver, KeyCode, ScreenData, SwipeDirection
 from artemis.toolchain import find_ffmpeg, find_scrcpy
@@ -85,6 +87,12 @@ class AndroidAdbDriver(BaseDeviceDriver):
     ):
         self._device_id = device_id
         self._adb_client = adb_client
+        host, port = getattr(adb_client, "host", None), getattr(adb_client, "port", None)
+        self._adb_endpoint = (
+            AdbEndpoint.create(host, port)
+            if isinstance(host, str) and isinstance(port, int)
+            else current_adb_endpoint()
+        )
         self._ui_adb_client = ui_adb_client
         self._width = width
         self._height = height
@@ -107,10 +115,35 @@ class AndroidAdbDriver(BaseDeviceDriver):
             self._device = self._adb_client.device(serial=self._device_id)
         return self._device
 
+    def _shell(self, command, **kwargs):
+        # Only explicitly read-only shell commands may be replayed. Inputs, app
+        # lifecycle and arbitrary shell commands retain at-most-once dispatch.
+        read_only = command in {
+            "settings get secure default_input_method",
+            "dumpsys window displays",
+            "dumpsys window displays | grep -E 'mCurrentFocus|mFocusedApp'",
+        }
+
+        def operation():
+            return self.device.shell(command, **kwargs)
+
+        if read_only:
+            return retry_device_read(operation, self._device_id, self._adb_endpoint)
+        if ":" in self._device_id:
+            # Recover before dispatch, so an uncertain tap/paste is never sent twice.
+            retry_device_read(self._ready_state, self._device_id, self._adb_endpoint)
+        return operation()
+
+    def _ready_state(self):
+        state = self.device.get_state()
+        if isinstance(state, str) and state != "device":
+            raise AdbError("device " + state)
+        return state
+
     async def connect(self) -> None:
         """Verify device availability."""
         try:
-            state = self.device.get_state()
+            state = retry_device_read(self._ready_state, self._device_id, self._adb_endpoint)
             logger.info(f"Android device '{self._device_id}' connected (state: {state})")
         except Exception as e:
             logger.warning(f"Connecting to Android device '{self._device_id}': {e}")
@@ -145,7 +178,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
             task.exception()  # Retrieve errors even when the caller has already left.
 
     def _capture_adb_screenshot(self) -> tuple[bytes, tuple[int, int]]:
-        image = self.device.screenshot()
+        image = retry_device_read(self.device.screenshot, self._device_id, self._adb_endpoint)
         buf = BytesIO()
         image.save(buf, format="PNG")
         return buf.getvalue(), image.size
@@ -160,7 +193,12 @@ class AndroidAdbDriver(BaseDeviceDriver):
         # Check if ui_adb_client has direct screen data support
         if self._ui_adb_client and hasattr(self._ui_adb_client, "get_screen_data"):
             try:
-                raw_ui_data = await asyncio.to_thread(self._ui_adb_client.get_screen_data)
+                raw_ui_data = await asyncio.to_thread(
+                    retry_device_read,
+                    self._ui_adb_client.get_screen_data,
+                    self._device_id,
+                    self._adb_endpoint,
+                )
                 if asyncio.iscoroutine(raw_ui_data):
                     raw_ui_data = await raw_ui_data
                 if (
@@ -261,7 +299,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
                     cmd = f" && sleep {delay_ms / 1000.0:.3f} && ".join(taps)
 
             logger.info(f"[ADB] {cmd}")
-            await asyncio.to_thread(self.device.shell, cmd)
+            await asyncio.to_thread(self._shell, cmd)
             return True
         except Exception as e:
             logger.error(f"Tap failed at ({x}, {y}): {e}")
@@ -281,7 +319,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
         try:
             cmd = f"input swipe {start_x} {start_y} {end_x} {end_y} {duration_ms}"
             logger.info(f"[ADB] {cmd}")
-            await asyncio.to_thread(self.device.shell, cmd)
+            await asyncio.to_thread(self._shell, cmd)
             return True
         except Exception as e:
             logger.error(f"Swipe failed from ({start_x},{start_y}) to ({end_x},{end_y}): {e}")
@@ -330,11 +368,11 @@ class AndroidAdbDriver(BaseDeviceDriver):
                     "input keyevent 67 && "
                     "input keyevent 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67"
                 )
-                await asyncio.to_thread(self.device.shell, clear_cmd)
+                await asyncio.to_thread(self._shell, clear_cmd)
             else:
                 # Append mode: move cursor to the very end of existing text
                 await asyncio.to_thread(
-                    self.device.shell,
+                    self._shell,
                     "input keyevent 123",  # KEYCODE_MOVE_END
                 )
 
@@ -352,7 +390,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
                         set_clip_ok = True
 
                     if set_clip_ok:
-                        await asyncio.to_thread(self.device.shell, "input keyevent 279")
+                        await asyncio.to_thread(self._shell, "input keyevent 279")
                         return True
                 except Exception as e:
                     logger.debug(f"Clipboard paste fallback to ADB input: {e}")
@@ -360,12 +398,12 @@ class AndroidAdbDriver(BaseDeviceDriver):
             # 2. Tier 2: Check if ADBKeyboard is currently active
             try:
                 default_ime = await asyncio.to_thread(
-                    self.device.shell, "settings get secure default_input_method"
+                    self._shell, "settings get secure default_input_method"
                 )
                 if "adbkeyboard" in str(default_ime).lower():
                     b64_text = base64.b64encode(norm_text.encode("utf-8")).decode("utf-8")
                     broadcast_cmd = f"am broadcast -a ADB_INPUT_B64 --es msg '{b64_text}'"
-                    await asyncio.to_thread(self.device.shell, broadcast_cmd)
+                    await asyncio.to_thread(self._shell, broadcast_cmd)
                     return True
             except Exception as e:
                 # ADBKeyboard probe/broadcast failed; fall through to native input.
@@ -376,10 +414,10 @@ class AndroidAdbDriver(BaseDeviceDriver):
             for i, line in enumerate(lines):
                 if i > 0:
                     # Send Enter key between lines
-                    await asyncio.to_thread(self.device.shell, "input keyevent 66")
+                    await asyncio.to_thread(self._shell, "input keyevent 66")
                 if line:
                     escaped = _escape_for_adb_text(line)
-                    await asyncio.to_thread(self.device.shell, f"input text {escaped}")
+                    await asyncio.to_thread(self._shell, f"input text {escaped}")
             return True
         except Exception as e:
             logger.error(f"Input text failed for '{text}': {e}")
@@ -392,7 +430,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
                 key_name = str(key).lower().replace("keycode.", "")
                 keycode_val = ANDROID_KEYCODE_MAP.get(key_name, key)
 
-            await asyncio.to_thread(self.device.shell, f"input keyevent {keycode_val}")
+            await asyncio.to_thread(self._shell, f"input keyevent {keycode_val}")
             return True
         except Exception as e:
             logger.error(f"Press key failed for '{key}': {e}")
@@ -401,7 +439,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
     async def launch_app(self, package_name: str) -> bool:
         try:
             cmd = f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
-            await asyncio.to_thread(self.device.shell, cmd)
+            await asyncio.to_thread(self._shell, cmd)
             return True
         except Exception as e:
             logger.error(f"Launch app failed for '{package_name}': {e}")
@@ -409,7 +447,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
 
     async def stop_app(self, package_name: str) -> bool:
         try:
-            await asyncio.to_thread(self.device.shell, f"am force-stop {package_name}")
+            await asyncio.to_thread(self._shell, f"am force-stop {package_name}")
             return True
         except Exception as e:
             logger.error(f"Stop app failed for '{package_name}': {e}")
@@ -424,7 +462,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
         # succeeding, exceeding the visual cache's foreground-query deadline.
         try:
             out = await asyncio.to_thread(
-                self.device.shell,
+                self._shell,
                 "dumpsys window displays | grep -E 'mCurrentFocus|mFocusedApp'",
                 timeout=2,
             )
@@ -458,13 +496,13 @@ class AndroidAdbDriver(BaseDeviceDriver):
         """Read the visible system status-bar inset; never guess a fixed top crop."""
         from artemis.utils.visual_page_fingerprint import status_bar_from_insets
 
-        dump = await asyncio.to_thread(self.device.shell, "dumpsys window displays")
+        dump = await asyncio.to_thread(self._shell, "dumpsys window displays")
         return status_bar_from_insets(dump, self.screen_size)
 
     async def execute_shell(self, command: str, timeout_seconds: float = 15.0) -> str:
         try:
             return await asyncio.wait_for(
-                asyncio.to_thread(self.device.shell, command),
+                asyncio.to_thread(self._shell, command),
                 timeout=timeout_seconds,
             )
         except Exception as e:

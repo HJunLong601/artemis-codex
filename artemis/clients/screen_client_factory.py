@@ -43,7 +43,8 @@ from PIL import Image
 
 from artemis.clients.accessibility_client import AccessibilityClient, HelperUnavailable
 from artemis.config.constants import ENV_ARTEMIS_HIERARCHY_BACKEND
-from artemis.runtime.adb_endpoint import adb_command
+from artemis.runtime.adb_endpoint import adb_command, current_adb_endpoint
+from artemis.runtime.adb_recovery import retry_device_read
 from artemis.runtime.helper_manager import ProvisionEvent
 from third_party.mobile_use.clients.ui_automator_client import (
     UIAutomatorClient,
@@ -149,6 +150,7 @@ class FallbackScreenClient:
         state_probe: Callable[[str], str | None] = device_state,
     ) -> None:
         self._device_id = device_id
+        self._adb_endpoint = current_adb_endpoint()
         self._helper = helper or AccessibilityClient(device_id)
         self._uiautomator_factory = uiautomator_factory or (lambda: UIAutomatorClient(device_id))
         self._uiautomator: UIAutomatorClient | None = None
@@ -240,6 +242,13 @@ class FallbackScreenClient:
             self._uiautomator.stop_server()
 
     def _call(self, name: str, *args: Any, **kwargs: Any) -> Any:
+        if name in {"get_screen_data", "get_hierarchy", "get_screenshot", "get_screenshot_base64"}:
+            return retry_device_read(
+                lambda: self._call_once(name, *args, **kwargs), self._device_id, self._adb_endpoint
+            )
+        return self._call_once(name, *args, **kwargs)
+
+    def _call_once(self, name: str, *args: Any, **kwargs: Any) -> Any:
         if self._helper_allowed():
             self._release_uiautomation()
             try:

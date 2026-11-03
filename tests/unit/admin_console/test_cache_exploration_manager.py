@@ -42,6 +42,11 @@ async def test_launch_is_reserved_once_and_keeps_the_original_adb_endpoint(setup
     env = spawn.call_args.kwargs["env"]
     assert env["ADB_HOST"] == "adb.example.invalid" and env["ADB_PORT"] == "6500"
     assert env["ARTEMIS_ADB_ENDPOINT_ID"] == "tcp:adb.example.invalid:6500"
+    assert int(env["ARTEMIS_EXPLORATION_PARENT_PID"]) == service.os.getpid()
+    assert (
+        abs(float(env["ARTEMIS_EXPLORATION_PARENT_CREATED_AT"]) - psutil.Process().create_time())
+        < 0.1
+    )
 
 
 @pytest.mark.asyncio
