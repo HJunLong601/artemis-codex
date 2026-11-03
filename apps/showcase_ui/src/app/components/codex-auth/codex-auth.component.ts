@@ -45,12 +45,12 @@ export interface CodexAuthStatus {
         </dl>
       }
       <div class="actions">
-        <button type="button" (click)="refresh()" [disabled]="busy()">{{ '刷新认证状态' | t }}</button>
-        <button type="button" (click)="login()" [disabled]="busy() || status()?.state === 'login_pending' || authenticated()">{{ '登录 Codex' | t }}</button>
+        <button type="button" class="auth-button" (click)="refresh()" [disabled]="busy()" [class.is-busy]="busy() && operation() === 'refresh'" [attr.aria-busy]="busy() && operation() === 'refresh'"><span class="material-symbols-outlined" aria-hidden="true" [class.spinning]="busy() && operation() === 'refresh'">refresh</span>{{ '刷新认证状态' | t }}</button>
+        <button type="button" class="auth-button primary" (click)="login()" [disabled]="busy() || status()?.state === 'login_pending' || authenticated()" [class.is-busy]="busy() && operation() === 'login'" [attr.aria-busy]="busy() && operation() === 'login'"><span class="material-symbols-outlined" aria-hidden="true" [class.spinning]="busy() && operation() === 'login'">{{ busy() && operation() === 'login' ? 'progress_activity' : 'login' }}</span>{{ '登录 Codex' | t }}</button>
         @if (status()?.state === 'login_pending') {
-          <button type="button" (click)="cancel()" [disabled]="busy()">{{ '取消登录' | t }}</button>
+          <button type="button" class="auth-button" (click)="cancel()" [disabled]="busy()"><span class="material-symbols-outlined" aria-hidden="true" [class.spinning]="busy() && operation() === 'cancel'">{{ busy() && operation() === 'cancel' ? 'progress_activity' : 'close' }}</span>{{ '取消登录' | t }}</button>
         }
-        <button type="button" (click)="verify()" [disabled]="busy() || !authenticated()">{{ '验证实际推理' | t }}</button>
+        <button type="button" class="auth-button accent" (click)="verify()" [disabled]="busy() || !authenticated()" [class.is-busy]="busy() && operation() === 'verify'" [attr.aria-busy]="busy() && operation() === 'verify'"><span class="material-symbols-outlined" aria-hidden="true" [class.spinning]="busy() && operation() === 'verify'">{{ busy() && operation() === 'verify' ? 'progress_activity' : 'fact_check' }}</span>{{ '验证实际推理' | t }}</button>
       </div>
       @if (authUrl()) {
         <p><a [href]="authUrl()" target="_blank" rel="noopener noreferrer">{{ '前往 OpenAI 完成登录' | t }}</a>{{ '（10 分钟内有效；请自行授权，不要复制凭据）' | t }}</p>
@@ -64,13 +64,27 @@ export interface CodexAuthStatus {
     </section>
   `,
   styles: [`
-    .auth-panel { padding: 16px; margin-bottom: 16px; border: 1px solid var(--border-color, #ccc); border-radius: 12px; }
-    dl { display: grid; grid-template-columns: minmax(90px, auto) minmax(0, 1fr); gap: 6px 12px; }
+    :host { display: block; font-family: inherit; }
+    .auth-panel { padding: 16px; margin-bottom: 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: rgba(255,255,255,.72); color: #475569; font-size: 12px; line-height: 1.6; }
+    h3 { margin: 0 0 8px; font-size: 14px; font-weight: 650; color: #0f172a; }
+    p { margin: 0 0 10px; overflow-wrap: anywhere; }
+    dl { display: grid; grid-template-columns: minmax(90px, auto) minmax(0, 1fr); gap: 5px 12px; margin: 12px 0 16px; }
+    dt { color: #64748b; font-weight: 500; }
     dd { margin: 0; overflow-wrap: anywhere; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-    button { padding: 8px 12px; cursor: pointer; }
-    button:disabled { cursor: default; opacity: .5; }
-    p { overflow-wrap: anywhere; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .auth-button { appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 13px; border: 1px solid rgba(226,232,240,.9); border-radius: 8px; background: rgba(255,255,255,.8); box-shadow: 0 2px 8px -1px rgba(15,23,42,.05), inset 0 1px 1px rgba(255,255,255,.95); color: #475569; font: inherit; font-size: 12px; font-weight: 600; line-height: 1.4; cursor: pointer; transition: background-color .15s, border-color .15s, box-shadow .15s; }
+    .auth-button .material-symbols-outlined { font-size: 16px; flex-shrink: 0; }
+    .auth-button:hover:not(:disabled) { background: #f8fafc; border-color: #bfdbfe; color: #1a73e8; box-shadow: 0 3px 10px rgba(15,23,42,.08); }
+    .auth-button:focus-visible { outline: 2px solid #1a73e8; outline-offset: 2px; }
+    .auth-button.primary { background: linear-gradient(135deg, #1a73e8, #2563eb); border-color: rgba(255,255,255,.3); color: #fff; box-shadow: 0 3px 10px rgba(26,115,232,.22); }
+    .auth-button.primary:hover:not(:disabled) { background: #1557b0; color: #fff; }
+    .auth-button.accent { background: #eff6ff; border-color: #bfdbfe; color: #1a73e8; }
+    .auth-button:disabled { background: #f1f5f9; border-color: #e2e8f0; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
+    .auth-button.is-busy:disabled { background: #eff6ff; border-color: #bfdbfe; color: #1a73e8; cursor: wait; }
+    .spinning { display: inline-block; transform-origin: center; animation: auth-spin .8s linear infinite; }
+    a { color: #1a73e8; }
+    @keyframes auth-spin { to { transform: rotate(360deg); } }
+    @media (max-width: 480px) { .auth-panel { padding: 12px; } dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 6px; } }
   `]
 })
 export class CodexAuthComponent implements OnInit, OnDestroy {
@@ -79,6 +93,7 @@ export class CodexAuthComponent implements OnInit, OnDestroy {
   @Output() authChanged = new EventEmitter<void>();
   status = signal<CodexAuthStatus | null>(null);
   busy = signal(false);
+  operation = signal<'refresh' | 'login' | 'cancel' | 'verify' | null>(null);
   message = signal('尚未检查后台认证状态');
   authUrl = signal<string | null>(null);
   private timer?: ReturnType<typeof setTimeout>;
@@ -93,6 +108,7 @@ export class CodexAuthComponent implements OnInit, OnDestroy {
     if (this.busy()) return;
     clearTimeout(this.timer);
     this.busy.set(true);
+    this.operation.set('refresh');
     this.request = this.http.get<CodexAuthStatus>(this.base).pipe(timeout(55000)).subscribe({
       next: info => {
         this.status.set(info);
@@ -126,6 +142,7 @@ export class CodexAuthComponent implements OnInit, OnDestroy {
   login() {
     if (this.busy()) return;
     this.busy.set(true);
+    this.operation.set('login');
     this.request = this.http.post<CodexAuthStatus & { auth_url?: string }>(this.base + '/start', {}, this.options).pipe(timeout(60000)).subscribe({
       next: info => {
         this.busy.set(false);
@@ -139,6 +156,7 @@ export class CodexAuthComponent implements OnInit, OnDestroy {
     if (this.busy()) return;
     clearTimeout(this.timer);
     this.busy.set(true);
+    this.operation.set('cancel');
     this.request = this.http.post(this.base + '/cancel', {}, this.options).pipe(timeout(20000)).subscribe({
       next: () => { this.authUrl.set(null); this.busy.set(false); this.refresh(); },
       error: () => this.failed('取消登录失败，请刷新认证状态。')
@@ -147,6 +165,7 @@ export class CodexAuthComponent implements OnInit, OnDestroy {
   verify() {
     if (this.busy() || !this.authenticated()) return;
     this.busy.set(true);
+    this.operation.set('verify');
     this.message.set('正在发送最小 READY 请求验证实际模型权限，不发送设备数据…');
     this.request = this.http.post<{ ok: boolean; inference_tested: boolean }>(this.base + '/verify', {}, this.options).pipe(timeout(120000)).subscribe({
       next: result => {
