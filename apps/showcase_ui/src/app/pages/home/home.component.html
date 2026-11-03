@@ -756,16 +756,21 @@
                   </div>
                 </div>
 
-                <!-- Multi-Device Switcher if multiple devices detected -->
-                @if (connectedDevices().length > 1) {
+                @if (deviceConnectionError()) { <p class="device-picker-error" role="alert">{{ deviceConnectionError() | t }}</p> }
+                @if (deviceConnectionMessage()) { <p class="device-picker-message" role="status">{{ deviceConnectionMessage() | t }}</p> }
+                <!-- Device selection and per-wireless-transport disconnection -->
+                @if (connectedDevices().length > 0) {
                   <div class="multi-device-switcher">
                     <span class="switcher-label">{{ 'Select Active Device:' | t }}</span>
                     <div class="switcher-chips">
                       @for (dev of connectedDevices(); track dev.serial) {
+                        <div class="device-chip-group">
                         <button
                           type="button"
                           class="device-chip-btn"
                           [class.selected]="dev.serial === activeDevice()?.serial"
+                          [disabled]="!!switchingDeviceSerial() || !!disconnectingDeviceSerial()"
+                          [attr.aria-busy]="switchingDeviceSerial() === dev.serial"
                           (click)="selectTargetDevice(dev.serial)"
                         >
                           <span class="material-symbols-outlined chip-icon">
@@ -778,12 +783,22 @@
                               <small>{{ dev.serial }}</small>
                             }
                           </span>
-                          @if (dev.serial === activeDevice()?.serial) {
+                          @if (switchingDeviceSerial() === dev.serial) {
+                            <span class="active-check">{{ 'Switching...' | t }}</span>
+                          } @else if (dev.serial === activeDevice()?.serial) {
                             <span class="active-check">{{ '✓ Active' | t }}</span>
                           }
                         </button>
+                        @if (isWirelessDevice(dev.serial)) {
+                          <button type="button" class="device-remove-btn" [attr.aria-label]="('Disconnect wireless device' | t) + ' ' + dev.serial"
+                            [disabled]="!!switchingDeviceSerial() || !!disconnectingDeviceSerial()" (click)="disconnectTargetDevice(dev.serial)">
+                            {{ (disconnectingDeviceSerial() === dev.serial ? 'Disconnecting...' : 'Disconnect') | t }}
+                          </button>
+                        }
+                        </div>
                       }
                     </div>
+                    <p class="device-picker-hint">{{ 'USB phones disappear when unplugged; disconnect removes only the selected wireless connection.' | t }}</p>
                   </div>
                 }
               </div>
@@ -1393,7 +1408,7 @@
                         }
                         <div class="wifi-btn-col"><button type="button" class="btn-wifi-connect" (click)="autoConnectWifiDevice()"
                           [disabled]="isConnectingWifi() || isPairingWifi() || isRemoteAdbServer() || (wifiUsbCandidates().length > 1 && !wifiUsbSerial())">
-                          <span class="material-symbols-outlined">{{ isConnectingWifi() ? 'sync' : 'wifi' }}</span>
+                          <span class="material-symbols-outlined" [class.spinning]="isConnectingWifi()" aria-hidden="true">{{ isConnectingWifi() ? 'sync' : 'wifi' }}</span>
                           {{ (isConnectingWifi() ? 'Connecting...' : 'Auto-connect Wi-Fi ADB') | t }}
                         </button></div>
                       </div>
@@ -1633,16 +1648,21 @@
                   </button>
                 </div>
 
-                <!-- Multi-Device Switcher if multiple devices detected -->
-                @if (connectedDevices().length > 1) {
+                @if (deviceConnectionError()) { <p class="device-picker-error" role="alert">{{ deviceConnectionError() | t }}</p> }
+                @if (deviceConnectionMessage()) { <p class="device-picker-message" role="status">{{ deviceConnectionMessage() | t }}</p> }
+                <!-- Device selection and per-wireless-transport disconnection -->
+                @if (connectedDevices().length > 0) {
                   <div class="multi-device-switcher" style="margin-top: 12px;">
                     <span class="switcher-label">{{ 'Select Active Device:' | t }}</span>
                     <div class="switcher-chips">
                       @for (dev of connectedDevices(); track dev.serial) {
+                        <div class="device-chip-group">
                         <button
                           type="button"
                           class="device-chip-btn"
                           [class.selected]="dev.serial === activeDevice()?.serial"
+                          [disabled]="!!switchingDeviceSerial() || !!disconnectingDeviceSerial()"
+                          [attr.aria-busy]="switchingDeviceSerial() === dev.serial"
                           (click)="selectTargetDevice(dev.serial)"
                         >
                           <span class="material-symbols-outlined chip-icon">
@@ -1655,12 +1675,22 @@
                               <small>{{ dev.serial }}</small>
                             }
                           </span>
-                          @if (dev.serial === activeDevice()?.serial) {
+                          @if (switchingDeviceSerial() === dev.serial) {
+                            <span class="active-check">{{ 'Switching...' | t }}</span>
+                          } @else if (dev.serial === activeDevice()?.serial) {
                             <span class="active-check">{{ '✓ Active' | t }}</span>
                           }
                         </button>
+                        @if (isWirelessDevice(dev.serial)) {
+                          <button type="button" class="device-remove-btn" [attr.aria-label]="('Disconnect wireless device' | t) + ' ' + dev.serial"
+                            [disabled]="!!switchingDeviceSerial() || !!disconnectingDeviceSerial()" (click)="disconnectTargetDevice(dev.serial)">
+                            {{ (disconnectingDeviceSerial() === dev.serial ? 'Disconnecting...' : 'Disconnect') | t }}
+                          </button>
+                        }
+                        </div>
                       }
                     </div>
+                    <p class="device-picker-hint">{{ 'USB phones disappear when unplugged; disconnect removes only the selected wireless connection.' | t }}</p>
                   </div>
                 }
               </div>

@@ -120,7 +120,15 @@ export class SystemService {
   public blockerCount = computed(() => this.totalStepCount());
   public passedBlockerCount = computed(() => this.passedStepCount());
   public probes = computed(() => this.readinessReport()?.probes ?? []);
-  public activeDevice = computed(() => this.readinessReport()?.active_device ?? null);
+  private selectedDeviceSerial = signal<string | null>(null);
+  private removedDeviceSerials = signal<string[]>([]);
+  public activeDevice = computed(() => {
+    const devices = this.connectedDevices();
+    const selected = devices.find(d => d.serial === this.selectedDeviceSerial());
+    if (selected) return selected;
+    const reported = this.readinessReport()?.active_device;
+    return reported && !this.removedDeviceSerials().includes(reported.serial) ? reported : devices.find(d => d.state === 'device') ?? null;
+  });
   public osType = computed<'linux' | 'darwin' | 'windows'>(() => {
     const raw = this.readinessReport()?.os_type;
     if (raw === 'windows' || raw === 'win32') return 'windows';
@@ -141,7 +149,7 @@ export class SystemService {
   public connectedDevices = computed<DeviceInfo[]>(() => {
     const meta = this.adbProbe()?.metadata;
     if (meta && Array.isArray(meta['devices'])) {
-      return meta['devices'] as DeviceInfo[];
+      return (meta['devices'] as DeviceInfo[]).filter(device => !this.removedDeviceSerials().includes(device.serial));
     }
     return [];
   });
@@ -275,6 +283,11 @@ export class SystemService {
     }
     this.lastAppliedReportJson = serialized;
     this.readinessReport.set(report);
+    const inventory = report.probes.find(p => p.id === 'android_adb')?.metadata?.['devices'];
+    if (Array.isArray(inventory)) {
+      const serials = new Set(inventory.map((device: DeviceInfo) => device.serial));
+      this.removedDeviceSerials.update(items => items.filter(serial => serials.has(serial)));
+    }
   }
 
   /**
@@ -435,7 +448,9 @@ export class SystemService {
   /** Explicit USB-to-Wi-Fi setup; readiness refreshes through existing polling. */
   public autoConnectWirelessAdb(serial?: string): Observable<any> {
     return this.http.post<any>('/api/system/adb/auto-connect', {serial},
-      {headers: {'X-Artemis-ADB-Intent': 'auto-connect'}});
+      {headers: {'X-Artemis-ADB-Intent': 'auto-connect'}}).pipe(tap(res => {
+        if (res.connect_result?.success) this.removedDeviceSerials.update(items => items.filter(s => s !== res.connect_result.serial));
+      }));
   }
 
   /** Connect to an Android device over Wi-Fi. */
@@ -443,6 +458,7 @@ export class SystemService {
     return this.http.post<any>('/api/system/adb/connect', { host, port }).pipe(
       tap({
         next: (res) => {
+          if (res?.connect_result?.success) this.removedDeviceSerials.update(items => items.filter(s => s !== `${host}:${port}`));
           if (res?.report) {
             this.applyReadinessReport(res.report);
           }
@@ -532,22 +548,29 @@ export class SystemService {
    * Select a specific connected device serial as active target
    */
   public selectDevice(serial: string): Observable<any> {
-    this.isLoading.set(true);
     return this.http.post<any>('/api/system/devices/select', { serial }).pipe(
-      tap({
-        next: (res) => {
-          if (res?.report) {
-            this.applyReadinessReport(res.report);
-          }
-          this.isLoading.set(false);
-        },
-        error: (err) => {
-          console.error('Failed to select active device:', err);
-          this.isLoading.set(false);
-        }
+      tap(res => {
+        this.applyDeviceConnectionResult(res);
+        if (res.success) this.selectedDeviceSerial.set(serial);
       })
     );
   }
+
+  public disconnectDevice(serial: string): Observable<any> {
+    return this.http.post<any>('/api/system/devices/disconnect', {serial},
+      {headers: {'X-Artemis-ADB-Intent': 'disconnect'}}).pipe(
+      tap(res => this.applyDeviceConnectionResult(res))
+    );
+  }
+
+  private applyDeviceConnectionResult(result: {removed_serial?: string}): void {
+    if (result.removed_serial) {
+      const serial = result.removed_serial;
+      this.removedDeviceSerials.update(items => [...new Set([...items, serial])]);
+      if (this.selectedDeviceSerial() === serial) this.selectedDeviceSerial.set(null);
+    }
+  }
+
 
   public currentApiKey = computed<string>(() => {
     return (this.llmProbe()?.metadata?.['current_key'] as string) || '';

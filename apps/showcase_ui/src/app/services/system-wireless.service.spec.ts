@@ -27,4 +27,19 @@ describe('SystemService wireless pairing', () => {
     request.flush({pair_result: {success: true, message: 'paired'}});
     http.expectNone('/api/system/adb/connect'); http.expectNone('/api/system/readiness');
   });
+  it('keeps a verified selection across stale polls and hides a disconnected transport', () => {
+    const report = {timestamp: 1, active_device: {serial: 'USB1'}, probes: [{id: 'android_adb', metadata: {devices: [{serial: 'USB1', state: 'device'}, {serial: '192.0.2.10:5555', state: 'device'}]}}]} as any;
+    service.readinessReport.set(report);
+    service.selectDevice('192.0.2.10:5555').subscribe();
+    http.expectOne('/api/system/devices/select').flush({success: true, selected_serial: '192.0.2.10:5555'});
+    service.readinessReport.set({...report, timestamp: 2});
+    expect(service.activeDevice()?.serial).toBe('192.0.2.10:5555');
+    service.disconnectDevice('192.0.2.10:5555').subscribe();
+    const request = http.expectOne('/api/system/devices/disconnect');
+    expect(request.request.headers.get('X-Artemis-ADB-Intent')).toBe('disconnect');
+    request.flush({success: true, removed_serial: '192.0.2.10:5555'});
+    expect(service.connectedDevices().map(d => d.serial)).toEqual(['USB1']);
+    expect(service.activeDevice()?.serial).toBe('USB1');
+  });
+
 });

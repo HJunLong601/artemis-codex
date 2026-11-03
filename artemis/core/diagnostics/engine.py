@@ -103,6 +103,11 @@ class ReadinessEngine:
         if hasattr(self._adb_probe, "set_target_serial"):
             self._adb_probe.set_target_serial(serial)
 
+    def clear_probe_target_serial_if_matches(self, serial: str) -> None:
+        """Clear a disconnected target without changing another selected phone."""
+        if self._adb_probe._target_serial == serial:
+            self.set_probe_target_serial(None)
+
     async def run_probe(self, probe_id: str) -> ProbeResult | None:
         """Execute a single specific probe by ID."""
         probe = self._probes.get(probe_id)

@@ -15,12 +15,14 @@ describe('Home wireless pairing', () => {
   /** Per-case remote-server preference; no real server configuration is changed. */
   let remote: boolean;
   /** Public service spies record only synthetic test values and never contact ADB. */
-  let service: {autoConnectWirelessAdb: jasmine.Spy; pairWirelessAdb: jasmine.Spy; connectWirelessAdb: jasmine.Spy};
+  let service: {selectDevice: jasmine.Spy; disconnectDevice: jasmine.Spy; autoConnectWirelessAdb: jasmine.Spy; pairWirelessAdb: jasmine.Spy; connectWirelessAdb: jasmine.Spy};
 
   /** Create an injected controller with local-server defaults; all effects and spies die with TestBed. */
   beforeEach(() => {
     pairing = new Subject(); remote = false;
     service = {
+      selectDevice: jasmine.createSpy('selectDevice'),
+      disconnectDevice: jasmine.createSpy('disconnectDevice'),
       autoConnectWirelessAdb: jasmine.createSpy('autoConnectWirelessAdb').and.returnValue(of({connect_result: {success: true, host: '192.0.2.10', port: 5555, message: 'verified'}})),
       pairWirelessAdb: jasmine.createSpy('pairWirelessAdb').and.returnValue(pairing),
       connectWirelessAdb: jasmine.createSpy('connectWirelessAdb').and.returnValue(of({connect_result: {success: false, message: 'not connected'}}))
@@ -99,6 +101,29 @@ describe('Home wireless pairing', () => {
     component.isPairingWifi.set(true); component.autoConnectWifiDevice();
     component.isPairingWifi.set(false); remote = true; component.autoConnectWifiDevice();
     expect(service.autoConnectWirelessAdb).not.toHaveBeenCalled();
+  });
+
+  it('shows pending selection, blocks overlap, and reports failure without changing the current device', () => {
+    const pending = new Subject<any>();
+    service.selectDevice.and.returnValue(pending);
+    component.selectTargetDevice('wifi');
+    expect(component.switchingDeviceSerial()).toBe('wifi');
+    component.selectTargetDevice('USB1'); component.disconnectTargetDevice('wifi');
+    expect(service.selectDevice).toHaveBeenCalledTimes(1);
+    expect(service.disconnectDevice).not.toHaveBeenCalled();
+    pending.next({success: false, message: 'offline'});
+    expect(component.switchingDeviceSerial()).toBeNull();
+    expect(component.deviceConnectionError()).toBe('offline');
+  });
+
+  it('clears disconnection progress after a failed request', () => {
+    const pending = new Subject<any>();
+    service.disconnectDevice.and.returnValue(pending);
+    component.disconnectTargetDevice('wifi');
+    expect(component.disconnectingDeviceSerial()).toBe('wifi');
+    pending.error(new Error('network'));
+    expect(component.disconnectingDeviceSerial()).toBeNull();
+    expect(component.deviceConnectionError()).toBeTruthy();
   });
 
 });

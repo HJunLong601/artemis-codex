@@ -5203,3 +5203,21 @@ $text-light: #94a3b8;
     transform: translateY(0) scale(1);
   }
 }
+
+.device-chip-group { display: inline-flex; align-items: stretch; gap: 3px; max-width: 100%; }
+.device-remove-btn { border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; padding: 4px 8px; font: inherit; font-size: 11px; cursor: pointer; }
+.device-remove-btn:hover:not(:disabled) { border-color: #ef4444; color: #dc2626; }
+.device-remove-btn:disabled, .device-chip-btn:disabled { opacity: .6; cursor: wait; }
+.device-picker-hint { color: #64748b; font-size: 11px; margin: 6px 0; }
+.device-picker-error { color: #dc2626; font-size: 12px; }
+.device-picker-message { color: #059669; font-size: 12px; }
+
+// Loading indicators also appear outside the individual nested button rules.
+.material-symbols-outlined.spinning,
+.material-symbols-outlined.spin,
+.material-symbols-outlined.spinning-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  transform-origin: center;
+  animation: spin .8s linear infinite;
+}

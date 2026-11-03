@@ -1117,8 +1117,49 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.systemService.dismissEmulatorStatus().subscribe();
   }
 
+  public switchingDeviceSerial = signal<string | null>(null);
+  public disconnectingDeviceSerial = signal<string | null>(null);
+  public deviceConnectionMessage = signal<string | null>(null);
+  public deviceConnectionError = signal<string | null>(null);
+
+  public isWirelessDevice(serial: string): boolean {
+    return serial.includes(':') || serial.includes('._tcp');
+  }
+
   public selectTargetDevice(serial: string): void {
-    this.systemService.selectDevice(serial).subscribe();
+    if (this.switchingDeviceSerial() || this.disconnectingDeviceSerial()) return;
+    this.switchingDeviceSerial.set(serial);
+    this.deviceConnectionError.set(null);
+    this.deviceConnectionMessage.set(null);
+    this.systemService.selectDevice(serial).subscribe({
+      next: result => {
+        this.switchingDeviceSerial.set(null);
+        if (result.success) this.deviceConnectionMessage.set('Device switched.');
+        else this.deviceConnectionError.set(result.message || 'Device switch failed. The current device was kept.');
+      },
+      error: () => {
+        this.switchingDeviceSerial.set(null);
+        this.deviceConnectionError.set('Device switch failed. The current device was kept.');
+      }
+    });
+  }
+
+  public disconnectTargetDevice(serial: string): void {
+    if (this.switchingDeviceSerial() || this.disconnectingDeviceSerial()) return;
+    this.disconnectingDeviceSerial.set(serial);
+    this.deviceConnectionError.set(null);
+    this.deviceConnectionMessage.set(null);
+    this.systemService.disconnectDevice(serial).subscribe({
+      next: result => {
+        this.disconnectingDeviceSerial.set(null);
+        if (result.success) this.deviceConnectionMessage.set(result.message);
+        else this.deviceConnectionError.set(result.message);
+      },
+      error: () => {
+        this.disconnectingDeviceSerial.set(null);
+        this.deviceConnectionError.set('Disconnection failed. The device is still listed.');
+      }
+    });
   }
 
   public getEmulatorCommand(avdName: string): string {

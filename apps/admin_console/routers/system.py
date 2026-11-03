@@ -108,20 +108,36 @@ async def get_system_readiness(force: bool = False) -> SystemReadinessReport:
 
 
 @router.post("/devices/select")
-async def select_active_device(request: SelectDeviceRequest):
+async def select_active_device(request: Request, payload: SelectDeviceRequest):
     """Select the active Android device or emulator for subsequent automated tasks."""
-    serial = request.serial.strip()
+    _require_local_admin_request(request)
+    from artemis.core.diagnostics.device_connections import change_device_connection
+
+    serial = payload.serial.strip()
     if not serial:
         raise HTTPException(status_code=400, detail="Device serial cannot be empty.")
 
-    readiness_engine.set_probe_target_serial(serial)
-    # Return updated readiness
-    report = await readiness_engine.run_all(force_refresh=True)
-    return {
-        "status": "success",
-        "selected_serial": serial,
-        "report": report,
-    }
+    result = await change_device_connection(serial)
+    if result["success"]:
+        readiness_engine.set_probe_target_serial(serial)
+    elif result.get("removed_serial"):
+        readiness_engine.invalidate_cache()
+    return result
+
+
+@router.post("/devices/disconnect")
+async def disconnect_device(request: Request, payload: SelectDeviceRequest):
+    """Disconnect one idle wireless transport, without revoking phone trust."""
+    _require_local_admin_request(request)
+    if request.headers.get("x-artemis-adb-intent") != "disconnect":
+        raise HTTPException(403, "Explicit disconnect intent is required.")
+    from artemis.core.diagnostics.device_connections import change_device_connection
+
+    result = await change_device_connection(payload.serial.strip(), disconnect=True)
+    if result.get("removed_serial"):
+        readiness_engine.clear_probe_target_serial_if_matches(payload.serial.strip())
+        readiness_engine.invalidate_cache()
+    return result
 
 
 @router.post("/adb/restart")

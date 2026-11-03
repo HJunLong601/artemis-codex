@@ -180,7 +180,15 @@ Open **System Setup → Android Device & Emulator Connection → Change Connecti
 3. ARTEMIS reads the phone's actual Wi-Fi IPv4 address, enables TCP/IP debugging on port 5555, connects and matches the wireless hardware identity to the USB phone. Existing valid connections are verified and reused; busy source/target transports are not restarted.
 4. Wait for **“Wi-Fi ADB connected and verified. You can unplug USB.”** before unplugging. Select the wireless serial (`PHONE_IP:5555`) in the device list for tasks. When USB and Wi-Fi entries represent the same phone, select only one transport.
 
+Enabling TCP/IP restarts the phone’s adbd, so a brief USB disconnect is expected. The console continues verifying the wireless transport within a 20-second wait window; a lost USB command response does not immediately count as failure or trigger another adbd restart.
+
 This uses the host's discovered ADB tool and the phone's real address; Android 11 code pairing is not required for USB-assisted setup. Verified connections return immediately and background polling refreshes inventory without waiting for model credential checks. Local ADB mode is required. Use manual setup below if no authorized USB phone is available, a unique Wi-Fi address cannot be identified or the network is unreachable.
+
+### Switching and disconnecting devices
+
+Selecting a device shows **Switching...** until its transport is verified. Failures keep the previous selection and show an explanation. Confirmed offline or unauthorized wireless transports are disconnected and removed; temporarily unverifiable connections remain available for retry.
+
+The **Disconnect** button beside a wireless device removes only that ADB transport. It does not revoke the phone's pairing or authorization, affect other phones, or disconnect a transport running a task. USB phones disappear when unplugged; stop emulators using their controls.
 
 ### No USB cable: Android 11+ manual pairing
 
