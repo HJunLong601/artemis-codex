@@ -562,7 +562,17 @@ class DeviceExecutionLock:
             lock_scope=self.lock_scope,
         )
         try:
-            fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            # Windows may briefly deny creation while the previous owner deletes
+            # its file. Preserve exclusive creation and bound retries so a real
+            # permission failure still reaches the caller.
+            for attempt in range(3):
+                try:
+                    fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                    break
+                except PermissionError:
+                    if attempt == 2:
+                        raise
+                    time.sleep(0.02)
         except FileExistsError:
             current_owner = self._read_owner(self.path)
             if (

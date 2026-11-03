@@ -442,3 +442,37 @@ def test_safe_unlink_and_replace_retry(tmp_path):
     src.write_text("world")
     assert DeviceExecutionLock._safe_replace(src, dst) is True
     assert dst.read_text() == "world"
+
+
+@pytest.mark.parametrize("failures", [1, 2, 3])
+def test_owner_creation_retries_transient_permission_errors_but_propagates_persistent_denial(
+    monkeypatch, failures
+):
+    """Reproduce Windows delete-pending denial without relying on thread timing."""
+    from artemis.runtime import device_lock
+
+    lock = DeviceExecutionLock("permission-retry-device", "handoff")
+    real_open = device_lock.os.open
+    attempts = []
+    delays = []
+
+    def open_with_denial(path, flags):
+        attempts.append(flags)
+        if len(attempts) <= failures:
+            raise PermissionError(13, "simulated delete-pending or persistent denial")
+        return real_open(path, flags)
+
+    monkeypatch.setattr(device_lock.os, "open", open_with_denial)
+    monkeypatch.setattr(device_lock.time, "sleep", delays.append)
+    if failures == 3:
+        with pytest.raises(PermissionError):
+            lock._try_acquire_owner_lock()
+        assert not lock.path.exists()
+    else:
+        assert lock._try_acquire_owner_lock()
+        assert lock.path.exists()
+        lock.release()
+        assert not lock.path.exists()
+    assert len(attempts) == min(failures + 1, 3)
+    assert len(delays) == min(failures, 2)
+    assert all(flags & device_lock.os.O_EXCL for flags in attempts)
