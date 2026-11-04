@@ -1,5 +1,8 @@
 /** Console-owned copy; source text keys. Keep placeholders in both catalogs in sync. */
 export const EN: Readonly<Record<string, string>> = {
+  // Exploration results describe partial, verified learning on changing pages.
+  "动态内容已忽略，仅学习稳定控件": "Dynamic content ignored; only stable controls learned",
+  "未找到可验证的稳定控件，已跳过学习": "No verifiable stable controls; learning skipped",
   "页面动态变化，已跳过缓存学习": "Dynamic page; cache learning skipped",
   "设备已断开或未授权，请重新连接后继续": "Device disconnected or unauthorized. Reconnect it, then continue.",
   "无法读取设备画面，请检查手机解锁状态和 ADB 连接，重新连接后继续": "Cannot capture the device screen. Check that the phone is unlocked and ADB is connected, then reconnect and continue.",
@@ -1369,6 +1372,9 @@ export const EN: Readonly<Record<string, string>> = {
 };
 
 export const ZH: Readonly<Record<string, string>> = {
+  // Keep the same partial-learning result keys available in both console languages.
+  "动态内容已忽略，仅学习稳定控件": "动态内容已忽略，仅学习稳定控件",
+  "未找到可验证的稳定控件，已跳过学习": "未找到可验证的稳定控件，已跳过学习",
   "页面动态变化，已跳过缓存学习": "页面动态变化，已跳过缓存学习",
   "设备已断开或未授权，请重新连接后继续": "设备已断开或未授权，请重新连接后继续",
   "无法读取设备画面，请检查手机解锁状态和 ADB 连接，重新连接后继续": "无法读取设备画面，请检查手机解锁状态和 ADB 连接，重新连接后继续",

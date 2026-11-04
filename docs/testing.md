@@ -121,6 +121,24 @@ the home wireless component tests. Current-device acceptance verified the
 identity and screenshot/hierarchy over Wi-Fi with the USB cable still attached;
 physical unplug/reboot/network-change acceptance is separate.
 
+## Dynamic pages during safe cache exploration
+
+Safe cache exploration distinguishes a logical visit from its exact screenshot
+cache key. A logical visit requires matching app/Activity, structural evidence,
+fixed semantic labels outside scrolling/input content and observed navigation
+appearance. Activity alone never merges cross-platform routes; visual tab state
+can distinguish tabs even when their XML `selected` flags are all false.
+Screens without sufficient evidence retain exact-frame behavior.
+
+Changing content pixels can still permit learning: after inference, the route
+and cache generation must match, and only controls with unchanged live targets,
+intersecting XML and local visual guards are written. Exact cache frame keys,
+leases and reuse validation remain intact. Reports and navigation attempts use
+the logical visit key so refreshed content does not restart exploration of the
+same buttons. Scroll attempts retain viewport keys so long lists remain traversable.
+Pausing/resuming retains cumulative budgets and earlier history;
+existing snapshot rows are not deleted or retroactively merged.
+
 ## Agent no-progress limits
 
 Flash and Pro retain their existing task execution paths. Consecutive responses

@@ -72,6 +72,9 @@ export class CacheExplorationComponent {
     sensitive_or_unobservable_window: '出现敏感或不可观察窗口，请在设备上自行处理',
     model_configuration_changed: '模型配置已变化，请停止并重新配置任务', cache_disabled: '缓存已关闭，请先启用缓存',
     page_unstable: '页面动态变化，已跳过缓存学习', unsafe_or_unknown_action: '动作语义无法安全确认',
+    // Dynamic content does not invalidate unchanged controls; explain the bounded learning result.
+    stable_controls_only: '动态内容已忽略，仅学习稳定控件',
+    stable_controls_unavailable: '未找到可验证的稳定控件，已跳过学习',
     page_changed_during_learning: '学习时页面发生变化，旧结果未写入', page_changed_before_action: '执行前页面变化，未点击旧位置',
     target_changed_before_action: '执行前目标变化', unexpected_back_destination: '返回后的页面与预期不符',
     backend_shutdown: '后台已退出，未自动重启任务', backend_exited: '后台连接已退出', worker_missing: '执行进程已中断',
