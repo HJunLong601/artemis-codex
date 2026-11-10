@@ -30,7 +30,12 @@ export class CacheExplorationComponent {
   private stopTrigger: HTMLButtonElement | null = null;
   readonly base = '/api/system/visual-cache/exploration';
   tasks = signal<ExplorationTask[]>([]);
-  selected = signal('');
+  /** null allows initial auto-selection; an empty string preserves the user's cleared view. */
+  selected = signal<string | null>(null);
+  /** Collapsed by default so historical page results do not push cache statistics out of view. */
+  expanded = signal(false);
+  /** Unfinished tasks stay visible in the heading even while their details are collapsed. */
+  activeTaskCount = computed(() => this.tasks().filter(task => !this.terminal(task)).length);
   task = computed(() => this.tasks().find(t => t.id === this.selected()) ?? null);
   pages = signal<PageResult[]>([]);
   devices = signal<Device[]>([]);
@@ -102,7 +107,11 @@ export class CacheExplorationComponent {
       next: data => {
         if (this.stale()) this.message.set('');
         this.tasks.set(data.items); this.stale.set(false); this.reading.set(false);
-        if (!data.items.some(t => t.id === this.selected())) this.selected.set(data.items[0]?.id ?? '');
+        // Preserve an explicit empty selection across polls, including a response started before clearing.
+        const selected = this.selected();
+        if (selected === null || (selected !== '' && !data.items.some(t => t.id === selected))) {
+          this.selected.set(data.items[0]?.id ?? null);
+        }
         if (this.task()) this.readPages();
         this.schedule();
       },
@@ -110,9 +119,28 @@ export class CacheExplorationComponent {
     });
   }
 
+  /** Toggle only the visible details; polling and background task execution continue unchanged. */
+  toggleExpanded() { this.expanded.update(value => !value); }
+
+  /**
+   * Clear the current selection, page rows and notices without deleting tasks, reports or cache.
+   * Pending task creation/control keeps ownership of the view; otherwise explicit selection
+   * or a newly created task may show results again. Late page responses cannot restore them.
+   */
+  clearResults() {
+    if (this.pending()) return;
+    this.selected.set('');
+    this.pages.set([]);
+    this.pageOffset.set(0);
+    this.confirmStop.set(false);
+    this.stopTrigger = null;
+    this.message.set('');
+  }
+
   private schedule() { this.timer = setTimeout(() => this.refresh(), this.tasks().some(t => !['stopped', 'ended', 'paused', 'interrupted'].includes(t.status)) ? 2000 : 10000); }
   changed() { this.confirmed = false; this.requestKey = ''; }
   configure() {
+    this.expanded.set(true);
     this.open.set(true); this.changed(); this.message.set('');
     this.http.get<Capabilities>(`${this.base}/capabilities`).pipe(takeUntilDestroyed(this.destroy)).subscribe({
       next: data => this.capabilities.set(data), error: () => { this.capabilities.set(null); this.message.set('无法读取模型配置，请检查设置。'); }
@@ -179,7 +207,12 @@ export class CacheExplorationComponent {
     const offset = this.pageOffset();
     this.http.get<{items: PageResult[]}>(`${this.base}/tasks/${id}/pages`, {params: {offset, limit: 25}}).pipe(takeUntilDestroyed(this.destroy)).subscribe({
       next: data => { if (id === this.selected() && offset === this.pageOffset()) this.pages.set(data.items); },
-      error: () => this.message.set('页面明细读取失败；任务控制和已有统计仍然保留。')
+      error: () => {
+        // Ignore errors from a view that was cleared, changed or paged while this request ran.
+        if (id === this.selected() && offset === this.pageOffset()) {
+          this.message.set('页面明细读取失败；任务控制和已有统计仍然保留。');
+        }
+      }
     });
   }
   page(delta: number) { this.pageOffset.update(n => Math.max(0, n + delta)); this.readPages(); }

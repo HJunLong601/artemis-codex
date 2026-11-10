@@ -1,5 +1,12 @@
 /** Console-owned copy; source text keys. Keep placeholders in both catalogs in sync. */
 export const EN: Readonly<Record<string, string>> = {
+  // Display-only exploration controls do not stop tasks or erase learned cache.
+  "展开": "Expand",
+  "收起": "Collapse",
+  "清空展示": "Clear displayed results",
+  "仅清空当前展示，后台任务、报告和缓存保留。": "Clear only the displayed results. Background tasks, reports and cache are kept.",
+  "选择任务查看结果": "Select a task to view results",
+  "未结束任务 {0} 个（收起不会停止）": "{0} unfinished tasks (collapsing does not stop them)",
   // Exploration results describe partial, verified learning on changing pages.
   "动态内容已忽略，仅学习稳定控件": "Dynamic content ignored; only stable controls learned",
   "未找到可验证的稳定控件，已跳过学习": "No verifiable stable controls; learning skipped",
@@ -1372,6 +1379,13 @@ export const EN: Readonly<Record<string, string>> = {
 };
 
 export const ZH: Readonly<Record<string, string>> = {
+  // Display-only exploration controls do not stop tasks or erase learned cache.
+  "展开": "展开",
+  "收起": "收起",
+  "清空展示": "清空展示",
+  "仅清空当前展示，后台任务、报告和缓存保留。": "仅清空当前展示，后台任务、报告和缓存保留。",
+  "选择任务查看结果": "选择任务查看结果",
+  "未结束任务 {0} 个（收起不会停止）": "未结束任务 {0} 个（收起不会停止）",
   // Keep the same partial-learning result keys available in both console languages.
   "动态内容已忽略，仅学习稳定控件": "动态内容已忽略，仅学习稳定控件",
   "未找到可验证的稳定控件，已跳过学习": "未找到可验证的稳定控件，已跳过学习",

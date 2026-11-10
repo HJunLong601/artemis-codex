@@ -3,6 +3,7 @@
 .heading, .actions, .task-summary, .page-counts { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .heading { justify-content: space-between; }
 h2 { font-size: 16px; margin: 0; }
+.task-count { font-size: 12px; color: #52647b; }
 p, small { font-size: 12px; line-height: 1.8; color: #52647b; overflow-wrap: anywhere; }
 small, code { display: block; }
 .warning, .notice { background: #fff7e9; border: 1px solid #f0dcb4; padding: 12px 16px; border-radius: 10px; color: #805b1f; }
