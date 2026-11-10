@@ -24,6 +24,7 @@ from PIL import Image, ImageOps
 
 from artemis.utils.visual_cache_guards import has_local_target, local_guard, structure_key
 from artemis.utils.visual_cache_storage import CacheStorage
+from artemis.utils.visual_cache_candidates import rank_candidates
 from artemis.utils.visual_cache_regions import region_for_location, region_miss_reason
 from artemis.utils.visual_cache_failures import record_failure, prune_failures
 
@@ -441,6 +442,67 @@ class VisualLocationCache(CacheStorage):
         columns = [c[0] for c in cursor.description]
         return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
+    def _candidate_hints(self, db, scope, query):
+        """Return at most five locally verified inventory hints, never resolved targets.
+
+        ``db`` is the caller-owned SQLite connection; ``scope`` contains the
+        current frame and ownership; ``query`` is the original locating request.
+        Only the newest 256 records in this device/app/Activity are considered.
+        Existing local guards and a unique live clickable node must agree;
+        changed controls and point-only detections cannot supply hints.
+        Text similarity ranks suggestions only and never increments hit counters.
+        """
+        if not scope.activity or not scope.structure_key or scope.image is None:
+            return []
+        cursor = db.execute(
+            """SELECT * FROM locations WHERE device_key=? AND application=?
+            AND activity=? AND inventoried=1 ORDER BY recency DESC LIMIT 256""",
+            (scope.device_key, scope.application, scope.activity),
+        )
+        # Validate only text-relevant controls, then deduplicate identical geometry.
+        names = [column[0] for column in cursor.description]
+        verified = []
+        seen = set()
+        for values in cursor:
+            row = dict(zip(names, values, strict=True))
+            value = json.loads(row["location"])
+            if not rank_candidates(query, [value]) or not valid_location(value):
+                continue
+            identity = (tuple(value["coords"]), tuple(value.get("bounds", [])))
+            if identity in seen:
+                continue
+            if (
+                row["guard"]
+                and local_guard(scope, value) == row["guard"]
+                and has_local_target(scope, value)
+            ):
+                verified.append(value)
+                seen.add(identity)
+        return rank_candidates(query, verified)
+
+    def suggest(self, scope, queries):
+        """Read bounded hints for unresolved queries without hits, aliases or writes.
+
+        ``scope`` is the current captured frame and cache generation. ``queries``
+        contains original unresolved requests; the result maps each distinct query
+        to zero or more hints. Invalidated scope or storage errors return {}.
+        Callers must retain the original query and current screenshot for visual
+        confirmation. A hint is not a cache match or permission to click.
+        """
+        try:
+            with closing(self._connect()) as db:
+                # Keep the generation check and all advisory reads in one SQLite snapshot.
+                db.execute("BEGIN")
+                if not self._current(db, scope):
+                    return {}
+                return {
+                    query: self._candidate_hints(db, scope, query)
+                    for query in dict.fromkeys(queries)
+                }
+        except (OSError, sqlite3.Error, ValueError, TypeError):
+            logger.debug("Visual cache suggestions unavailable; keeping visual locating")
+            return {}
+
     def _lookup(
         self, db, scope, query, namespace, include_page, records, structural, page_exists=False
     ):
@@ -534,6 +596,15 @@ class VisualLocationCache(CacheStorage):
                     reason = "structure_unavailable"
                 else:
                     reason = "structure_changed"
+        if not matches and reason in {"page_missing", "target_missing"}:
+            # Distinguish a new phrasing from a cold snapshot without treating hints as hits.
+            if self._candidate_hints(db, scope, query):
+                reason = "target_alias_unmatched"
+            elif reason == "page_missing" and db.execute(
+                "SELECT 1 FROM locations WHERE device_key=? AND application=? LIMIT 1",
+                (scope.device_key, scope.application),
+            ).fetchone():
+                reason = "snapshot_missing"
         # Multiple snapshots with exactly the same result are one candidate.
         positions = {
             tuple(value.get("coords", [])) for _, value in matches if isinstance(value, dict)

@@ -53,6 +53,7 @@ from artemis.data_engine.trace import trace
 from artemis.graph.state import State
 from artemis.llm.google import is_gemini_model, strip_provider_prefix
 from artemis.utils.ocr_api import is_ocr_configured
+from artemis.utils.visual_cache_candidates import candidate_hint
 from artemis.utils.visual_location_cache import (
     cache_config_for_context,
     configured_cache,
@@ -467,6 +468,12 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
                     and cache_config_for_context(self.ctx).batch_prefetch
                     else None
                 )
+                # Hints are advisory context only; query/key and feedback bypass decisions stay unchanged.
+                suggestions = (
+                    await asyncio.to_thread(cache.suggest, scope, engine_query.split("|"))
+                    if cache and not self.location_cache_bypass else {}
+                )
+                hints = "".join(candidate_hint(target, items) for target, items in suggestions.items())
                 self.prefetch_page_elements = bool(lease)
                 started = time.perf_counter()
                 answer = None
@@ -474,7 +481,7 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
                     raw = await self._run_loop(
                         tier,
                         engine_query,
-                        context_feedback,
+                        context_feedback + hints,
                         screenshot_path,
                         state,
                         minimal_list,

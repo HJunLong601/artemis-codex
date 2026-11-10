@@ -109,6 +109,10 @@ export class VisualCacheComponent {
     bottom_navigation: '固定区域 · 底部导航栏', bottom_controls: '固定区域 · 底部固定控件区', top_toolbar: '固定区域 · 顶部工具栏', side_navigation: '固定区域 · 侧边导航' };
   readonly missNames: Record<string, string> = {
     page_missing: '无可复用页面记录（累计查询次数）', target_missing: '页面中无此目标', local_guard_failed: '局部校验不一致',
+    // 同应用已有其他快照，不将当前指纹缺失解释为首次访问业务页面。
+    snapshot_missing: '当前快照未缓存（同应用有其他快照）',
+    // 相似控件仅供后续确认，此分类不表示坐标已可安全复用。
+    target_alias_unmatched: '存在相似控件，描述尚未确认',
     ambiguous: '目标不唯一', invalid_location: '无效坐标', ignored_region: '位于忽略区域',
     stale_generation: '识别期间缓存已失效', region_guard_failed: '区域校验不一致', region_nodes_changed: '区域节点或控件状态变化', region_pixels_changed: '区域像素变化',
     region_layout_changed: '固定区域布局变化', region_unavailable: '无法确认固定区域',

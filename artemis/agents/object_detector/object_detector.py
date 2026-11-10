@@ -32,6 +32,7 @@ from artemis.utils.visual_location_cache import (
     scope_for_state,
 )
 from artemis.utils.visual_page_elements import inventory_instruction, page_name_instruction
+from artemis.utils.visual_cache_candidates import candidate_hint
 from third_party.mobile_use.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -50,6 +51,7 @@ async def _detect_single_label(
     inventory=None,
     inventory_timeout=None,
     page_metadata=None,
+    cache_candidates=None,
 ) -> list[dict]:
     if timeout_val is None:
         timeout_val = float(os.environ.get("OBJECT_DETECTOR_TIMEOUT", "10.0"))
@@ -58,6 +60,8 @@ async def _detect_single_label(
 
     for i, template in enumerate(templates):
         prompt = template.replace("{labels_str}", label)
+        # Suggestions do not resolve the query: the original screenshot remains authoritative.
+        prompt += candidate_hint(label, cache_candidates or [])
         collecting = inventory is not None and i == 0
         if collecting:
             prompt += inventory_instruction() + (
@@ -221,6 +225,11 @@ async def _run_object_detection(
     else:
         timeout_val = float(os.environ.get("OBJECT_DETECTOR_TIMEOUT", "10.0"))
 
+    # Retrieve suggestions only after exact/structural matching misses. No extra model call.
+    suggestions = (
+        await asyncio.to_thread(cache.suggest, cache_scope, queries)
+        if cache and not bypass_cache else {}
+    )
     lease = (
         await asyncio.to_thread(cache.claim_page_elements, cache_scope)
         if cache and not bypass_cache and cache_config_for_context(ctx).batch_prefetch
@@ -246,6 +255,7 @@ async def _run_object_detection(
                 inventory=inventory if index == 0 else None,
                 inventory_timeout=inventory_timeout,
                 page_metadata=page_metadata if index == 0 else None,
+                cache_candidates=suggestions.get(query, []),
             )
         )
         for index, query in enumerate(queries)

@@ -6,6 +6,14 @@ Locating follows **ADB/UI hierarchy → local visual location cache → image OC
 
 The dashboard groups by device, package and Activity, retaining a searchable name for each fingerprint. Names inferred during visual locating are display metadata, never part of cache identity or extra entries. Missing names and placeholders such as `unknown page` or `unknow page` display the Activity basename and fingerprint prefix, falling back to the package and prefix, with an unnamed indicator. Multi-page groups show the Activity/package and page count. Placeholder values cannot overwrite valid names. Legacy placeholders are hidden on read without migrating the database, and naming never triggers separate model requests.
 
+## Lookup flow and similar-name hints
+
+The flow is **XML/UI-tree locating → exact-page, structural, fixed-region and local-guard checks → similar-name hints → the existing visual model confirms → write back under the original query**. Reliable earlier results return immediately; only unresolved targets continue. Flash clicks made directly from an element index or coordinates do not query this visual-location cache. Model prompt/token caching is a separate mechanism with separate statistics.
+
+Similar names supply hints only. The cache inspects at most the newest 256 inventoried records for the same device, application and Activity. Entries must pass the existing local visual guard and unique-live-clickable-target checks; after deduplication, at most five candidates accompany the current screenshot and **original query** in the visual-model request that would already run. No extra model call is added. A hint is not a cache hit or permission to click, and does not increment hit counts or write aliases; the model can reject it. Only successful normal visual locating writes the result under the original query and existing write guards.
+
+Miss reasons distinguish `snapshot_missing` (the current snapshot has no record, while this device/application has other snapshots) from `target_alias_unmatched` (a similar inventoried control passes the guards, but the original description is not confirmed). Other snapshots do not prove that this business page was learned. Historical `page_missing` records and cumulative counters remain unchanged; they are not reconstructed or reclassified, and suggestions are not counted as hits.
+
 ## Learning and capacity
 
 On visual lookup, Flash and Pro/Ultra collect up to 20 common visible controls in the same request: name, up to three initial aliases, type, bounds and coordinates. This can increase output tokens and response latency without adding a separate inventory request. Only unique exact normalized names/aliases are reused. On-demand results sharing the same bounds, or a name and a point inside existing bounds, merge with the existing element.
