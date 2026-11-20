@@ -1,5 +1,7 @@
 # macOS 运行说明
 
+[English](./macos-support_EN.md)
+
 Artemis 的标准运行路径支持 Apple Silicon（arm64）和 Intel（x86_64）Mac。Web 控制台、
 Python 服务、Codex App Server、ADB 和 scrcpy 都没有依赖 Windows 专属组件；正常使用
 不需要完整的 Xcode 或 Android Studio。Homebrew 首次安装时可能会触发 Apple Command

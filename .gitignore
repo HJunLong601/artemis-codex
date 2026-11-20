@@ -125,3 +125,8 @@ artifacts/visual-location-cache/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Local development plans, design notes, and acceptance reports
+/docs/superpowers/
+/docs/codex-provider-extraction-plan.md
+/docs/model-call-performance.md

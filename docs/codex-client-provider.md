@@ -1,7 +1,6 @@
 # Codex 客户端 Provider（零 API Key）
 
-> 架构分层、已执行的拆分内容和独立仓库路线见
-> [Codex Provider 分层与独立仓库计划](./codex-provider-extraction-plan.md)。
+[English](./codex-client-provider_EN.md)
 
 通用适配层已经独立发布：
 [GitHub 中文说明](https://github.com/HJunLong601/codex-client-provider/blob/main/README_CN.md) ·
@@ -97,7 +96,7 @@ $env:ARTEMIS_CODEX_IMAGE_WEBP_QUALITY = "70"
 
 设置 `ARTEMIS_CODEX_IMAGE_PREPROCESSING=0` 并重启，或构造
 `CodexAppServerChatModel(..., image_preprocessing_enabled=False)` 可恢复通用图片策略，
-也用于格式/原尺寸基准对照。图片输入对比见 [2026-10-10 原始基准数据](./benchmarks/image-input-2026-10-10.json)，调用耗时与样本限制见 [耗时记录](./model-call-performance.md)。
+也用于格式/原尺寸基准对照。图片输入对比见 [2026-10-10 原始基准数据](./benchmarks/image-input-2026-10-10.json)。
 
 ## 哪些功能还可能需要 Key
 
@@ -149,11 +148,6 @@ $env:ARTEMIS_CODEX_IMAGE_WEBP_QUALITY = "70"
 
 任务模型预检会在手机操作前通过 App Server 核对认证；未登录时提示返回此入口。
 `model/list` 可返回目录不等于已获得模型推理权限。
-
-2026-10-22 已在本机通过后台“验证实际推理”，并从 **Run Task** 使用 Android 16
-三星真机完成 Notta「首页 → 我的 → 首页」两次点击，生成并成功解码任务录屏。
-这验证了已有登录态下的后台推理与设备执行；未为测试退出用户账号，因此不代表
-真实未登录网页授权、其他系统凭据库或长时间任务均已完成端到端验证。
 
 CLI、MCP、SDK 和后台就绪检查统一使用 `account/read`，包括官方声明的无需认证
 模式，不再额外用 CLI 登录状态拦截。通用就绪检查仅缓存成功结果 3 秒，失败结果

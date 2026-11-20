@@ -1,5 +1,7 @@
 # 安全探索与持续页面学习
 
+[English](./cache-exploration_EN.md)
+
 在页面缓存后台 `/cache` 选择“配置新任务”，明确设备、已安装 App 和有限测试时长，并确认所选模型的截图与消费提示。步数、Token 默认选择“不限制”，也可分别设置上限。新功能与当前页预热、普通 Run Task 独立，首版只支持 Android，不自动选设备或跨 App。
 
 ## 配置与控制
@@ -55,8 +57,6 @@ adb -s SERIAL shell am start -n org.artemis.cachelab/.MainActivity
 ```
 
 将 `SERIAL` 替换为明确选择的验证设备；只在准备测试时安装。后台选择该 App，配置时长/可选限额并确认模型使用后验证。新签名与旧夹具冲突时需先移除旧测试夹具；不要卸载真实业务 App。夹具自定义 Back 会回到 Home，若落点与探索栈预期不同应暂停，不能为跑满时间而放开该保护。
-
-本次真实验证已覆盖后台启动、实际模型用量、页面学习、正常暂停结算、同任务继续、预算结束、缓存实际查询命中；完整结果与边界见 [验收记录](./superpowers/reports/2026-10-27-safe-monkey-learning-acceptance-report.md)。受控测试不代替真机证据；特定业务 App 的覆盖率、复杂滑动、动态登录态和长期体验仍应在明确目标和预算下自行验证。
 
 ![真实累计预算卡片，已裁去设备和任务标识](assets/cache-exploration-budgets.png)
 

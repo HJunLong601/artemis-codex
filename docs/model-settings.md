@@ -1,5 +1,7 @@
 # 后台可视化模型配置
 
+[English](./model-settings_EN.md)
+
 在后台顶部导航选择“模型配置”，或打开本机后台的 `/settings/models`。主页设置引导和缓存探索区域也提供链接。可视化编辑与手动编辑使用同一份有效配置，不额外引入一套数据库配置。
 
 ## 模型与角色
@@ -32,14 +34,8 @@ API Key 支持 Google、OpenAI、Anthropic、OpenRouter、xAI 和 OCR。页面�
 
 Vertex AI 的 ADC、自定义服务地址 `OPENAI_BASE_URL`、其他环境与代理参数沿用已有配置方式，本页首版不修改它们。自定义地址用户在验证 Key 前应确认现有地址指向预期服务。
 
-## 验证
-
-相关后端测试：`tests/unit/admin_console/test_model_settings.py`；前端测试：`apps/showcase_ui/src/app/pages/model-settings/model-settings.component.spec.ts`。覆盖字段局部更新、继承恢复、原配置保留、版本冲突、本机权限边界、密钥错误脱敏以及保存失败清理等情况。
-
-2026-10-27 验证：相关 Python 回归 330 项通过、2 项跳过，前端 219 项通过，生产构建及 Ruff 检查通过。本机后台实际页面完成超时参数 180 → 181 → 180 的保存回读，最终配置文件与验证前逐字节一致。已有无关本地文件保持不变。凭证写入和异常流程使用临时文件及受控验证接口测试，没有向外发送新的真实 Key；本轮也没有额外执行付费模型推理。
+## 界面示例
 
 ![默认模型和备用模型的可视化配置](assets/model-settings.png)
-
-Codex 下拉选择补充验证：本机客户端实际返回 8 个可见模型；页面已验证下拉切换、手动输入和未列出模型保留，验证后恢复原草稿且未保存配置变更。相关后端与预检测试 39 项通过，前端全量 222 项通过，生产构建通过。本次目录验证没有触发模型推理。
 
 ![Codex 模型下拉选择](assets/codex-model-picker.png)

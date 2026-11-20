@@ -70,7 +70,7 @@ Run `.\start.bat` in Windows PowerShell or `./start.sh` on macOS or Linux. Follo
 | [Wi-Fi ADB](#wifi-adb) | Switch an authorized USB phone to Wi-Fi or use a pairing code on Android 11 and later. |
 | [Page cache and learning](#visual-location-cache) | Let ARTEMIS remember control positions and reuse them when it returns to a page. |
 | [Android devices](./docs/testing.md#android-emulator-without-a-physical-device) | Prefer an idle phone or discover and start an installed emulator. |
-| [iOS devices](./docs/macos-support.md#ios-devices) | Control iOS Simulator on a Mac. Paired iPhones support screen mirroring and recording. Automated taps on physical iPhones still await verification. |
+| [iOS devices](./docs/macos-support_EN.md#ios-devices) | Control iOS Simulator on a Mac. Paired iPhones support screen mirroring and recording. Automated taps on physical iPhones still await verification. |
 
 <a id="fork-showcase"></a>
 <a id="fork-guide"></a>
@@ -99,7 +99,7 @@ Choose **Auto-connect Wi-Fi ADB** for a phone already authorized over USB. The s
 
 ### Model settings
 
-Choose a default and a fallback model, or assign a model to a particular role. [Model settings guide](./docs/model-settings.md) · [Codex sign-in](./docs/codex-client-provider.md)
+Choose a default and a fallback model, or assign a model to a particular role. [Model settings guide](./docs/model-settings_EN.md) · [Codex sign-in](./docs/codex-client-provider_EN.md)
 
 <p align="center">
   <img src="./docs/assets/model-settings.png" alt="Console settings for the primary and fallback models" width="360" />
@@ -110,7 +110,7 @@ Choose a default and a fallback model, or assign a model to a particular role. [
 
 ### Page cache and learning
 
-Open **Page Cache** to see learned controls, warm the current page, or explore an Android app for a set time. [Cache guide](./docs/visual-location-cache.md) · [App exploration guide](./docs/cache-exploration.md)
+Open **Page Cache** to see learned controls, warm the current page, or explore an Android app for a set time. [Cache guide](./docs/visual-location-cache.md) · [App exploration guide](./docs/cache-exploration_EN.md)
 
 ![Page cache flow: warmup and exploration learn control positions. Visual targeting reuses a matching position or locates the control in the screenshot and saves reusable results.](./docs/assets/page-cache-flow-en.png)
 
