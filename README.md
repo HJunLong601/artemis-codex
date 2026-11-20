@@ -10,13 +10,7 @@
   <a href="./README.md"><b>English</b></a> •
   <a href="./README_CN.md">中文文档</a> •
   <a href="#workflow-showcase">Workflow Showcase</a> •
-  <a href="#fork-features">Fork Features</a> •
-  <a href="#model-configuration">Model Configuration</a> •
-  <a href="#console-language">Console Language</a> •
-  <a href="#visual-location-cache">Cache Dashboard</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#device-selection">Device Selection</a> •
-  <a href="#ios-simulator">iOS Support</a> •
+  <a href="#fork-quick-start">Quick Start</a> •
   <a href="#mcp-setup">MCP for IDEs</a> •
   <a href="#benchmarks">Benchmarks</a> •
   <a href="https://discord.gg/wF2FN4WHGY">Discord Community</a>
@@ -26,26 +20,115 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-3776AB.svg?logo=python&logoColor=white" alt="Python 3.12+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Native%20Server-8A2BE2.svg" alt="MCP Native"></a>
-  <a href="./docs/codex-client-provider.md"><img src="https://img.shields.io/badge/Default-Codex%20Client%20%7C%20No%20API%20Key-111827.svg" alt="Codex client without API key"></a>
   <a href="https://ai.google.dev/"><img src="https://img.shields.io/badge/Multimodal-Gemini%20%7C%20Claude%20%7C%20GPT--4o%20%7C%20Qwen--VL-4285F4.svg" alt="Multi-Model"></a>
   <a href="https://github.com/google-research/android_world"><img src="https://img.shields.io/badge/AndroidWorld-99%25%2B%20SOTA-success.svg" alt="AndroidWorld SOTA"></a>
 </p>
 
+# ARTEMIS Codex · Codex sign-in, Wi-Fi ADB, and page caching
+
+This community fork of [google/artemis](https://github.com/google/artemis) lets your agent operate a phone using your local Codex sign-in.
+
+**This fork** · [Quick start](#fork-quick-start) · [Fork features](#fork-features) · [Screenshots](#fork-showcase) · [Original upstream README](#upstream-readme)
+
+<a id="fork-quick-start"></a>
+
+## Quick Start for ARTEMIS Codex
+
+<a id="agent-install"></a>
+
+**Copy this prompt to an AI agent with access to your terminal.**
+
+```text
+Install ARTEMIS Codex from https://github.com/HJunLong601/artemis-codex.
+Run the repository's startup script for my OS, use my local Codex sign-in, and configure ARTEMIS MCP for my current AI tool.
+Merge mcp_server/rules.md into the tool's global instructions, preserve existing rules, and add this convention:
+“Use ARTEMIS when a task requires connecting to or operating a phone. Verify interactions on the target device before writing mobile tests.”
+Run uv run artemis doctor and tell me the console URL, which global configuration file you updated, and how to reload MCP.
+```
+
+**Manual installation**
+
+```sh
+git clone https://github.com/HJunLong601/artemis-codex.git
+cd artemis-codex
+```
+
+Run `.\start.bat` in Windows PowerShell or `./start.sh` on macOS or Linux. Follow the prompts for Codex sign-in and phone authorization.
+
+**Default local port `8000`** · Web console [http://localhost:8000](http://localhost:8000) · Admin debug console [http://localhost:8000/admin](http://localhost:8000/admin)
+
+<a id="device-selection"></a>
+<a id="ios-simulator"></a>
 <a id="fork-features"></a>
 <a id="codex-client-integration"></a>
-## Fork Additions and Enhancements
 
-> [!NOTE]
-> This repository is a community fork of [google/artemis](https://github.com/google/artemis), retaining upstream authorship and the Apache 2.0 license. The table below covers this fork's extensions; the later highlights, Flash/Pro profiles, and AndroidWorld results describe ARTEMIS's general capabilities.
+## Fork Features
 
-| Area | Main capabilities |
+| Feature | What you can do |
 |---|---|
-| **Codex integration** | Reuse the local ChatGPT login for core workflows without a separate model API key. Prefer the desktop client's bundled Codex and configure models by role. [Setup and configuration](#model-configuration) |
-| **Console and page learning** | English/Chinese UI with remembered language preferences, visual model settings and a local Codex model picker, current-page warmup, and budgeted safe Monkey exploration. [Languages](#console-language) · [Models](#model-configuration) · [Page learning](#visual-location-cache) |
-| **Cache and runtime improvements** | Reuse visual positions to reduce repeated locating, with dashboard search, failure cases, and estimated savings; add image compression, deferred Flash summaries, and capture/history loading improvements. [Cache guide](#visual-location-cache) · [Timing records](./docs/model-call-performance.md) |
-| **Platforms and devices** | Shared Windows/macOS/Linux setup and diagnostics, physical-first selection, AVD discovery and reuse, plus iOS Simulator and physical-device drivers. Live automated iPhone tap acceptance remains pending. [Setup](#quick-start) · [Devices](#device-selection) · [iOS](#ios-simulator) |
+| [Codex sign-in](#model-configuration) | Use your local Codex account to operate a phone. Core workflows need no separate API key. |
+| [Wi-Fi ADB](#wifi-adb) | Switch an authorized USB phone to Wi-Fi or use a pairing code on Android 11 and later. |
+| [Page cache and learning](#visual-location-cache) | Let ARTEMIS remember control positions and reuse them when it returns to a page. |
+| [Android devices](./docs/testing.md#android-emulator-without-a-physical-device) | Prefer an idle phone or discover and start an installed emulator. |
+| [iOS devices](./docs/macos-support.md#ios-devices) | Control iOS Simulator on a Mac. Paired iPhones support screen mirroring and recording. Automated taps on physical iPhones still await verification. |
 
-Codex requires a signed-in client with access to the selected models; cloud OCR and other API providers still need their own keys. Cache savings are estimates based on historical timings. Configuration and acceptance limits are detailed below and in the [provider guide](./docs/codex-client-provider.md).
+<a id="fork-showcase"></a>
+<a id="fork-guide"></a>
+
+## Screenshots
+
+### Web console
+
+Check your device, enter a task, and choose Flash or Pro from the home screen.
+
+<p align="center">
+  <img src="./docs/assets/fork-console-overview.png" alt="ARTEMIS Codex home with environment checks, task input, page cache and model settings" width="100%" />
+</p>
+
+<a id="wifi-adb"></a>
+
+### Wireless connections
+
+Choose **Auto-connect Wi-Fi ADB** for a phone already authorized over USB. The screenshot shows the pairing form for Android 11 and later. [Wireless connection guide](./docs/testing.md#wireless-adb-pairing-and-connection)
+
+<p align="center">
+  <img src="./docs/assets/wireless-adb-pairing.png" alt="Manual Wi-Fi ADB pairing: device IP, pairing port, code, and connection port" width="840" />
+</p>
+
+<a id="model-configuration"></a>
+
+### Model settings
+
+Choose a default and a fallback model, or assign a model to a particular role. [Model settings guide](./docs/model-settings.md) · [Codex sign-in](./docs/codex-client-provider.md)
+
+<p align="center">
+  <img src="./docs/assets/model-settings.png" alt="Console settings for the primary and fallback models" width="360" />
+  <img src="./docs/assets/codex-model-picker.png" alt="Model selection from the local Codex client" width="420" />
+</p>
+
+<a id="visual-location-cache"></a>
+
+### Page cache and learning
+
+Open **Page Cache** to see learned controls, warm the current page, or explore an Android app for a set time. [Cache guide](./docs/visual-location-cache.md) · [App exploration guide](./docs/cache-exploration.md)
+
+![Page cache flow: warmup and exploration learn control positions. Visual targeting reuses a matching position or locates the control in the screenshot and saves reusable results.](./docs/assets/page-cache-flow-en.png)
+
+<p align="center">
+  <img src="./docs/assets/visual-cache-dashboard.jpg" alt="Page cache overview, reuse metrics, and learning state" width="480" />
+  <img src="./docs/assets/cache-exploration-unlimited.png" alt="Exploration settings with time and optional action/Token budgets" width="320" />
+</p>
+
+---
+
+<a id="upstream-readme"></a>
+
+## Original upstream README
+
+The body of the [google/artemis README at `351ca84`](https://github.com/google/artemis/blob/351ca8422f7b5b54e80a9c1ce03a222e02415b6b/README.md) follows. Its installation commands target the upstream repository. To install this fork, use the [quick start above](#fork-quick-start).
+
+<details>
+<summary>Expand the upstream README</summary>
 
 <!-- Demo Showcase -->
 <p align="center">
@@ -99,20 +182,14 @@ Codex requires a signed-in client with access to the selected models; cloud OCR 
 ## Quick Start
 
 Ensure an Android device (with **USB Debugging** enabled) or emulator is connected. The one-click startup script will automatically:
-- **Install System Toolchains**: Detect and install ADB, scrcpy, FFmpeg, Codex CLI, Python (`uv`), Node.js, and project dependencies.
+- **Install System Toolchains**: Detect and auto-install ADB, scrcpy, FFmpeg, and Python (`uv`) dependencies.
 - **Mount Global MCP Server & AI Agent Rules**: Prompt to automatically install global MCP configurations and the **Artemis Mobile Testing Mindset (`rules.md`)** into your AI IDEs (**Antigravity**, **Cursor**, **Claude Code**, **Codex**, **Windsurf**, **VS Code**, **Cline/Roo**, **OpenClaw**).
-
-This fork defaults to the locally signed-in **Codex client**, preferring the desktop client's bundled Codex before the CLI on PATH. Follow the first-use prompt to run `codex login`. Artemis uses Codex App Server without an OpenAI API key. See [Codex client provider](./docs/codex-client-provider.md) and [macOS support](./docs/macos-support.md).
-
-The local console's **System Setup & Prerequisites → AI Model Setup** includes Codex authentication diagnostics, a browser sign-in link, cancellation, and an explicit inference check. It checks credentials accessible to the backend process—not the desktop's current conversation. Sign-in success, model inference, and real-device execution are separate checks. See [backend authentication](./docs/codex-client-provider.md#后台认证诊断与登录入口).
-
-CLI, MCP, SDK, and console readiness share the same App Server account check. A usable Codex connection is not blocked by a separate CLI-login check or unused API keys; credentials for other active providers and device safety checks still apply. Pending sign-in links survive a page refresh within the running backend's 10-minute window, with explicit failure, expiry, and retry states.
 
 ### macOS and Linux
 
 ```bash
 # 1. Clone repo & navigate to directory
-git clone https://github.com/HJunLong601/artemis-codex.git && cd artemis-codex
+git clone https://github.com/google/artemis.git && cd artemis
 
 # 2. One-click launch
 ./start.sh
@@ -122,8 +199,8 @@ git clone https://github.com/HJunLong601/artemis-codex.git && cd artemis-codex
 
 ```powershell
 # 1. Clone repo & navigate to directory
-git clone https://github.com/HJunLong601/artemis-codex.git
-cd artemis-codex
+git clone https://github.com/google/artemis.git
+cd artemis
 
 # 2. One-click launch
 .\start.bat
@@ -132,243 +209,6 @@ cd artemis-codex
 > PowerShell does not search the current directory for executable scripts by default, so use `.\start.bat` without a trailing `\`. In Command Prompt (CMD), use `start.bat` instead.
 
 > **Tip**: Opens `http://localhost:8000` in your default browser with a device connection wizard, live screen mirroring, prompt sandbox, and execution replays. You can also run directly from CLI: `uv run artemis run "Open Settings, find Battery and tell me current level" --profile flash`.
-
-### Refresh an Existing Global Installation
-
-From an up-to-date checkout, remove the previous global tool environment and install
-the current branch again:
-
-```bash
-git pull --ff-only origin main
-uv tool uninstall artemis
-uv tool install -e .
-artemis doctor
-```
-
-The installation resolves `codex-client-provider==0.1.0` from PyPI. Use
-`uv tool list` to confirm the global Artemis installation.
-
-<a id="device-selection"></a>
-## Device Selection and Android Emulators
-
-Automatic Android selection prefers idle physical devices, then idle emulators, and queues on a ready device when all are busy. Cross-platform registry selection without a platform prefers eligible physical devices, then Android emulators, then iOS Simulators. CLI/MCP tasks still default to Android when no platform is supplied. Pass an explicit serial when multiple devices are present.
-
-```dotenv
-# .env: automatic virtual-device discovery/selection, enabled by default
-ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
-# Optional AVD for standalone MCP tasks with no connected Android device
-# ARTEMIS_AVD_NAME=YOUR_INSTALLED_AVD
-```
-
-- Disabling discovery keeps connected emulators visible in inventory; explicit serial selection and manual diagnostics launches remain available.
-- SDK/AVD discovery uses explicit paths, Android environment variables, PATH, the SDK containing resolved ADB, and common directories. Relocated SDKs and custom AVD directories are supported through settings such as `ARTEMIS_EMULATOR_PATH`, `ANDROID_HOME`, and `ANDROID_AVD_HOME`.
-- Standalone MCP tasks with no connected device can reuse or boot a selected AVD. Without a configured name, automatic startup requires exactly one installed AVD. Multiple AVDs require a choice; never assume an AVD name or `emulator-5554`.
-- Use `mobile_diagnose(launch_avd="YOUR_INSTALLED_AVD")` to launch in the background or reuse a running instance of that name. Poll diagnostics without `launch_avd` until `emulator.status` is `ready`, then submit tasks with its actual serial. With the daemon scheduler, launch through diagnostics before submitting.
-- Readiness requires completed system boot and a working Android package service. Follow with `mobile_diagnose(device_serial="SERIAL", probe_device=true)` to check screenshots and UI hierarchy. AVD inventory uses a short cache with concurrent scan coalescing; explicit readiness refreshes clear it.
-
-Restart ARTEMIS/MCP after editing `.env`. See [device and emulator details](./docs/testing.md#android-emulator-without-a-physical-device) for selection, discovery, and acceptance steps.
-
-<a id="wifi-adb"></a>
-## Wi-Fi ADB: One-click USB Setup and Wireless Pairing
-
-Open **System Setup → Android Device & Emulator Connection → Change Connection → Wireless ADB** in the console.
-
-### Phone connected over USB: one-click Wi-Fi ADB
-
-1. Connect the phone and computer to the same reachable Wi-Fi network. Attach the phone over USB, enable USB debugging and authorize this computer on the phone.
-2. Click **Auto-connect Wi-Fi ADB**. No IP or pairing code is needed. One authorized USB phone connects directly; multiple phones require explicit selection.
-3. ARTEMIS reads the phone's actual Wi-Fi IPv4 address, enables TCP/IP debugging on port 5555, connects and matches the wireless hardware identity to the USB phone. Existing valid connections are verified and reused; busy source/target transports are not restarted.
-4. Wait for **“Wi-Fi ADB connected and verified. You can unplug USB.”** before unplugging. Select the wireless serial (`PHONE_IP:5555`) in the device list for tasks. When USB and Wi-Fi entries represent the same phone, select only one transport.
-
-Enabling TCP/IP restarts the phone’s adbd, so a brief USB disconnect is expected. The console continues verifying the wireless transport within a 20-second wait window; a lost USB command response does not immediately count as failure or trigger another adbd restart.
-
-This uses the host's discovered ADB tool and the phone's real address; Android 11 code pairing is not required for USB-assisted setup. Verified connections return immediately and background polling refreshes inventory without waiting for model credential checks. Local ADB mode is required. Use manual setup below if no authorized USB phone is available, a unique Wi-Fi address cannot be identified or the network is unreachable.
-
-### Switching and disconnecting devices
-
-Selecting a device shows **Switching...** until its transport is verified. Failures keep the previous selection and show an explanation. Confirmed offline or unauthorized wireless transports are disconnected and removed; temporarily unverifiable connections remain available for retry.
-
-The **Disconnect** button beside a wireless device removes only that ADB transport. It does not revoke the phone's pairing or authorization, affect other phones, or disconnect a transport running a task. USB phones disappear when unplugged; stop emulators using their controls.
-
-### No USB cable: Android 11+ manual pairing
-
-1. On the phone, open **Settings → Developer Options → Wireless debugging → Pair device with pairing code** and keep the dialog open.
-2. Enter the phone IP, the dialog's **pairing port**, and its six-digit code in the console, then click **Pair device**. Codes are cleared on submission and excluded from command arguments, responses and logs.
-3. After pairing, close the phone's pairing dialog. Enter the separate **connection port** shown on the Wireless debugging main screen and click **Connect**. Pairing establishes trust only; pairing and connection ports are not interchangeable.
-
-Already-paired phones can skip pairing. Devices with TCP/IP debugging already enabled can connect using their actual IP and port. Do not use an example IP as the phone's address or assume an Android 11+ dynamic connection port is 5555.
-
-### Turning off TCP/IP debugging and troubleshooting
-
-USB-assisted setup enables a TCP/IP debugging listener on port 5555. Use a trusted Wi-Fi network; the listener may remain enabled after a failed connection. Reconnect USB and run the following to restore USB debugging without restarting the workstation's entire ADB server:
-
-```sh
-adb devices -l
-adb -s YOUR_USB_SERIAL usb
-```
-
-Replace `YOUR_USB_SERIAL` with the USB serial from the device list. After a network change or phone reboot, check the actual IP and connection status again rather than assuming the previous connection still works.
-
-Android task screenshot, hierarchy and foreground reads retry transient transport failures up to three times, with a 12-second recovery window in addition to each read's own I/O timeout. Recovery reconnects only the selected wireless endpoint (including mDNS), without restarting the ADB server. Inputs check/recover the connection before dispatch; an uncertain tap or text entry is never automatically replayed.
-
-Safe Monkey skips cache learning on changing pages instead of pausing exploration. Navigation on a dynamic page requires matching current app/Activity, XML target identity and bounds, and unchanged pixels within the navigation controls before dispatch. Cache writes still require the original page to match; changed results are discarded and the next frame is observed.
-
-See [automatic USB-to-Wi-Fi setup and verification](./docs/testing.md#automatic-wi-fi-connection-from-usb) and [wireless pairing and connection](./docs/testing.md#wireless-adb-pairing-and-connection).
-
-<a id="console-language"></a>
-## Console Language
-
-The main Web console supports **English and Simplified Chinese**. On the first visit it follows the browser's primary language, which normally inherits the operating system preference: Chinese regional/script variants select Chinese; English, unsupported languages, or missing locale information select English.
-
-Use the language selector beside the navigation tabs to choose **English**, **中文**, or **System default**. Manual choices persist in this browser and synchronize across same-origin tabs. Switching updates the current page immediately and preserves unsaved edits; returning to System default clears the override. If browser storage is unavailable, the selection still works for the current page. Task goals, model replies, notes, raw logs and device/app/model names remain in their original language.
-
-After updating a source checkout, run `npm run build` in `apps/showcase_ui` and refresh the console. See the [front-end guide](./apps/showcase_ui/README.md#console-languages) for translation maintenance and tests.
-
-<a id="model-configuration"></a>
-## Model and Image Configuration
-
-Open **Model Settings** in the console navigation (`/settings/models`) to edit the default model, role overrides, fallback models and reasoning parameters, or configure provider API keys and Codex login. Changes apply to new tasks; restart external MCP sessions. [Visual configuration guide](./docs/model-settings.md).
-
-Codex model fields load a selectable catalog from the local client's `model/list`, with refresh and manual-input options. Models already configured but absent from the catalog are preserved. Listing a model does not verify your account's inference access; saving settings does not run paid inference.
-
-Manual editing of [`config/artemis.jsonc`](./config/artemis.jsonc) remains supported; restart ARTEMIS/MCP after manual changes. Keep model/runtime settings here and alternative provider credentials in the Git-ignored `.env`.
-
-| Key | Purpose |
-|---|---|
-| `default` | Main provider, model, reasoning effort, and fallback. The checked-in default is Codex `gpt-6.1-sol` / `low`, falling back to `gpt-6-luna`. |
-| `nodes` | Override roles such as Planner, Operator, Explorer, and Checker; unspecified fields inherit defaults. Lightweight summaries and history compression retain the Luna tier. |
-| `presets` | Named provider/model combinations. |
-| `agent.flash` / `agent.pro` | Profile behavior, including Explorer tiers and step summaries. |
-
-Source checkouts prefer this configuration over the bundled template at [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc). Use `ARTEMIS_ARTEMIS_JSONC` to select another existing file. Main, fallback, and role-specific models must match the selected provider.
-
-Model images default to proportional short-edge 720 / long-edge 1600 bounds, WebP quality 70, and a 768 KiB budget. Oversized images are resized further without upscaling small images. Original captures and coordinate dimensions remain unchanged. Environment variables, executable precedence, and adapter details live in the [Codex provider guide](./docs/codex-client-provider.md).
-
-Check the local environment:
-
-```bash
-codex login status
-adb devices -l
-uv run artemis doctor
-```
-
-<details>
-<summary>Acceptance record: key-free Android workflow, 2026-09-19</summary>
-
-The key-free Codex path was revalidated on 2026-09-19 against a connected Xiaomi
-Android device. A Pro run opened Xiaohongshu, searched for `秋日穿搭`, confirmed several
-matching results, and stayed on the results page without liking, saving, following,
-commenting, or publishing.
-
-| Capability | Result |
-|---|---|
-| Planner and Operator | Passed using the signed-in Codex client |
-| Screenshot understanding and step summaries | Passed through Codex image input |
-| Checkpoint and final Checker | 4/4 assertions passed |
-| Outputter report | Passed |
-| OpenAI, Google, Gemini, Anthropic, OpenRouter, xAI keys | Not configured |
-| Cloud OCR key | Not configured; Accessibility Helper, UI hierarchy, and Codex vision handled this task |
-
-Cloud OCR remains an optional external service and still requires `OCR_API_KEY` when
-explicitly enabled. It is not required for the default XML-plus-Codex-vision path.
-
-</details>
-
-<a id="visual-location-cache"></a>
-## Visual Location Cache and Dashboard
-
-The dashboard's **No reusable page record (cumulative target queries)** reason counts misses, not unique unlearned pages. The separate **post-learning revisit hit rate** counts subsequent visual target queries after successful learning in the same device/app/Activity/layout (exact page fingerprint without a layout), excluding initial cold queries, warmup requests and XML-only locating. New counters are not reconstructed from old data; misses after invalidation/eviction remain included.
-
-On `/cache`, explicitly select an idle authorized Android device and confirm screenshot/model usage to **warm the current page**. This observation-only operation learns up to 20 common controls using the configured visual model; it never taps, navigates, launches apps or traverses historical screenshots. Avoid sensitive pages and keep the screen unchanged. Busy devices, changed pages and learning cooldowns are rejected; already-complete pages skip inference. The request is bounded to 90 seconds with device-lock cleanup. Manual warmup requires caching enabled but does not require automatic `batch_prefetch`; iOS is not yet exposed here.
-
-Locating follows **ADB/UI hierarchy → local visual location cache → OCR/model**. Each device retains 10,000 positions by default. One visual request can learn up to 20 extra visible controls; multi-target queries send only unresolved targets to the model.
-
-Reuse supports exact pages, guarded local targets, and fixed regions. Device, app, Activity, dimensions, and target evidence must match; obstructions, moved targets, and ambiguity prevent reuse. Entries reuse positions; actions and result verification still use the normal execution flow.
-
-The Web console's **Page Cache / 页面缓存** (`/cache`) provides page/element search, learning state, hit rates, timings, failure cases, and single-page clearing. New time-savings estimates multiply hits by average visual locating duration for the same device/app, then subtract all cache lookup overhead. Missing samples display an unavailable estimate; this is not a measured reduction in total task time.
-
-Page names never participate in cache matching. Dashboard groups stay stable by device, package and Activity; unnamed pages show an Activity/package and fingerprint prefix. Candidate queries filter target and Activity before applying limits, reducing misses for older positions. Separate scope-admission skip counters do not affect cache miss rates.
-
-Choose **Configure task / 配置新任务 → Start exploration and learning / 开始探索并学习** on `/cache` to explore one Android app and learn visited pages. Explicitly select an authorized device and installed package and set a finite time budget (1–1440 minutes). **Actions and Tokens default to Unlimited / 不限制**, leaving time as the only budget; optionally disable Unlimited to set action (1–20000) or Token (1–10000000) limits. Confirm screenshot transmission/model usage. Exploration uses the configured `operator`; learning uses `utils.object_detector`, without silently switching providers. Open the target app on the device first.
-
-Pause drains in-flight work and releases the device; resume reobserves the screen and preserves cumulative budgets. Stop is terminal and retains the cache/report. Closing the browser does not stop the task; backend restarts never automatically restart exploration. Only verified navigation, scrolling and Back are available; deletion, sending, sharing, purchasing, recording and account changes are excluded. Unknown semantics and sensitive/out-of-app states are skipped or paused. This learns stable pages actually visited, not every page in the app; XML-locatable pages still receive learning checks, and complete compatible inventories avoid another learning call.
-
-All exploration/learning calls count toward usage, even when limits are disabled. With a Token limit, insufficient reserved capacity prevents another request, but an in-flight request can exceed it; this is not a billing hard cap. Unlimited can continuously consume model quota during the configured time. Unknown usage pauses the task rather than becoming zero. Task progress/reports stay in `cache-exploration.sqlite3` in the local application data directory. Full-session video, original page screenshots and complete model replies are not additionally retained by default. See the [usage and verification guide](./docs/cache-exploration.md).
-
-<p align="center"><img src="./docs/assets/cache-exploration-budgets.png" alt="Cumulative time, actions and Token budgets from real-device acceptance; device and task identifiers excluded" width="900" /></p>
-
-<p align="center"><img src="./docs/assets/cache-exploration-unlimited.png" alt="Time-only defaults with independently selectable unlimited actions and Tokens" width="400" /></p>
-
-Only position metadata and fingerprints are stored locally, with no screenshots or full model responses. Configure the cache in `config/artemis.jsonc`:
-
-```jsonc
-{
-  "agent": {
-    "visual_location_cache": {
-      "enabled": true,
-      "batch_prefetch": true,
-      "capacity_per_device": 10000
-    }
-  }
-}
-```
-
-See the [cache guide](./docs/visual-location-cache.md) for limits, legacy variable migration, database paths, reuse guards, and metric definitions.
-
-<details>
-<summary>Cache dashboard example</summary>
-
-<p align="center">
-  <img src="./docs/assets/visual-cache-dashboard.jpg" alt="ARTEMIS cache dashboard: overview, metrics, and learning state" width="640" />
-</p>
-
-Device identifiers, business app names, and local paths are excluded. Values illustrate the interface and are not benchmark results.
-
-</details>
-
-<a id="ios-simulator"></a>
-## iOS Support (macOS)
-
-The fully validated ARTEMIS iOS target is an **iOS Simulator**. This path requires a Mac with full Xcode, an installed iOS Simulator runtime, Node.js/npm, Appium 3, and a compatible XCUITest driver. The default Android startup path is unchanged. Opt in with `./start.sh --with-ios` or `bash scripts/install_deps.sh --with-ios` to install missing Node.js/Appium/XCUITest components; Xcode and the iOS runtime still require manual installation. Run `bash scripts/setup_ios.sh --check` for a read-only prerequisite check. See the [XCUITest driver compatibility requirements](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/system-requirements/).
-
-```bash
-xcodebuild -version
-xcrun simctl list runtimes
-npm install -g appium@3
-appium driver install xcuitest
-appium driver doctor xcuitest
-xcrun simctl list devices available
-
-# Replace YOUR_SIMULATOR_UDID with a simulator ID from the list above.
-# Boot it only if it is not already booted.
-xcrun simctl boot YOUR_SIMULATOR_UDID
-xcrun simctl bootstatus YOUR_SIMULATOR_UDID -b
-uv run artemis run "Open Settings > General > About and report the iOS version" --profile flash --platform ios --device-serial ios:YOUR_SIMULATOR_UDID
-```
-
-The CLI also accepts an unprefixed simulator ID with `--platform ios`. MCP callers can select the same device with `device_platform="ios"` and `device_serial="ios:YOUR_SIMULATOR_UDID"` in `mobile_run_task`, `mobile_get_device_state`, or `mobile_diagnose`; use `mobile_diagnose` with `probe_device=true` to check a real XCUITest screenshot and UI hierarchy. ARTEMIS manages a local Appium service for the session. Android remains the default platform when none is specified, and the Android Accessibility Helper/ADB setup below does not apply to iOS. After updating a previously installed MCP server, reinstall/reload it so the `device_platform` parameter is available; an older server can still expose Android-only tools.
-
-### Physical iPhone: Device Hub first
-
-ARTEMIS discovers paired physical iPhones through `devicectl` and accepts `ios:YOUR_PHYSICAL_UDID` in CLI/MCP. On Xcode 27 or newer, physical iPhones now default to the **Device Hub** driver: CoreDevice captures the device screen, launches apps, and records video; a bundled Swift bridge matches the live screenshot to the visible Device Hub canvas and sends pointer gestures. This path does **not** install WebDriverAgent, require an Apple Developer Team, or require a signing certificate. The iPhone must trust/pair with the Mac and have Developer Mode enabled. [Open Device Hub](https://developer.apple.com/documentation/xcode/interacting-with-your-app-in-the-ios-or-ipados-simulator), select that iPhone, then click **View Screen**. Grant the ARTEMIS host process (Terminal/IDE) macOS **Accessibility** and **Screen Recording** permissions; these are user-managed system permissions, not modified by setup scripts.
-
-Run `bash scripts/setup_ios.sh --device-hub` for a read-only physical-device prerequisite check, then `mobile_diagnose(device_platform="ios", device_serial="ios:YOUR_PHYSICAL_UDID", probe_device=true)` for a live screenshot/window-calibration probe. The driver fails closed if the selected window or screenshot cannot be matched. Device Hub offers visual/coordinate actions, not an iOS accessibility hierarchy; element locators, text entry, and some system actions remain unavailable in this path. It also requires a visible, unlocked Device Hub window and is not headless. The Swift bridge is built locally on first use from repository source; the user does **not** compile or install an iPhone app.
-
-```bash
-uv run artemis run "Open Settings and report the iOS version" --profile flash --platform ios --device-serial ios:YOUR_PHYSICAL_UDID
-```
-
-For a physical iPhone only, opt in to the Appium/XCUITest fallback when UI hierarchy, text entry, or headless operation is required. This path still requires WDA signing, an Apple Developer Team, a valid **Apple Development** identity, and a matching WDA provisioning profile. Set these values only in the Git-ignored `.env` when authorized (the WDA bundle ID must be covered by the profile):
-
-```dotenv
-ARTEMIS_IOS_PHYSICAL_DRIVER=appium
-ARTEMIS_IOS_XCODE_ORG_ID=YOUR_TEAM_ID
-ARTEMIS_IOS_XCODE_SIGNING_ID=Apple Development
-ARTEMIS_IOS_WDA_BUNDLE_ID=com.example.WebDriverAgentRunner
-# ARTEMIS_IOS_SHOW_XCODE_LOG=true  # local troubleshooting only
-```
-
-The default driver can also be made explicit with `ARTEMIS_IOS_PHYSICAL_DRIVER=device-hub`. The `--with-ios` installer and `setup_ios.sh --check` still prepare the Simulator/Appium path; neither is needed to install WDA for Device Hub. See Appium's [real-device preparation](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/device-setup/) and [provisioning setup](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/provisioning-profile/) only for the fallback. Manual interaction through Device Hub was previously verified on a physical iPhone; the Appium/WDA path failed on a host without a valid signing identity. The new automated Device Hub bridge has unit and compile checks, but a live automated tap has not yet been accepted. Keep personal screenshots in Git-ignored `artifacts/ios/`, not in the open-source repository.
 
 <a id="mcp-setup"></a>
 <a id="mcp"></a>
@@ -475,7 +315,7 @@ Install the zero-runtime-dependency client on the development machine. ADB,
 agents, models, and image processing remain on the device host:
 
 ```powershell
-uv add "artemis-client @ git+https://github.com/HJunLong601/artemis-codex.git#subdirectory=packages/artemis-client"
+uv add "artemis-client @ git+https://github.com/google/artemis.git#subdirectory=packages/artemis-client"
 ```
 
 ```python
@@ -501,8 +341,6 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
-
-For an iOS Simulator, set `device_serial="ios:YOUR_SIMULATOR_UDID"` in the SDK client. The host must have the iOS prerequisites described [above](#ios-simulator).
 
 </details>
 
@@ -568,8 +406,7 @@ ARTEMIS supports two execution profiles tailored for different automation requir
 ## Roadmap
 
 - [ ] **Android Studio Integration**: Native IDE plugin and workflow integration to enable in-editor debugging, test recording, and automated device control directly within Android Studio.
-- [x] **iOS Simulator Support**: Simulator discovery and Appium/XCUITest-based control are implemented and locally validated.
-- [ ] **Physical iOS Device Support**: Device Hub is the default implementation with visual gestures, CoreDevice capture/launch/recording, and safety calibration; live automated tap acceptance is pending. Appium/WDA is an opt-in fallback requiring signing.
+- [ ] **iOS Platform Expansion**: Extending multimodal perception and mobile automation to iOS devices and simulators.
 - [ ] **On-Device Lightweight VLMs**: Local execution with lightweight edge vision models for low-latency, privacy-first automation.
 - [ ] **Real-time Duplex Voice Interaction**: Voice-driven task dispatch with real-time conversational control and interruption handling.
 
@@ -578,17 +415,16 @@ ARTEMIS supports two execution profiles tailored for different automation requir
 Contributions are warmly welcomed!
 * **Star the repo** to follow updates and releases
 * Join the [Discord Community](https://discord.gg/wF2FN4WHGY) for technical discussions
-* Open an [Issue](https://github.com/HJunLong601/artemis-codex/issues) or submit a [Pull Request](https://github.com/HJunLong601/artemis-codex/pulls) to this fork
-* Follow the [upstream google/artemis project](https://github.com/google/artemis) for the original project roadmap and releases
+* Open an [Issue](https://github.com/google/artemis/issues) or submit a [Pull Request](https://github.com/google/artemis/pulls)
 
 ## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
-
-This repository is based on [google/artemis](https://github.com/google/artemis) and includes source code developed by [Minitap, Inc.](https://github.com/minitap-ai/mobile-use). Original copyright and license notices are retained.
 
 ### Third-party code
 
 Code not owned by Google lives under [`third_party/`](third_party/), one directory per upstream project, each with its own `LICENSE` and `METADATA`.
 
 - [`third_party/mobile_use`](third_party/mobile_use/) – portions of [mobile-use](https://github.com/minitap-ai/mobile-use) by Minitap, Inc., Apache License 2.0.
+
+</details>

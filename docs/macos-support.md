@@ -5,11 +5,7 @@ Python 服务、Codex App Server、ADB 和 scrcpy 都没有依赖 Windows 专属
 不需要完整的 Xcode 或 Android Studio。Homebrew 首次安装时可能会触发 Apple Command
 Line Tools 的系统安装提示。
 
-iOS 是例外：模拟器和真机 XCUITest 自动化需要完整 Xcode、匹配的 iOS Runtime、
-Appium 3 与 XCUITest Driver。可显式运行 `./start.sh --with-ios` 安装缺失的
-Node.js/Appium/XCUITest，或运行 `bash scripts/setup_ios.sh --check` 只读检查；
-Xcode/Runtime 和真机签名仍需用户自行配置。详细步骤与真机验收边界见
-[README 中文版的 iOS 章节](../README_CN.md#ios-simulator)。
+控制 iOS 设备需要完整 Xcode。模拟器与真机的准备步骤见下方的 [iOS 设备配置](#ios-devices)。
 
 ## 首次运行
 
@@ -43,6 +39,38 @@ Artemis 不读取或复制认证令牌。
 - macOS 不需要安装手机厂商的 Windows USB 驱动。
 - 无线调试要求 Mac 和手机网络可达；有线 USB 是首次验证最直接的方式。
 - Artemis 会在首次需要时安装随项目提供的 Accessibility Helper APK，用户仍需在手机设置中启用对应无障碍服务。
+
+<a id="ios-devices"></a>
+
+## iOS 设备配置
+
+### iOS 模拟器
+
+在 Xcode 安装目标 iOS Simulator Runtime，然后运行 `./start.sh --with-ios` 准备 Appium 3 和兼容的 XCUITest Driver。用 `bash scripts/setup_ios.sh --check` 检查依赖。启动模拟器后，可按它的 UDID 运行任务。
+
+```bash
+xcrun simctl list devices available
+uv run artemis run "打开设置，查看 iOS 版本" --profile flash --platform ios --device-serial ios:YOUR_SIMULATOR_UDID
+```
+
+将示例中的 UDID 换成列表里的目标设备。使用 MCP 时指定 `device_platform="ios"` 与 `device_serial="ios:YOUR_SIMULATOR_UDID"`。Python SDK 同样可用这个序列号选择模拟器。
+
+### iPhone 真机
+
+在 Xcode 27 及以上，ARTEMIS 默认通过 Device Hub 获取画面、启动 App、录屏和执行坐标手势。这条路径需要保持投屏窗口可见，真机自动点击仍待验证。
+
+1. 在 iPhone 上信任并配对这台 Mac，开启开发者模式。
+2. 在 Xcode 的 Device Hub 中选中 iPhone 并点击 **View Screen**。在 macOS 系统设置中，给运行 ARTEMIS 的终端或 IDE 授予辅助功能和屏幕录制权限。[Apple 窗口操作说明](https://developer.apple.com/documentation/xcode/interacting-with-your-app-in-the-ios-or-ipados-simulator)
+3. 运行 `bash scripts/setup_ios.sh --device-hub` 检查依赖。用 `mobile_diagnose(device_platform="ios", device_serial="ios:YOUR_PHYSICAL_UDID", probe_device=true)` 检查截图与窗口匹配。
+
+需要控件层级、文本输入或无界面运行时，可切换到 Appium/XCUITest。先为 WebDriverAgent 准备开发签名和匹配的 Provisioning Profile，再将以下配置写入本机 `.env`。[Appium 真机准备](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/device-setup/) · [签名配置](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/provisioning-profile/)
+
+```dotenv
+ARTEMIS_IOS_PHYSICAL_DRIVER=appium
+ARTEMIS_IOS_XCODE_ORG_ID=YOUR_TEAM_ID
+ARTEMIS_IOS_XCODE_SIGNING_ID=Apple Development
+ARTEMIS_IOS_WDA_BUNDLE_ID=com.example.WebDriverAgentRunner
+```
 
 ## 已知阻碍
 

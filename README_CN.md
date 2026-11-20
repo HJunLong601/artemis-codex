@@ -10,13 +10,7 @@
   <a href="./README.md">English</a> •
   <a href="./README_CN.md"><b>中文文档</b></a> •
   <a href="#workflow-showcase">全流程演示</a> •
-  <a href="#fork-features">Fork 特性</a> •
-  <a href="#model-configuration">模型配置</a> •
-  <a href="#console-language">界面语言</a> •
-  <a href="#visual-location-cache">缓存后台</a> •
-  <a href="#quick-start">快速上手</a> •
-  <a href="#device-selection">设备选择</a> •
-  <a href="#ios-simulator">iOS 支持</a> •
+  <a href="#fork-quick-start">快速开始</a> •
   <a href="#mcp-setup">MCP 接入 IDE</a> •
   <a href="#benchmarks">基准评测</a> •
   <a href="https://discord.gg/wF2FN4WHGY">Discord 社区</a>
@@ -26,26 +20,115 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-3776AB.svg?logo=python&logoColor=white" alt="Python 3.12+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Native%20Server-8A2BE2.svg" alt="MCP Native"></a>
-  <a href="./docs/codex-client-provider.md"><img src="https://img.shields.io/badge/Default-Codex%20Client%20%7C%20No%20API%20Key-111827.svg" alt="无需 API Key 的 Codex 客户端"></a>
   <a href="https://ai.google.dev/"><img src="https://img.shields.io/badge/Multimodal-Gemini%20%7C%20Claude%20%7C%20GPT--4o%20%7C%20Qwen--VL-4285F4.svg" alt="Multi-Model"></a>
   <a href="https://github.com/google-research/android_world"><img src="https://img.shields.io/badge/AndroidWorld-99%25%2B%20SOTA-success.svg" alt="AndroidWorld SOTA"></a>
 </p>
 
+# ARTEMIS Codex · Codex 登录接入、Wi-Fi ADB 与页面缓存
+
+这是 [google/artemis](https://github.com/google/artemis) 的社区 fork。它让 Agent 复用本机 Codex 登录态，按你的指令操作手机。
+
+**本 Fork** · [快速开始](#fork-quick-start) · [本项目特性](#fork-features) · [功能截图](#fork-showcase) · [上游 README 原文](#upstream-readme)
+
+<a id="fork-quick-start"></a>
+
+## 快速开始
+
+<a id="agent-install"></a>
+
+**复制下面这段话，发给能在本机执行命令的 AI Agent。**
+
+```text
+请从 https://github.com/HJunLong601/artemis-codex 安装 ARTEMIS Codex。
+按本机系统运行仓库的启动脚本，复用我的 Codex 登录态，并为当前 AI 工具配置 ARTEMIS MCP。
+请将仓库的 mcp_server/rules.md 合并到当前工具的全局指令中，保留已有规则，并补充这条约定：
+“任务需要连接或操作手机时使用 ARTEMIS。编写移动端测试前，先在目标设备上验证交互路径。”
+完成后运行 uv run artemis doctor，告诉我控制台地址、更新了哪个全局配置文件，以及如何重载 MCP。
+```
+
+**手动安装**
+
+```sh
+git clone https://github.com/HJunLong601/artemis-codex.git
+cd artemis-codex
+```
+
+Windows PowerShell 运行 `.\start.bat`，macOS 或 Linux 运行 `./start.sh`。按提示完成 Codex 登录和手机授权。
+
+**本机默认端口 `8000`** · 控制台 [http://localhost:8000](http://localhost:8000) · 调试后台 [http://localhost:8000/admin](http://localhost:8000/admin)
+
+<a id="device-selection"></a>
+<a id="ios-simulator"></a>
 <a id="fork-features"></a>
 <a id="codex-client-integration"></a>
-## 本 Fork 的新增与增强
 
-> [!NOTE]
-> 本仓库是 [google/artemis](https://github.com/google/artemis) 的社区 Fork，保留上游作者署名与 Apache 2.0 许可证。下表集中介绍本 Fork 的扩展；后续核心亮点、Flash/Pro 与 AndroidWorld 介绍说明 ARTEMIS 的通用能力。
+## 本项目特性
 
-| 方向 | 主要能力 |
+| 功能 | 你可以做什么 |
 |---|---|
-| **Codex 接入** | 复用本机 ChatGPT 登录态，核心流程无需额外模型 API Key；优先使用桌面客户端内置 Codex，支持按角色配置模型。[接入与配置](#model-configuration) |
-| **控制台与页面学习** | 支持记忆语言偏好的中英文界面、可视化模型配置和本机 Codex 模型选择；提供当前页预热和按预算运行的安全 Monkey 探索。[界面语言](#console-language) · [模型配置](#model-configuration) · [页面学习](#visual-location-cache) |
-| **缓存与运行优化** | 视觉位置缓存减少重复定位，后台提供查询、失败案例和节省时间估算；结合图片压缩、Flash 延迟摘要及截图与历史加载优化。[缓存说明](#visual-location-cache) · [耗时记录](./docs/model-call-performance.md) |
-| **跨平台与设备支持** | 统一 Windows/macOS/Linux 安装与诊断，完善真机优先选择、AVD 发现与复用；扩展 iOS 模拟器和真机驱动，真机自动点击仍待验收。[安装](#quick-start) · [设备](#device-selection) · [iOS](#ios-simulator) |
+| [Codex 接入](#model-configuration) | 用本机已登录的 Codex 操作手机，核心流程无需另配 API Key。 |
+| [Wi-Fi ADB](#wifi-adb) | 将已授权的 USB 手机切换为无线连接，也可以在 Android 11 及以上用配对码连接。 |
+| [页面缓存与学习](#visual-location-cache) | 让 ARTEMIS 记住控件位置，下次回到同一页面时复用。 |
+| [Android 设备](./docs/testing.md#android-emulator-without-a-physical-device) | 优先使用空闲真机，也可发现并启动已安装的模拟器。 |
+| [iOS 设备](./docs/macos-support.md#ios-devices) | 在 Mac 上控制 iOS 模拟器。已配对的 iPhone 可投屏和录屏，真机自动点击仍待验证。 |
 
-Codex 需要已登录且可访问所选模型的客户端；云 OCR 和其他 API Provider 仍需各自的 Key。缓存节省时间为历史耗时估算。详细配置与验收边界见下文及 [Provider 文档](./docs/codex-client-provider.md)。
+<a id="fork-showcase"></a>
+<a id="fork-guide"></a>
+
+## 功能截图
+
+### Web 控制台
+
+从首页检查设备、输入任务，并在 Flash 和 Pro 之间选择运行模式。
+
+<p align="center">
+  <img src="./docs/assets/fork-console-overview.png" alt="ARTEMIS Codex 首页，含环境检查、任务输入、页面缓存和模型配置入口" width="100%" />
+</p>
+
+<a id="wifi-adb"></a>
+
+### 无线连接
+
+手机已通过 USB 授权时，点“自动连接 Wi-Fi ADB”即可切换。下图是 Android 11 及以上的无线配对入口。[无线连接指南](./docs/testing.md#wireless-adb-pairing-and-connection)
+
+<p align="center">
+  <img src="./docs/assets/wireless-adb-pairing.png" alt="Wi-Fi ADB 手动配对界面：设备 IP、配对端口、配对码与连接端口" width="840" />
+</p>
+
+<a id="model-configuration"></a>
+
+### 模型配置
+
+在后台选择默认模型、备用模型，也可以给不同任务角色分配模型。[模型设置](./docs/model-settings.md) · [Codex 登录](./docs/codex-client-provider.md)
+
+<p align="center">
+  <img src="./docs/assets/model-settings.png" alt="后台主模型与备用模型配置" width="360" />
+  <img src="./docs/assets/codex-model-picker.png" alt="本机 Codex 客户端模型选择列表" width="420" />
+</p>
+
+<a id="visual-location-cache"></a>
+
+### 页面缓存与学习
+
+打开“页面缓存”可查看已学会的控件、预热当前页，或按设定时长探索一个 Android App。[缓存指南](./docs/visual-location-cache_CN.md) · [页面探索指南](./docs/cache-exploration.md)
+
+![页面缓存流程：预热或探索时学习控件位置。任务需要视觉定位时先核对缓存，匹配就复用，否则从截图重新定位并保存可复用的位置。](./docs/assets/page-cache-flow-cn.png)
+
+<p align="center">
+  <img src="./docs/assets/visual-cache-dashboard.jpg" alt="页面缓存后台总览、累计缓存效果和页面学习状态" width="480" />
+  <img src="./docs/assets/cache-exploration-unlimited.png" alt="探索学习任务设置：时长预算和可选步数、Token 限制" width="320" />
+</p>
+
+---
+
+<a id="upstream-readme"></a>
+
+## 上游项目 README 原文
+
+以下收录 [google/artemis 的中文 README（`351ca84`）](https://github.com/google/artemis/blob/351ca8422f7b5b54e80a9c1ce03a222e02415b6b/README_CN.md) 的正文。其中的安装命令指向上游仓库，安装本 fork 请使用页首的[快速开始](#fork-quick-start)。
+
+<details>
+<summary>展开 google/artemis 中文 README 正文</summary>
 
 <!-- 演示效果图 -->
 <p align="center">
@@ -101,16 +184,14 @@ Codex 需要已登录且可访问所选模型的客户端；云 OCR 和其他 AP
 ## 快速上手
 
 确保电脑已连接 Android 实体机（已开启 **USB 调试**）或 Android 模拟器。一键启动脚本将会自动完成以下配置：
-- **安装系统环境依赖**：自动检测并安装 ADB、scrcpy、FFmpeg、Codex CLI、Python（`uv`）运行时、Node.js 及项目依赖。
+- **安装系统环境依赖**：自动检测并安装 ADB、scrcpy、FFmpeg 与 Python（`uv`）运行时及项目依赖。
 - **全局挂载 MCP 服务与测试准则 (Rules)**：主动引导并自动将全局 MCP 服务与 **Artemis 移动端测试思维准则 (`rules.md`)** 挂载至你使用的 AI IDE（支持 **Antigravity**、**Cursor**、**Claude Code**、**Codex**、**Windsurf**、**VS Code**、**Cline/Roo**、**OpenClaw**）。
-
-当前分支默认复用本机已登录的 **Codex 客户端**，模型调用优先使用桌面客户端内置 Codex，再回退到 PATH 中的 CLI。首次使用按提示执行 `codex login`；Artemis 通过 Codex App Server 调用模型，无需配置 OpenAI API Key。配置方式和限制见 [Codex 客户端 Provider](./docs/codex-client-provider.md)。macOS 的兼容性、权限和旧系统限制见 [macOS 运行说明](./docs/macos-support.md)。
 
 ### macOS 与 Linux
 
 ```bash
 # 1. 克隆代码仓库并进入目录
-git clone https://github.com/HJunLong601/artemis-codex.git && cd artemis-codex
+git clone https://github.com/google/artemis.git && cd artemis
 
 # 2. 一键启动
 ./start.sh
@@ -120,8 +201,8 @@ git clone https://github.com/HJunLong601/artemis-codex.git && cd artemis-codex
 
 ```powershell
 # 1. 克隆代码仓库并进入目录
-git clone https://github.com/HJunLong601/artemis-codex.git
-cd artemis-codex
+git clone https://github.com/google/artemis.git
+cd artemis
 
 # 2. 一键启动
 .\start.bat
@@ -130,237 +211,6 @@ cd artemis-codex
 > PowerShell 默认不会从当前目录查找可执行脚本，因此必须使用 `.\start.bat`，且命令末尾不要添加 `\`。如果使用传统命令提示符（CMD），则运行 `start.bat`。
 
 > **提示**：启动后将自动在默认浏览器中打开 Web 控制台（`http://localhost:8000`），提供设备连接向导、实时投屏、任务演练与状态回放面板。你也可以通过命令行直接运行：`uv run artemis run "打开系统设置，找到电池选项并告诉我当前电量" --profile flash`。
-
-### 刷新已有的全局安装
-
-在已更新到最新提交的仓库中，先移除旧的全局工具环境，再安装当前分支：
-
-```bash
-git pull --ff-only origin main
-uv tool uninstall artemis
-uv tool install -e .
-artemis doctor
-```
-
-安装过程会从 PyPI 获取 `codex-client-provider==0.1.0`。可通过 `uv tool list`
-确认全局 Artemis 已正确安装。
-
-<a id="device-selection"></a>
-## 设备选择与 Android 模拟器
-
-自动 Android 选择优先使用空闲真机，其次是空闲模拟器；全部繁忙时在就绪设备上排队。跨平台注册表未指定平台时优先选择可用真机，再考虑 Android 模拟器和 iOS 模拟器；CLI/MCP 任务未指定平台时仍默认 Android。多设备场景应显式传入序列号。
-
-```dotenv
-# .env：是否自动发现并选择虚拟设备，默认开启
-ARTEMIS_EMULATOR_DISCOVERY_ENABLED=true
-# 无已连接 Android 设备时，独立 MCP 任务使用的 AVD 名称（可选）
-# ARTEMIS_AVD_NAME=YOUR_INSTALLED_AVD
-```
-
-- 关闭自动发现后，已连接模拟器仍在设备清单中可见，仍可显式指定序列号或通过诊断手动启动。
-- SDK/AVD 从显式路径、Android 环境变量、PATH、已解析 ADB 所在 SDK 及常见目录发现，支持迁移后的 SDK 和自定义 AVD 目录。需要时配置 `ARTEMIS_EMULATOR_PATH`、`ANDROID_HOME` 或 `ANDROID_AVD_HOME`。
-- 无已连接设备的独立 MCP 任务可复用或启动指定 AVD；未配置名称时仅在已安装 AVD 唯一时自动启动。多个 AVD 需要选择，不能假定名称或 `emulator-5554`。
-- 通过 `mobile_diagnose(launch_avd="YOUR_INSTALLED_AVD")` 可在后台启动或复用同名运行实例；随后不带 `launch_avd` 轮询诊断，待 `emulator.status` 为 `ready`，使用实际序列号提交任务。使用 daemon 调度器时，先通过诊断启动，再提交任务。
-- 启动就绪同时要求系统启动完成和 Android 包服务可用；再用 `mobile_diagnose(device_serial="SERIAL", probe_device=true)` 检查截图与 UI 层级。AVD 清单短时缓存并合并并发扫描，显式就绪刷新会清除缓存。
-
-修改 `.env` 后重启 ARTEMIS/MCP。详细选择规则、路径发现和验收步骤见 [设备与模拟器说明](./docs/testing.md#android-emulator-without-a-physical-device)。
-
-<a id="wifi-adb"></a>
-## Wi-Fi ADB：USB 一键连接与无线配对
-
-在控制台打开 **系统设置与环境检查 → Android 设备与模拟器连接 → 更改连接 → 无线 ADB**。
-
-### 已通过 USB 连接手机：一键连接 Wi-Fi ADB
-
-1. 将手机与电脑连接到同一可互通的 Wi-Fi 网络，通过 USB 连接手机，开启 USB 调试并在手机上授权这台电脑。
-2. 点击 **自动连接 Wi-Fi ADB**。无需手动填写 IP 或配对码；只有一台已授权 USB 手机时直接连接，多台时先选择目标手机。
-3. ARTEMIS 从手机读取实际 Wi-Fi IPv4 地址，启用 5555 TCP/IP 调试并连接，核对无线端与 USB 端的设备身份。已有的有效无线连接会直接验证复用，正在执行任务的相关连接不会被重启。
-4. 看到 **“Wi-Fi ADB 已连接并验证，可以拔掉 USB 数据线”** 后再拔线；在设备列表中选择无线序列号（`手机IP:5555`）执行任务。同一手机同时显示 USB 与 Wi-Fi 时，只选择其中一个连接。
-
-启用 TCP/IP 会重启手机上的 adbd，USB 短暂断开是预期现象。控制台会继续等待并验证无线连接，最长等待窗口为 20 秒；不会因为 USB 命令回包丢失就立即判失败，也不会重复重启 adbd。
-
-此方式使用本机已发现的 ADB 工具和手机的真实地址，不要求 Android 11 配对码。自动连接成功会立即反馈，设备列表通过后台轮询刷新，不等待模型凭据检查。需要本机 ADB 模式；无授权 USB 手机、无法确定唯一 Wi-Fi 地址或网络不可达时，可使用下方手动方式。
-
-### 设备切换与断开
-
-点击设备项后显示“切换中…”，确认该连接可用后才更新当前设备；失败时保留原设备并显示原因。确认离线或未授权的失效无线连接会断开并从列表移除，暂时验证失败的连接保留供重试。
-
-无线设备旁的 **断开** 只移除指定 ADB 连接，不删除手机里的配对或授权，也不会断开其他手机。执行任务中的无线连接不能断开。USB 手机拔线后自动消失；模拟器请使用停止按钮。
-
-### 没有 USB：Android 11+ 手动配对
-
-1. 在手机打开 **设置 → 开发者选项 → 无线调试 → 使用配对码配对设备**，保持配对弹窗开启。
-2. 在控制台输入手机 IP、弹窗中的**配对端口**与六位配对码，点击 **配对设备**。配对码提交后清空，不写入命令参数、响应或日志。
-3. 配对成功后，关闭手机配对弹窗，将无线调试主页面显示的**连接端口**填入控制台，再点击 **连接**。配对只建立信任，配对端口与连接端口不可混用。
-
-已配对手机可跳过配对步骤；已启用 TCP/IP 调试的设备可直接输入实际 IP 与端口连接。不要把示例 IP 当作手机实际地址，也不要把 Android 11+ 的动态连接端口默认当成 5555。
-
-### 关闭 TCP/IP 调试与排查
-
-USB 一键连接会启用手机的 5555 TCP/IP 调试监听，请在可信 Wi-Fi 网络使用。连接失败时该监听可能仍开启。通过 USB 重新连接后执行以下命令可恢复 USB 调试模式，无需重启整台电脑的 ADB 服务：
-
-```sh
-adb devices -l
-adb -s YOUR_USB_SERIAL usb
-```
-
-`YOUR_USB_SERIAL` 替换为设备列表中的 USB 序列号。网络切换或手机重启后，先重新检查实际 IP 和连接状态，不假定旧连接仍可用。
-
-更多说明见 [USB 自动连接与验证](./docs/testing.md#automatic-wi-fi-connection-from-usb) 和 [无线配对与连接](./docs/testing.md#wireless-adb-pairing-and-connection)。
-
-<a id="console-language"></a>
-## 控制台界面语言
-
-主 Web 控制台支持 **英文和简体中文**。首次访问按浏览器首选语言选择，浏览器通常继承本机系统语言：中文地区与文字变体使用中文；英文、不支持的语言或无法获取语言时使用英文。
-
-在顶部导航旁选择 **English**、**中文** 或 **跟随系统**。手动选择会在当前浏览器记忆，并同步到同源的其他标签页；切换立即生效，保留未保存的编辑内容。选择“跟随系统”可清除手动覆盖；浏览器禁止存储时，仍可在当前页面切换。任务目标、模型回复、笔记、原始日志及设备、应用、模型名称保留原文。
-
-源码更新后，在 `apps/showcase_ui` 执行 `npm run build` 并刷新控制台。翻译维护和测试说明见 [前端文档](./apps/showcase_ui/README.md#console-languages)。
-
-<a id="model-configuration"></a>
-## 模型与图片配置
-
-后台导航新增 **模型配置**（`/settings/models`）：可直接配置默认模型、各角色覆盖、备用模型及推理参数，也可配置 Provider API Key 和打开 Codex 登录。保存后用于新任务；外部 MCP 会话需要重启。[可视化配置说明](./docs/model-settings.md)。
-
-Codex 模型可从本机客户端 `model/list` 返回的目录中下拉选择，支持刷新和手动输入。目录未列出的已有模型配置会保留。模型出现在列表中不代表账号推理权限已验证，保存配置也不会自动调用付费推理。
-
-仍支持手动编辑 [`config/artemis.jsonc`](./config/artemis.jsonc)，手动修改后重启 ARTEMIS/MCP。配置文件只放模型与运行设置，其他 Provider 的密钥放在被 Git 忽略的 `.env`。
-
-| 配置项 | 用途 |
-|---|---|
-| `default` | 主模型、Provider、推理强度与回退；当前仓库为 Codex `gpt-6.1-sol` / `low`，回退 `gpt-6-luna`。 |
-| `nodes` | 单独覆盖 Planner、Operator、Explorer、Checker 等角色，未指定字段继承默认值；轻量摘要和历史压缩保留 Luna 档位。 |
-| `presets` | 预设的 Provider/模型组合。 |
-| `agent.flash` / `agent.pro` | Flash/Pro 行为，包括 Explorer 档位与步骤摘要设置。 |
-
-源码优先读取上述配置，打包模板位于 [`artemis/resources/config/artemis.jsonc`](./artemis/resources/config/artemis.jsonc)。可用 `ARTEMIS_ARTEMIS_JSONC` 指定另一份已存在的配置；主模型、回退和各角色必须与所选 Provider 兼容。
-
-图片默认等比缩至短边最多 720、长边最多 1600 像素，以 WebP 质量 70 编码，字节预算 768 KiB；超出预算时继续缩小，不放大小图。原始截图和坐标尺寸保持不变。环境变量、客户端路径优先级与适配层说明集中在 [Codex Provider 文档](./docs/codex-client-provider.md)。
-
-检查本地环境：
-
-```bash
-codex login status
-adb devices -l
-uv run artemis doctor
-```
-
-<details>
-<summary>验证记录：2026-09-19 无 API Key Android 真机流程</summary>
-
-2026-09-19 已在连接的小米 Android 真机上重新验证零 Key Codex 路径。Pro 模式成功
-打开小红书、搜索“秋日穿搭”、确认多条相关结果并停留在结果页，全程未点赞、收藏、
-关注、评论或发布内容。
-
-| 能力 | 验证结果 |
-|---|---|
-| Planner 与 Operator | 通过，复用已登录的 Codex 客户端 |
-| 截图理解与步骤摘要 | 通过，使用 Codex 图片输入 |
-| Checkpoint 与最终 Checker | 4/4 检查通过 |
-| Outputter 报告 | 通过 |
-| OpenAI、Google、Gemini、Anthropic、OpenRouter、xAI Key | 均未配置 |
-| 云 OCR Key | 未配置；本次由 Accessibility Helper、UI 层级和 Codex 视觉完成 |
-
-云 OCR 仍是可选的外部服务，显式启用时依然需要 `OCR_API_KEY`。默认的 UI XML
-加 Codex 视觉路径不依赖该 Key。
-
-</details>
-
-<a id="visual-location-cache"></a>
-## 视觉定位缓存与后台
-
-定位顺序为 **ADB/UI 树 → 本地视觉位置缓存 → OCR/模型**。每台设备默认保留 10,000 条位置；一次视觉请求可额外学习最多 20 个可见控件，多目标查询只将未命中部分交给模型。
-
-缓存支持整页精确匹配、局部控件校验与固定区域复用。设备、应用、Activity、尺寸和目标证据仍需匹配；遮挡、目标移动或歧义会阻止复用。复用的是位置，点击与结果验证仍由正常执行流程完成。
-
-Web 控制台的 **页面缓存**（`/cache`）提供页面/元素查询、学习状态、命中率、耗时、失败案例与单页清理。新增的节省时间按同设备、同应用的平均视觉定位耗时折算命中收益，再扣除全部缓存查询开销；缺少样本时显示“暂无估算”，不代表任务总耗时实测差值。
-
-页面名称不参与缓存匹配。后台按设备、包名和 Activity 分组，名称缺失时显示 Activity/包名与指纹短码；名称漂移不会拆散分组。候选先按目标和 Activity 筛选再截取，减少较早位置漏查；“跳过缓存”原因单独统计，不计入未命中率。
-
-“无可复用页面记录（累计查询次数）”统计的是未命中目标查询，不是待学习页面数；后续学会页面也不会扣减历史次数。“预热后复访命中率”单独统计新版成功批量学习后，同设备、应用、Activity 与页面结构（无结构时用精确指纹）的再次视觉查询；分母是目标查询，不是去重访问次数，排除首次冷查询、预热请求和 XML 直接定位，历史数据不回算。失效或淘汰后的未命中仍计入，避免只统计保留成功案例。
-
-在 `/cache` 点击 **选择设备并预热**，明确选择空闲且已授权的 Android 设备，并确认发送当前截图。入口调用配置的视觉定位模型，最多学习当前页 20 个常用控件；不会点击、翻页、启动应用或遍历历史截图。请避开敏感页面并保持画面稳定，设备忙碌、页面变化或学习冷却时会拒绝；已完成学习的同一页面不会重复调用模型。学习可能消耗模型额度，整体超时 90 秒，失败或取消会释放设备锁；iOS 暂不提供此入口。手工学习不受自动 `batch_prefetch` 开关限制，但要求缓存总开关开启。
-
-在 `/cache` 点击 **配置新任务 → 开始探索并学习**，可对一个 Android App 执行长时间安全探索并学习访问页面。设备、已安装 App 和有效时长（1–1440 分钟）必须明确填写；**步数和 Token 默认“不限制”**，只保留时长预算。也可分别取消“不限制”后填写步数（1–20000）或 Token（1–10000000）上限，再确认截图发送及模型消费。探索使用配置的 `operator`，页面学习使用 `utils.object_detector`，不静默切换 Provider；请先在设备上打开目标 App。
-
-支持暂停、继续和停止：暂停会收敛在途请求并释放设备，继续时重新观察，累计预算不清零；停止是终态，保留缓存与报告。关闭网页不会停止后台任务；后台退出后不自动重启长跑。未知动作、敏感弹窗及跨 App 状态会跳过或暂停，不执行删除、发送、分享、购买、录音和账号修改。只学习实际访问的稳定页面，不承诺遍历整个 App；完整且可复用的库存跳过重复学习，XML 直接定位页面也检查学习状态。
-
-Token 用量覆盖探索与学习请求，不限制时仍累计显示实际步数和已知用量；设置 Token 上限后，预留量不足时不再发起下一请求。在途消耗可能超过预算，不能视为账单硬上限；不限制意味着测试期间可能持续消耗额度。用量缺失会暂停，不能清零继续。任务及报告保存在本机应用数据目录的 `cache-exploration.sqlite3`，默认不额外保存全程录屏、页面原图或完整模型回复。[使用与验证说明](./docs/cache-exploration.md)。
-
-<p align="center"><img src="./docs/assets/cache-exploration-budgets.png" alt="安全探索真实验收中的累计时长、步数和 Token 预算；已裁去设备和任务标识" width="900" /></p>
-
-<p align="center"><img src="./docs/assets/cache-exploration-unlimited.png" alt="默认仅按时长控制，操作步数和 Token 均可选择不限制" width="400" /></p>
-
-缓存仅在本地保存位置元数据和指纹，不保存截图或完整模型回复。配置统一放在 `config/artemis.jsonc`：
-
-```jsonc
-{
-  "agent": {
-    "visual_location_cache": {
-      "enabled": true,
-      "batch_prefetch": true,
-      "capacity_per_device": 10000
-    }
-  }
-}
-```
-
-配置范围、旧变量迁移、数据库路径、复用保护和统计口径见 [缓存专题文档](./docs/visual-location-cache_CN.md)。
-
-<details>
-<summary>缓存后台示例</summary>
-
-<p align="center">
-  <img src="./docs/assets/visual-cache-dashboard.jpg" alt="ARTEMIS 页面缓存后台：总览、统计与学习状态" width="640" />
-</p>
-
-图中已裁去设备标识、业务应用名称和本地路径，数值仅展示界面，不作为性能评测结果。
-
-</details>
-
-<a id="ios-simulator"></a>
-## iOS 支持（macOS）
-
-目前通过 ARTEMIS 完整验收的 iOS 目标是 **iOS 模拟器**。需要 macOS、完整 Xcode、已安装的 iOS Simulator Runtime、Node.js/npm、Appium 3 及兼容的 XCUITest Driver。Android 默认启动流程不变；显式运行 `./start.sh --with-ios` 或 `bash scripts/install_deps.sh --with-ios`，才会安装缺失的 Node.js/Appium/XCUITest 组件。Xcode 与 iOS Runtime 仍需自行安装。只读检查可运行 `bash scripts/setup_ios.sh --check`。请按目标 iOS Runtime 选择兼容组合，参见 [XCUITest Driver 兼容要求](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/system-requirements/)。
-
-```bash
-xcodebuild -version
-xcrun simctl list runtimes
-npm install -g appium@3
-appium driver install xcuitest
-appium driver doctor xcuitest
-xcrun simctl list devices available
-
-# 将 YOUR_SIMULATOR_UDID 替换为上方列表中的模拟器 ID。
-# 仅在模拟器尚未启动时执行 boot。
-xcrun simctl boot YOUR_SIMULATOR_UDID
-xcrun simctl bootstatus YOUR_SIMULATOR_UDID -b
-uv run artemis run "打开设置 > 通用 > 关于本机，报告 iOS 版本" --profile flash --platform ios --device-serial ios:YOUR_SIMULATOR_UDID
-```
-
-指定 `--platform ios` 后，CLI 也接受不带 `ios:` 前缀的模拟器 ID。MCP 调用 `mobile_run_task`、`mobile_get_device_state` 或 `mobile_diagnose` 时，可传 `device_platform="ios"` 与 `device_serial="ios:YOUR_SIMULATOR_UDID"`；其中 `mobile_diagnose` 设置 `probe_device=true` 可实际检查 XCUITest 截图和 UI 层级。ARTEMIS 会为会话管理本机 Appium 服务。未指定平台时仍默认 Android；下文的 ADB 与 Accessibility Helper 安装说明不适用于 iOS。更新旧版 MCP 服务后应重新安装或重载，否则旧进程可能仍只暴露 Android 参数。
-
-### iPhone 真机：优先 Device Hub
-
-ARTEMIS 通过 `devicectl` 发现已配对的 iPhone，在 CLI/MCP 使用 `ios:YOUR_PHYSICAL_UDID` 选中。Xcode 27 及以上的真机默认使用 **Device Hub** 驱动：CoreDevice 负责截图、启动应用和录屏；仓库内的 Swift 桥接程序将实时真机截图与可见的 Device Hub 画面匹配，再执行鼠标手势。**不需要**在手机安装 WebDriverAgent，也不需要 Apple Developer Team 或签名证书。手机须信任并配对 Mac、开启开发者模式；[打开 Device Hub](https://developer.apple.com/documentation/xcode/interacting-with-your-app-in-the-ios-or-ipados-simulator)，选中真机并点 **View Screen**。还须在 macOS 系统设置中为运行 ARTEMIS 的终端/IDE 授予 **辅助功能**和**屏幕录制**权限；脚本不会自行修改这些权限。
-
-运行 `bash scripts/setup_ios.sh --device-hub` 只读检查真机依赖，再用 `mobile_diagnose(device_platform="ios", device_serial="ios:YOUR_PHYSICAL_UDID", probe_device=true)` 做实时截图/窗口校准探测。找不到指定窗口或画面匹配不可靠时，驱动会安全失败。Device Hub 路线支持视觉和坐标动作，**不提供 iOS 控件层级**，目前不支持控件定位、文本输入及部分系统动作，也不能无界面运行。Swift 桥接程序在首次使用时由本机 Xcode 编译，无需用户编译或安装 iPhone 项目。
-
-```bash
-uv run artemis run "打开设置并报告 iOS 版本" --profile flash --platform ios --device-serial ios:YOUR_PHYSICAL_UDID
-```
-
-仅当需要控件层级、文本输入或无界面运行时，才显式切换真机的 Appium/XCUITest 备选方案。它仍需要 WDA 签名、Apple Developer Team、有效的 **Apple Development** 身份和匹配的 Provisioning Profile。仅在有权使用对应 Team/Profile 时，把下列值写入被 Git 忽略的 `.env`（WDA Bundle ID 须由 Profile 覆盖）：
-
-```dotenv
-ARTEMIS_IOS_PHYSICAL_DRIVER=appium
-ARTEMIS_IOS_XCODE_ORG_ID=YOUR_TEAM_ID
-ARTEMIS_IOS_XCODE_SIGNING_ID=Apple Development
-ARTEMIS_IOS_WDA_BUNDLE_ID=com.example.WebDriverAgentRunner
-# ARTEMIS_IOS_SHOW_XCODE_LOG=true  # 仅供本地排错
-```
-
-默认值也可显式设为 `ARTEMIS_IOS_PHYSICAL_DRIVER=device-hub`。`--with-ios` 安装器和 `setup_ios.sh --check` 仍用于模拟器/Appium 路线；Device Hub 不需要 WDA。Appium 备选方案可参考官方[真机准备](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/device-setup/)和 [Provisioning 配置](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/provisioning-profile/)。此前已在真机上验证 Device Hub 手动交互；Appium/WDA 路线在缺少有效签名身份的主机上失败。新的 Device Hub 自动化桥接已有单元与编译检查，但自动点击尚未经过真机验收。个人截图请放在 Git 忽略的 `artifacts/ios/`，不要提交到开源仓库。
 
 <a id="mcp-setup"></a>
 <a id="mcp"></a>
@@ -466,7 +316,7 @@ PYTHONPATH = "/path/to/artemis"
 开发电脑只需安装零运行时依赖的薄客户端；ADB、Agent、模型与图像处理全部留在设备主机：
 
 ```powershell
-uv add "artemis-client @ git+https://github.com/HJunLong601/artemis-codex.git#subdirectory=packages/artemis-client"
+uv add "artemis-client @ git+https://github.com/google/artemis.git#subdirectory=packages/artemis-client"
 ```
 
 ```python
@@ -492,8 +342,6 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
-
-使用 iOS 模拟器时，把 SDK 客户端的 `device_serial` 设为 `"ios:YOUR_SIMULATOR_UDID"`；设备主机仍需满足[上述 iOS 环境要求](#ios-simulator)。
 
 </details>
 
@@ -556,8 +404,7 @@ ARTEMIS 提供两种运行模式以适应不同的自动化需求：
 ## 路线图
 
 - [ ] **Android Studio 深度集成**：推出官方 IDE 插件与协同工作流，支持在 Android Studio 内直接进行自动化测试、设备交互与断点调试。
-- [x] **iOS 模拟器支持**：已实现并在本机验证模拟器发现与 Appium/XCUITest 控制。
-- [ ] **iOS 真机支持**：Device Hub 已作为默认实现，具备可视手势、CoreDevice 截图/启动/录屏和安全校准；自动点击的真机验收仍待完成。Appium/WDA 为需签名的显式备选。
+- [ ] **iOS 跨平台支持**：将视觉感知与自动化执行引擎拓展至 iOS 真机与模拟器。
 - [ ] **端侧轻量化模型**：支持离线运行的轻量级 Edge VLM，实现低延迟与隐私安全的本地自动化。
 - [ ] **实时语音双工交互**：支持自然语音下发任务与实时打断（Barge-in）控制。
 
@@ -566,17 +413,16 @@ ARTEMIS 提供两种运行模式以适应不同的自动化需求：
 欢迎通过以下方式参与项目建设：
 * **Star 本项目**以关注最新进展与更新
 * 加入 [Discord 社区](https://discord.gg/wF2FN4WHGY) 参与技术探讨与功能建议
-* 在本 Fork 提交 [Issue](https://github.com/HJunLong601/artemis-codex/issues) 或发起 [Pull Request](https://github.com/HJunLong601/artemis-codex/pulls)
-* 关注[上游 google/artemis 项目](https://github.com/google/artemis)，了解原项目路线图和版本发布
+* 提交 [Issue](https://github.com/google/artemis/issues) 反馈 Bug，欢迎发起 [Pull Request](https://github.com/google/artemis/pulls) 贡献代码
 
 ## 开源许可证
 
 本项目基于 [Apache License 2.0](LICENSE) 协议开源。
-
-本仓库基于 [google/artemis](https://github.com/google/artemis)，并包含由 [Minitap, Inc.](https://github.com/minitap-ai/mobile-use) 开发的源代码；原始版权和许可证声明均予以保留。
 
 ### 第三方代码
 
 非 Google 所有的代码位于 [`third_party/`](third_party/) 目录下，每个上游项目一个子目录，并各自附带 `LICENSE` 与 `METADATA`。
 
 - [`third_party/mobile_use`](third_party/mobile_use/) – 来自 Minitap, Inc. 的 [mobile-use](https://github.com/minitap-ai/mobile-use) 的部分代码，Apache License 2.0。
+
+</details>
