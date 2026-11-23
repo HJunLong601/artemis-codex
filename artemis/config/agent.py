@@ -886,7 +886,8 @@ class VisualLocationCacheConfig(BaseModel):
     """Persistent visual-location reuse shared by all execution profiles."""
 
     enabled: bool = True
-    batch_prefetch: bool = True
+    # Opt in to collecting up to 20 common controls during a required visual lookup.
+    batch_prefetch: bool = False
     capacity_per_device: int = Field(
         default=10000,
         ge=1,

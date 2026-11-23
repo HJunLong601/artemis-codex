@@ -16,9 +16,11 @@ Miss reasons distinguish `snapshot_missing` (the current snapshot has no record,
 
 ## Learning and capacity
 
-On visual lookup, Flash and Pro/Ultra collect up to 20 common visible controls in the same request: name, up to three initial aliases, type, bounds and coordinates. This can increase output tokens and response latency without adding a separate inventory request. Only unique exact normalized names/aliases are reused. On-demand results sharing the same bounds, or a name and a point inside existing bounds, merge with the existing element.
+When automatic batch prefetch is enabled, Flash and Pro/Ultra can collect up to 20 common visible controls in the same visual lookup. The response includes each control's name, up to three initial aliases, type, bounds and coordinates. This can increase output tokens and response latency without adding a separate inventory request. Only unique exact normalized names/aliases are reused. On-demand results sharing the same bounds, or a name and a point inside existing bounds, merge with the existing element.
 
-Inventory states distinguish learning, complete, partially evicted, empty, failed and invalidated pages. Refilling accompanies a later necessary visual request: partial inventories have a 30-second cooldown, empty/failed inventories 60 seconds. Learning leases expire after 120 seconds; late responses cannot overwrite newer leases. Unused prefetch is limited to `min(capacity, max(20, capacity // 5))` per device (2000 by default); a hit promotes an element to the protected pool. The overall default remains 10,000 and explicit legacy capacities remain respected. `batch_prefetch: false` stops collection but keeps existing reuse.
+Inventory states distinguish learning, complete, partially evicted, empty, failed and invalidated pages. Refilling accompanies a later necessary visual request: partial inventories have a 30-second cooldown, empty/failed inventories 60 seconds. Learning leases expire after 120 seconds; late responses cannot overwrite newer leases. Unused prefetch is limited to `min(capacity, max(20, capacity // 5))` per device (2000 by default); a hit promotes an element to the protected pool. The overall default remains 10,000 and explicit legacy capacities remain respected.
+
+Automatic batch prefetch is off by default. Normal locating still caches eligible targets on demand and reuses existing entries. Set `batch_prefetch: true` to opt in to automatic batch prefetch. Manual page warmup requires the visual location cache to be enabled.
 
 ## Reuse guards
 
@@ -57,7 +59,7 @@ Set the shared cache options in `config/artemis.jsonc` (the wheel includes the s
   "agent": {
     "visual_location_cache": {
       "enabled": true,
-      "batch_prefetch": true,
+      "batch_prefetch": false,
       "capacity_per_device": 10000
     }
   }
