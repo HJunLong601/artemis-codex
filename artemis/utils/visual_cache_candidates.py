@@ -36,12 +36,21 @@ def _specific_name(value: object) -> str:
 
 
 def _score(query: str, name: str) -> float:
-    """Return a 0..1 recall score; a high score never confirms target intent."""
+    """Return a 0..1 recall score; a high score never confirms target intent.
+
+    ``query`` 是规范化后的目标描述，``name`` 是候选的规范化名称或别名。
+    若分数确定达不到候选阈值，可返回 0，进入排序的分数保持精确。
+    """
     # Reuse ScreenIndex's standard-library matching approach without importing Agents.
-    score = SequenceMatcher(None, query, name).ratio()
-    if query in name or name in query:
-        score = max(score, _SUBSTRING_SCORE)
-    return score
+    # 本次文本对使用的相似度比较器，沿用原有的比较顺序。
+    matcher = SequenceMatcher(None, query, name)
+    # 标准库保证该 0..1 上界不小于精确相似度。
+    upper_bound = matcher.real_quick_ratio()
+    # 两者存在包含关系时保留原有的排序保底分，否则保底分为 0。
+    substring_score = _SUBSTRING_SCORE if query in name or name in query else 0.0
+    if upper_bound < _MIN_SCORE or upper_bound <= substring_score:
+        return substring_score
+    return max(matcher.ratio(), substring_score)
 
 
 def rank_candidates(query: str, items: list[dict], limit: int = 5) -> list[dict]:

@@ -442,43 +442,48 @@ class VisualLocationCache(CacheStorage):
         columns = [c[0] for c in cursor.description]
         return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
-    def _candidate_hints(self, db, scope, query):
-        """Return at most five locally verified inventory hints, never resolved targets.
+    def _candidate_hints(self, db, scope, queries):
+        """在同一个数据库快照内为每条原始定位请求查找至多 5 条提示。
 
-        ``db`` is the caller-owned SQLite connection; ``scope`` contains the
-        current frame and ownership; ``query`` is the original locating request.
-        Only the newest 256 records in this device/app/Activity are considered.
-        Existing local guards and a unique live clickable node must agree;
-        changed controls and point-only detections cannot supply hints.
-        Text similarity ranks suggestions only and never increments hit counters.
+        db 是调用方持有的 SQLite 连接，scope 提供当前截图及设备、应用和
+        Activity，queries 是原始查询列表或元组。仅检查此范围最近 256 条
+        已盘点记录，沿用局部图像和唯一可点击节点校验。有相同坐标和边界
+        的提示按查询去重。返回查询到提示列表的映射，找不到时列表为空。
+        此方法不写库，数据库或记录解析异常由外层查询入口处理。
         """
-        if not scope.activity or not scope.structure_key or scope.image is None:
-            return []
+        # 每条查询独立记录通过校验的候选及其几何，避免一个查询影响另一个。
+        verified = {query: [] for query in queries}
+        if not verified or not scope.activity or not scope.structure_key or scope.image is None:
+            return verified
+        seen = {query: set() for query in verified}
+        # 同一批查询只读一次库存，按原有顺序取最近 256 条。
         cursor = db.execute(
-            """SELECT * FROM locations WHERE device_key=? AND application=?
+            """SELECT guard,location FROM locations WHERE device_key=? AND application=?
             AND activity=? AND inventoried=1 ORDER BY recency DESC LIMIT 256""",
             (scope.device_key, scope.application, scope.activity),
         )
         # Validate only text-relevant controls, then deduplicate identical geometry.
-        names = [column[0] for column in cursor.description]
-        verified = []
-        seen = set()
-        for values in cursor:
-            row = dict(zip(names, values, strict=True))
-            value = json.loads(row["location"])
-            if not rank_candidates(query, [value]) or not valid_location(value):
+        for guard, location_json in cursor:
+            # guard 为空表示该条目无法通过局部校验，无需解析记录或比较文字。
+            if not guard:
                 continue
+            # 从 SQLite 取出的原始缓存位置，坐标范围是 0..1000。
+            value = json.loads(location_json)
+            if not valid_location(value):
+                continue
+            # 坐标及边界都使用归一化单位，二者相同才视作同一个提示。
             identity = (tuple(value["coords"]), tuple(value.get("bounds", [])))
-            if identity in seen:
-                continue
-            if (
-                row["guard"]
-                and local_guard(scope, value) == row["guard"]
-                and has_local_target(scope, value)
-            ):
-                verified.append(value)
-                seen.add(identity)
-        return rank_candidates(query, verified)
+            # 仅比较尚未为该查询收录这一几何的记录。
+            relevant = [
+                query
+                for query in verified
+                if identity not in seen[query] and rank_candidates(query, [value])
+            ]
+            if relevant and local_guard(scope, value) == guard and has_local_target(scope, value):
+                for query in relevant:
+                    verified[query].append(value)
+                    seen[query].add(identity)
+        return {query: rank_candidates(query, items) for query, items in verified.items()}
 
     def suggest(self, scope, queries):
         """Read bounded hints for unresolved queries without hits, aliases or writes.
@@ -495,10 +500,7 @@ class VisualLocationCache(CacheStorage):
                 db.execute("BEGIN")
                 if not self._current(db, scope):
                     return {}
-                return {
-                    query: self._candidate_hints(db, scope, query)
-                    for query in dict.fromkeys(queries)
-                }
+                return self._candidate_hints(db, scope, queries)
         except (OSError, sqlite3.Error, ValueError, TypeError):
             logger.debug("Visual cache suggestions unavailable; keeping visual locating")
             return {}
@@ -598,12 +600,15 @@ class VisualLocationCache(CacheStorage):
                     reason = "structure_changed"
         if not matches and reason in {"page_missing", "target_missing"}:
             # Distinguish a new phrasing from a cold snapshot without treating hints as hits.
-            if self._candidate_hints(db, scope, query):
+            if self._candidate_hints(db, scope, (query,))[query]:
                 reason = "target_alias_unmatched"
-            elif reason == "page_missing" and db.execute(
-                "SELECT 1 FROM locations WHERE device_key=? AND application=? LIMIT 1",
-                (scope.device_key, scope.application),
-            ).fetchone():
+            elif (
+                reason == "page_missing"
+                and db.execute(
+                    "SELECT 1 FROM locations WHERE device_key=? AND application=? LIMIT 1",
+                    (scope.device_key, scope.application),
+                ).fetchone()
+            ):
                 reason = "snapshot_missing"
         # Multiple snapshots with exactly the same result are one candidate.
         positions = {
