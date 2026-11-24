@@ -9,6 +9,7 @@ from pathlib import Path
 import time
 from typing import Any
 
+from artemis.config.constants import CodexServiceTier
 from artemis.config.llm import LLMConfig
 from artemis.llm.codex_app_server import CodexAppServerClient, find_codex_binary
 from artemis.llm.reliability import classify_failure
@@ -51,12 +52,13 @@ async def _catalog(client: CodexAppServerClient, *, force: bool) -> list[dict[st
 async def preflight_models(
     config: LLMConfig, *, verify_inference: bool = False, force: bool = False
 ) -> dict[str, Any]:
-    """Check unique Codex model/effort pairs; unused fallbacks are advisory.
+    """核对不同 Codex 模型、推理强度和速度的组合，备用模型失败只作提示。
 
     Catalog presence is not an entitlement check. Inference, when requested,
     sends only a constant READY prompt and never any device or user content.
     """
-    routes: dict[tuple[str, str | None], dict[str, Any]] = {}
+    # 相同模型和推理强度也可能为不同角色配置了不同速度，分别核对。
+    routes: dict[tuple[str, str | None, CodexServiceTier | None], dict[str, Any]] = {}
     for role, primary in config.iter_primary_models():
         for model, required, name in (
             (primary, True, role),
@@ -65,11 +67,12 @@ async def preflight_models(
             if model.provider != "codex":
                 continue
             entry = routes.setdefault(
-                (model.model, model.reasoning_effort),
+                (model.model, model.reasoning_effort, model.service_tier),
                 {
                     "provider": "codex",
                     "model": model.model,
                     "effort": model.reasoning_effort,
+                    "service_tier": model.service_tier,
                     "required": False,
                     "roles": [],
                     "valid": False,
@@ -133,18 +136,28 @@ async def preflight_models(
             ):
                 check["message"] = "Configured reasoning effort is not supported by this model."
                 continue
+            if check["service_tier"] == "fast" and (
+                "serviceTiers" in model or "additionalSpeedTiers" in model
+            ):
+                # 兼容旧目录用 additionalSpeedTiers 枚举 fast 的表示，未发布速度信息时沿用既有检查。
+                tiers = {tier.get("id") for tier in model.get("serviceTiers", [])}
+                if "priority" not in tiers and "fast" not in model.get("additionalSpeedTiers", []):
+                    check["message"] = "Fast speed is not listed for this Codex model."
+                    continue
             check.update(
                 valid=True, message="Listed in the client catalog; inference access was not tested."
             )
         if verify_inference:
-            # One minimal turn per model: node-specific effort support was checked above.
-            results: dict[str, tuple[bool, str]] = {}
-            durations: dict[str, float] = {}
+            # 仅显式验证推理时才发测试请求；同一模型每个已配置速度各验证一次。
+            results: dict[tuple[str, CodexServiceTier | None], tuple[bool, str]] = {}
+            durations: dict[tuple[str, CodexServiceTier | None], float] = {}
             for check in checks:
                 if not check["valid"]:
                     continue
                 model = check["resolved_model"]
-                if model not in results:
+                # 速度不同的请求不能复用另外一个速度的验证结果。
+                probe = (model, check["service_tier"])
+                if probe not in results:
                     started = time.monotonic()
                     efforts = {
                         e.get("reasoningEffort")
@@ -155,6 +168,7 @@ async def preflight_models(
                             client.run_completion(
                                 model=model,
                                 effort="low" if "low" in efforts else None,
+                                service_tier=check["service_tier"],
                                 cwd=str(Path.cwd()),
                                 base_instructions="Return only the requested JSON. Do not use tools or read files.",
                                 developer_instructions="Connectivity check only.",
@@ -175,7 +189,7 @@ async def preflight_models(
                             json.loads(response["text"]).get("status") == "READY"
                             and response["model"] == model
                         )
-                        results[model] = (
+                        results[probe] = (
                             valid,
                             "Minimal inference passed."
                             if valid
@@ -183,14 +197,14 @@ async def preflight_models(
                         )
                     except (OSError, RuntimeError, TimeoutError, ValueError, KeyError) as exc:
                         # Provider errors can contain request data. Expose the category, not raw text.
-                        results[model] = (
+                        results[probe] = (
                             False,
                             f"Minimal inference failed ({classify_failure(exc).category.value}).",
                         )
-                    durations[model] = round(time.monotonic() - started, 3)
-                check["valid"], check["message"] = results[model]
+                    durations[probe] = round(time.monotonic() - started, 3)
+                check["valid"], check["message"] = results[probe]
                 check["inference_tested"] = True
-                check["inference_seconds"] = durations[model]
+                check["inference_seconds"] = durations[probe]
         return {
             "ok": all(c["valid"] for c in checks if c["required"]),
             "scope": "codex",

@@ -182,18 +182,28 @@ class VisualStepSummarizer(StepMemoryService):
             or (configured_model if isinstance(configured_model, str) else None)
             or "gemini-2.5-flash-lite"
         )
+        # 仅在角色配置完整选中端点时继承它的速度；独立的 Flash 摘要端点保留自身默认。
+        service_tier = (
+            getattr(configured, "service_tier", None) if not model_name and not provider else None
+        )
         self._model_name = target_model
         try:
             if target_provider:
                 self._llm = get_cached_raw_model(
-                    provider=str(target_provider), model_name=target_model, temperature=0.0
+                    provider=str(target_provider),
+                    model_name=target_model,
+                    temperature=0.0,
+                    service_tier=service_tier,
                 )
             else:
                 self._llm = get_llm(ctx, name="summarizer")
         except Exception:
             if target_provider:
                 self._llm = get_cached_raw_model(
-                    provider=str(target_provider), model_name=target_model, temperature=0.0
+                    provider=str(target_provider),
+                    model_name=target_model,
+                    temperature=0.0,
+                    service_tier=service_tier,
                 )
             else:
                 try:
@@ -204,6 +214,7 @@ class VisualStepSummarizer(StepMemoryService):
                         provider=str(default_cfg.provider),
                         model_name=str(default_cfg.model),
                         temperature=0.0,
+                        service_tier=default_cfg.service_tier,
                     )
                 except Exception:
                     self._llm = get_google_llm(model_name=target_model, temperature=0.0)

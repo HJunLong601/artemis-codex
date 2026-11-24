@@ -43,6 +43,7 @@ from codex_client_provider.langchain import (
     CodexAppServerError,
 )
 
+from artemis.config.constants import CodexServiceTier
 from artemis.llm.codex_binary import codex_client_status, find_codex_binary
 from artemis.llm.image_inputs import prepare_image_messages
 from artemis.llm.codex_session import CodexAppServerClient, client_for_running_loop
@@ -53,6 +54,8 @@ class CodexAppServerChatModel(_CodexAppServerChatModel):
 
     model_name: str = Field(default="gpt-6.1-sol")
     reasoning_effort: str | None = Field(default="low")
+    # 单次 ARTEMIS 调用的速度档位，独立于 reasoning_effort；None 继承客户端。
+    service_tier: CodexServiceTier | None = None
     client_name: str = Field(default="artemis")
     client_title: str = Field(default="Artemis")
     client_version: str = Field(default="1.0")
@@ -104,6 +107,7 @@ class CodexAppServerChatModel(_CodexAppServerChatModel):
             ).run_completion(
                 model=self.model_name,
                 effort=self.reasoning_effort,
+                service_tier=self.service_tier,
                 cwd=str(Path(self.cwd).resolve()),
                 base_instructions=provider._system_instructions(messages),
                 developer_instructions="\n\n".join(developer_parts),

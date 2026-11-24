@@ -27,7 +27,7 @@ import google.auth
 from google.auth.exceptions import DefaultCredentialsError
 from pydantic import BaseModel, ValidationError
 
-from artemis.config.constants import AgentNode, LLMProvider, LLMUtilsNode
+from artemis.config.constants import AgentNode, CodexServiceTier, LLMProvider, LLMUtilsNode
 from artemis.config.settings import settings
 from artemis.utils.cython_compat import CyFunctionDetector
 from third_party.mobile_use.utils.file import load_jsonc
@@ -63,6 +63,8 @@ class LLM(BaseModel):
     reasoning_effort: (
         Literal["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] | None
     ) = None
+    # Codex 的标准或快速档位；未配置时保留客户端默认速度，其他提供商忽略此字段。
+    service_tier: CodexServiceTier | None = None
     include_thoughts: bool | None = None
     enable_grounding: bool | None = None
 

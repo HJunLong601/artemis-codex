@@ -12,7 +12,7 @@ import tempfile
 import threading
 from typing import get_args
 
-from artemis.config.constants import LLMProvider
+from artemis.config.constants import CodexServiceTier, LLMProvider
 from artemis.config.llm import LLMConfig, LLMConfigUtils, _expand_default_into_nodes
 from artemis.config.paths import get_config_path
 from third_party.mobile_use.utils.file import load_jsonc
@@ -21,6 +21,7 @@ FIELDS = {
     "provider",
     "model",
     "reasoning_effort",
+    "service_tier",
     "thinking_level",
     "thinking_budget",
     "temperature",
@@ -176,6 +177,9 @@ def validate_edit(path, value, remove):
         )
     elif name == "reasoning_effort":
         valid = value in ("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
+    elif name == "service_tier":
+        # 仅保存 ARTEMIS 的逻辑档位；移除该字段沿用已有继承规则。
+        valid = value in get_args(CodexServiceTier)
     elif name == "thinking_level":
         valid = value in ("minimal", "low", "medium", "high")
     elif name in ("include_thoughts", "enable_grounding"):

@@ -5,12 +5,17 @@ import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { CodexAuthComponent } from '../../components/codex-auth/codex-auth.component';
 
-interface ModelRoute { [key: string]: any; provider?: string; model?: string; fallback?: ModelRoute; }
+interface ModelRoute {
+  [key: string]: any; provider?: string; model?: string; fallback?: ModelRoute;
+  /** Codex 请求速度。未设置时沿用默认路由或 Codex 自身的设置。 */
+  service_tier?: 'standard' | 'fast';
+}
 export interface ModelSettings {
   version: string; filename: string; default: ModelRoute; nodes: Record<string, ModelRoute>;
   providers: string[]; roles: string[]; credentials: Record<string, boolean>;
 }
-const fields = ['provider', 'model', 'reasoning_effort', 'temperature', 'timeout', 'thinking_level', 'thinking_budget', 'include_thoughts', 'enable_grounding'];
+/** 保存时逐项比较的模型字段。空值按现有规则删除对应覆盖项。 */
+const fields = ['provider', 'model', 'reasoning_effort', 'service_tier', 'temperature', 'timeout', 'thinking_level', 'thinking_budget', 'include_thoughts', 'enable_grounding'];
 export interface ModelEdit { path: string; value?: unknown; remove?: boolean; }
 export interface CodexModelOption { model: string; display_name: string; is_default: boolean; }
 
@@ -58,6 +63,8 @@ export class ModelSettingsComponent implements OnInit {
   private catalogLoaded = false;
   private manualModels = new Set<string>();
   efforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
+  /** 页面使用的原文标签，与保存到配置的速度值分离。 */
+  readonly codexSpeedLabels = { standard: '标准', fast: '快速' } as const;
   thoughts = ['minimal', 'low', 'medium', 'high'];
   labels: Record<string, string> = {default: '默认模型', planner: '规划 Planner', operator: '操作 / Monkey 探索',
     explorer: '视觉定位 Explorer', checker: '验证 Checker', object_detector: '页面学习 / 目标检测',
@@ -105,10 +112,16 @@ export class ModelSettingsComponent implements OnInit {
       error: () => { this.catalogLoading.set(false); this.catalogError.set('无法读取 Codex 模型列表，可重试或手动输入；当前配置保持不变。'); }
     });
   }
+  /** 格式化空选项。role 为角色键，fallback 选择备用配置，field 指定要展示的默认字段。 */
   inherited(role: string, fallback: boolean, field: string) {
     if (role === 'default') return this.i18n.t("使用运行时默认值");
-    const value = fallback ? this.draft?.default.fallback?.[field] : this.draft?.default[field];
-    return this.i18n.t("继承默认{0}", [value === undefined ? '' : `：${value}`]);
+    // 默认路由的动态字段需要按属性名和枚举值收窄后才能用于速度标签。
+    const value: unknown = fallback ? this.draft?.default.fallback?.[field] : this.draft?.default[field];
+    // 速度的内部枚举值不能直接显示在继承提示中。
+    const display = field === 'service_tier' && (value === 'standard' || value === 'fast')
+      ? this.i18n.t(this.codexSpeedLabels[value])
+      : value;
+    return this.i18n.t("继承默认{0}", [display === undefined ? '' : `：${display}`]);
   }
   summary(role: string) {
     const row = this.route(role), defaults = this.draft!.default;

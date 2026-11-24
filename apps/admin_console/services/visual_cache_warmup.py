@@ -102,6 +102,8 @@ async def warm_current_page(device_serial):
             thinking_budget=endpoint.thinking_budget,
             thinking_level=endpoint.thinking_level,
             reasoning_effort=endpoint.reasoning_effort,
+            # 单页学习使用视觉节点自己的 Codex 档位，原始模型入口负责忽略非 Codex 档位。
+            service_tier=endpoint.service_tier,
             include_thoughts=endpoint.include_thoughts,
             enable_grounding=False,
         )

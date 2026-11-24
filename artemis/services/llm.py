@@ -40,6 +40,7 @@ from artemis.config import (
     get_default_llm_config,
     settings,
 )
+from artemis.config.constants import CodexServiceTier
 from artemis.context import ArtemisContext
 from artemis.data_engine.trace import CURRENT_TRACE_ID, DataEngineCallbackHandler
 from artemis.llm.google import is_google_chat_model, is_google_provider
@@ -930,10 +931,17 @@ def get_cached_raw_model(
     include_thoughts: bool | None = None,
     reasoning_effort: str | None = None,
     enable_grounding: bool = False,
+    service_tier: CodexServiceTier | None = None,
 ) -> BaseChatModel:
-    """Retrieves or instantiates a cached raw LangChain chat model."""
+    """Retrieves or instantiates a cached raw LangChain chat model.
+
+    service_tier 是 Codex 的 ``standard`` 或 ``fast`` 档位，None 保留客户端默认速度。
+    调用只获取按端点配置缓存的模型，不发起推理。其他提供商忽略 Codex 档位。
+    """
+    # 先解析提供商别名，防止把继承来的 Codex 档位带入其他提供商的客户端。
+    model_provider = ModelProvider.from_string(provider)
     ep = ModelEndpoint(
-        provider=ModelProvider.from_string(provider),
+        provider=model_provider,
         model_name=model_name,
         temperature=temperature or 0.0,
         timeout_seconds=timeout or 60.0,
@@ -941,6 +949,7 @@ def get_cached_raw_model(
         thinking_level=thinking_level,
         include_thoughts=include_thoughts,
         reasoning_effort=reasoning_effort,
+        service_tier=service_tier if model_provider == ModelProvider.CODEX else None,
         enable_grounding=enable_grounding,
     )
     return ModelFactory.get_model(ep)
@@ -982,15 +991,20 @@ def _resolve_endpoint(
     # name. Fully materialized runtime config always supplies a string here.
     provider_val = _get_val(cfg, "provider", str) or "google"
     model_val = _get_val(cfg, "model", str) or "gemini-2.5-flash"
+    # 使用主模型或备用模型各自的提供商；非 Codex 节点可以继承配置但不会使用档位。
+    provider = ModelProvider.from_string(provider_val)
 
     return ModelEndpoint(
-        provider=ModelProvider.from_string(provider_val),
+        provider=provider,
         model_name=str(model_val),
         temperature=_get_val(cfg, "temperature", (int, float)) or 0.0,
         timeout_seconds=_get_val(cfg, "timeout", (int, float)) or 60.0,
         thinking_budget=_get_val(cfg, "thinking_budget", int),
         thinking_level=_get_val(cfg, "thinking_level", str),
         reasoning_effort=_get_val(cfg, "reasoning_effort", str),
+        service_tier=_get_val(cfg, "service_tier", str)
+        if provider == ModelProvider.CODEX
+        else None,
         include_thoughts=_get_val(cfg, "include_thoughts", bool),
         enable_grounding=_get_val(cfg, "enable_grounding", bool) or False,
     )

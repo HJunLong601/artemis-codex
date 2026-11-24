@@ -47,6 +47,14 @@
                   <option value="">{{ inherited(role, fallback, 'reasoning_effort') }}</option>
                   @for (effort of efforts; track effort) { <option [value]="effort">{{ effort }}</option> }
                 </select></label>
+                @if (isCodex(role, fallback)) {
+                  <label>{{ 'Codex 速度' | t }}<select [attr.aria-label]="role + (fallback ? (' 备用' | t) : '') + ' ' + ('Codex 速度' | t)"
+                    [ngModel]="value(role, fallback, 'service_tier')" (ngModelChange)="set(role, fallback, 'service_tier', $event)">
+                    <option value="">{{ inherited(role, fallback, 'service_tier') }}</option>
+                    <option value="standard">{{ codexSpeedLabels.standard | t }}</option>
+                    <option value="fast">{{ codexSpeedLabels.fast | t }}</option>
+                  </select></label>
+                }
               </div>
               <details class="advanced"><summary>{{ '高级参数' | t }}</summary><div class="fields">
                 <label>{{ 'Temperature（0–2）' | t }}<input type="number" min="0" max="2" step="0.1"

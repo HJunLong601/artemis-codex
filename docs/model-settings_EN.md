@@ -16,6 +16,8 @@ Codex model selectors read the local App Server's `model/list` catalog. They sup
 
 Manual input remains available if catalog loading fails. Existing models absent from the catalog stay configured and are labeled accordingly. Other providers use free-text model names. The provider list reflects adapters implemented by the running version.
 
+For Codex, choose **Standard** or **Fast** for the default model, individual roles, and fallback models. Leave the field empty to use the inherited value or runtime default. Speed and reasoning effort are separate settings.
+
 ## Saving and applying changes
 
 **Save model settings** writes changed fields while preserving JSONC comments, other roles, presets, and runtime settings such as `agent`. Writes use a temporary file and atomic replacement. POSIX files use `0600` permissions. On Windows, directory ACLs determine access rather than POSIX permission bits. If the file changed since it was loaded, saving returns a conflict and keeps the draft.

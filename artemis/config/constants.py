@@ -118,6 +118,9 @@ DEFAULT_EXPLORER_VERSION: Literal["flash", "pro", "ultra"] = "flash"
 # Literals and Type Aliases
 # ==============================================================================
 
+# ARTEMIS 中的 Codex 速度选项；未设置字段时沿用 Codex 客户端的速度。
+CodexServiceTier = Literal["standard", "fast"]
+
 LLMProvider = Literal[
     "openai",
     "codex",

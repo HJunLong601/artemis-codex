@@ -27,6 +27,7 @@ from typing import Any
 from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel, Field
 
+from artemis.config.constants import CodexServiceTier
 from artemis.config.settings import settings
 from artemis.llm.google.provider import supports_thinking_level
 from third_party.mobile_use.utils.logger import get_logger
@@ -107,6 +108,8 @@ class ModelEndpoint(BaseModel):
     reasoning_effort: str | None = Field(
         default=None, description="Reasoning effort: 'low', 'medium', 'high'"
     )
+    # 仅 Codex 使用的速度档位；None 表示由客户端沿用已有设置。
+    service_tier: CodexServiceTier | None = None
     thinking_budget: int | None = Field(default=None, description="Thinking budget token count")
     thinking_level: str | None = Field(
         default=None, description="Thinking level: 'minimal', 'low', 'medium', 'high'"
@@ -135,6 +138,7 @@ class ModelEndpoint(BaseModel):
             self.thinking_level,
             self.include_thoughts,
             self.reasoning_effort,
+            self.service_tier if self.provider == ModelProvider.CODEX else None,
             self.enable_grounding,
             self.api_base,
             api_key_digest,
@@ -277,6 +281,9 @@ class ModelFactory:
             }
             if endpoint.reasoning_effort is not None:
                 codex_kwargs["reasoning_effort"] = endpoint.reasoning_effort
+            if endpoint.service_tier is not None:
+                # 同模型、同推理强度可以有不同速度，创建时保留各自档位。
+                codex_kwargs["service_tier"] = endpoint.service_tier
             return CodexAppServerChatModel(**codex_kwargs)
 
         elif provider == ModelProvider.VERTEX_AI:
