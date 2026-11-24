@@ -69,7 +69,7 @@ Windows PowerShell 运行 `.\start.bat`，macOS 或 Linux 运行 `./start.sh`。
 | [Codex 接入](#model-configuration) | 用本机已登录的 Codex 操作手机，核心流程无需另配 API Key。 |
 | [Wi-Fi ADB](#wifi-adb) | 将已授权的 USB 手机切换为无线连接，也可以在 Android 11 及以上用配对码连接。 |
 | [页面缓存与学习](#visual-location-cache) | 让 ARTEMIS 记住控件位置，下次回到同一页面时复用。 |
-| [源码绑定](./docs/source-binding_CN.md) | 将 Android App 绑定到本机源码，让 ARTEMIS 在视觉定位前用控件 ID 和文案辅助查找。 |
+| [源码绑定](./docs/source-binding_CN.md) | 将 Android App 绑定到本机源码，在视觉定位前用控件 ID 和文案辅助查找。支持 Flutter、React Native、Android Views 和 Jetpack Compose，也支持混合使用这些技术栈的工程。 |
 | [Android 设备](./docs/testing.md#android-emulator-without-a-physical-device) | 优先使用空闲真机，也可发现并启动已安装的模拟器。 |
 | [iOS 设备](./docs/macos-support.md#ios-devices) | 在 Mac 上控制 iOS 模拟器。已配对的 iPhone 可投屏和录屏，真机自动点击仍待验证。 |
 

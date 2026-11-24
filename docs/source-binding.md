@@ -6,8 +6,8 @@ Bind an Android package name to local source directories so ARTEMIS can use cont
 
 ## Set up a source group
 
-1. Open **Project Source** in the console and select **Add source group**. Enter an Android package name directly or choose an app from a connected device.
-2. Name the group and give the absolute path to the main project directory on the computer running ARTEMIS. Add any extra module directories as absolute paths, one per line.
+1. Open **Project Source** and select **Bind app**. Enter the Android package name or choose an app from a connected device. You can also enter an optional **App name** for display and search. All groups for the same package share that name. To add another group, select **Add source group** on the app card.
+2. Keep the default group name **Main project** or enter your own. Give the absolute path to the main project directory on the computer running ARTEMIS. Add any extra module directories as absolute paths, one per line.
 3. Save the group. When you run a task from the local console, ARTEMIS automatically uses a unique binding for the actual foreground package. If that package has multiple source groups, use **Task source group (optional)** to select the one that matches the installed build.
 
 ## Locating workflow
@@ -15,6 +15,8 @@ Bind an Android package name to local source directories so ARTEMIS can use cont
 ![Source binding flow. An unresolved target enters source lookup. The current UI tree confirms one clickable control, or the target returns to the existing fallback.](./assets/source-binding-flow-en.png)
 
 For unresolved targets, ARTEMIS extracts the control name and constraints such as role and position from the original description, then searches the bound directories. When the full description has a source match, ARTEMIS checks that evidence first.
+
+If a bound project mixes stacks, ARTEMIS combines clues from the applicable readers and checks them against the same live UI tree.
 
 | Stack | Source hints |
 | --- | --- |

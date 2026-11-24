@@ -13,11 +13,11 @@
     @if (locatingStats(); as source) {
       <dl class="source-metrics source-summary">
         <div>
-          <dt>{{ '累计命中目标数' | t }}</dt>
+          <dt>{{ '源码定位累计命中' | t }}</dt>
           <dd class="source-value">{{ source.hits | number:'1.0-0':i18n.locale() }}</dd>
         </div>
         <div>
-          <dt>{{ '预计节省时间' | t }}</dt>
+          <dt>{{ '估算节省时间' | t }}</dt>
           <dd class="source-value">{{ source.estimated_saved_ms == null ? ('暂无估算' | t) : (source.estimated_saved_ms / 1000 | number:'1.0-3':i18n.locale()) + (' s' | t) }}</dd>
           @if (source.estimated_saved_ms == null) {
             <dd class="source-basis">{{ '暂无可比较的视觉定位耗时样本。' | t }}</dd>
@@ -27,12 +27,12 @@
         </div>
       </dl>
       <dl class="source-metrics source-details">
-        <div><dt>{{ '检查目标数' | t }}</dt><dd>{{ source.attempts | number:'1.0-0':i18n.locale() }}</dd></div>
-        <div><dt>{{ '回退目标数' | t }}</dt><dd>{{ source.fallbacks | number:'1.0-0':i18n.locale() }}</dd></div>
+        <div><dt>{{ '源码检查目标数' | t }}</dt><dd>{{ source.attempts | number:'1.0-0':i18n.locale() }}</dd></div>
+        <div><dt>{{ '转回常规定位的目标数' | t }}</dt><dd>{{ source.fallbacks | number:'1.0-0':i18n.locale() }}</dd></div>
         <div><dt>{{ '检查批次' | t }}</dt><dd>{{ source.batches | number:'1.0-0':i18n.locale() }}</dd></div>
         <div><dt>{{ '每批平均耗时' | t }}</dt><dd>{{ source.average_ms == null ? '—' : (source.average_ms | number:'1.0-2':i18n.locale()) + (' ms' | t) }}</dd></div>
       </dl>
-      <p class="hint">{{ '统计实际进入源码辅助检查的目标。实时 UI 树确认唯一可点击目标时记为命中，其余回到原有定位流程。耗时为源码辅助检查阶段的实测值。' | t }}</p>
+      <p class="hint">{{ '实时 UI 树确认唯一可点击控件时计为命中。未确认的目标继续走常规定位。每批平均耗时只统计源码检查。' | t }}</p>
     } @else if (readingStats()) {
       <p class="hint" role="status">{{ '正在读取源码辅助定位统计…' | t }}</p>
     }
@@ -41,17 +41,17 @@
 
   <section aria-labelledby="app-project-device">
     <div class="section-heading">
-      <h2 id="app-project-device">{{ '设备与应用' | t }}</h2>
+      <h2 id="app-project-device">{{ '已连接设备' | t }}</h2>
       <button type="button" (click)="loadDevices()" [disabled]="readingDevice() || saving() || verifying()">
         {{ '刷新设备' | t }}
       </button>
     </div>
     <div class="fields">
       <label>
-        {{ '目标设备' | t }}
+        {{ '用于选应用或对照的设备' | t }}
         <select [ngModel]="serial()" (ngModelChange)="selectDevice($event)"
           [disabled]="readingDevice() || saving() || verifying()">
-          <option value="">{{ '明确选择设备' | t }}</option>
+          <option value="">{{ '请选择设备' | t }}</option>
           @for (device of devices(); track device.canonical_id) {
             <option [value]="device.canonical_id" [disabled]="device.is_busy">
               {{ device.name || device.serial }}{{ device.is_busy ? ('（忙碌）' | t) : '' }}
@@ -63,31 +63,29 @@
     @if (readingDevice()) {
       <p class="hint" role="status">{{ (serial() ? '读取应用中…' : '正在读取设备…') | t }}</p>
     } @else if (!devices().length) {
-      <p class="hint" role="status">{{ '未发现已授权的 Android 设备。' | t }}</p>
+      <p class="hint" role="status">{{ '当前没有可用的 Android 设备。仍可手动输入包名绑定源码。' | t }}</p>
     }
   </section>
 
   <section aria-labelledby="app-project-groups">
     <div class="section-heading">
-      <h2 id="app-project-groups">{{ '源码组' | t }}</h2>
+      <h2 id="app-project-groups">{{ '应用源码绑定' | t }}</h2>
       <div class="actions">
         <button type="button" (click)="loadGroups()"
           [disabled]="readingGroups() || saving() || verifying() || !!draft()">
-          {{ '刷新源码组' | t }}
+          {{ '刷新绑定' | t }}
         </button>
         <button type="button" class="primary" (click)="edit()"
           [disabled]="readingGroups() || saving() || verifying() || !!draft()">
-          {{ '新增源码组' | t }}
+          {{ '绑定应用' | t }}
         </button>
       </div>
     </div>
     @if (draft(); as form) {
       <form #groupForm (ngSubmit)="save()" class="group-form">
         <fieldset [disabled]="readingGroups() || saving() || verifying()">
-          <legend>{{ (form.id ? '编辑源码组' : '新增源码组') | t }}</legend>
-          @if (form.id) {
-            <p class="package">{{ form.package }}</p>
-          } @else {
+          <legend>{{ (form.newBinding ? '绑定应用' : form.id ? '编辑源码组' : '新增源码组') | t }}</legend>
+          @if (form.newBinding) {
             <label for="source-group-package">
               {{ 'Android 应用包名' | t }}
               <input id="source-group-package" name="package" type="text" required maxlength="255" autocomplete="off"
@@ -98,7 +96,7 @@
             <p id="app-project-app-guide" class="hint">
               {{ (form.package.trim() && !validDraftPackage()
                 ? '请输入有效的 Android 包名，例如 com.example.app。'
-                : '可直接填写包名。选择设备时可从其已安装应用中选择。') | t }}
+                : 'ARTEMIS 用包名匹配设备上的应用。可直接输入，也可从所选设备选择。') | t }}
             </p>
             @if (appsReady() && apps().length) {
               <details class="device-app-picker">
@@ -107,7 +105,7 @@
                   <label for="source-group-app-search">
                     {{ '搜索已安装应用' | t }}
                     <input id="source-group-app-search" name="appSearch" type="search"
-                      [placeholder]="'按包名搜索' | t" autocomplete="off"
+                      [placeholder]="'按应用名称或包名搜索' | t" autocomplete="off"
                       [ngModel]="appSearch()" (ngModelChange)="appSearch.set($event)">
                   </label>
                   <label for="source-group-installed-app">
@@ -126,11 +124,23 @@
                 }
               </details>
             }
+          } @else {
+            <p class="package">{{ 'Android 应用包名' | t }} · <code>{{ form.package }}</code></p>
+          }
+          @if (form.newBinding || form.id) {
+            <label>
+              {{ '应用名称（可选）' | t }}
+              <input name="appName" type="text" maxlength="100" autocomplete="off"
+                [ngModel]="form.appName" (ngModelChange)="updateDraft('appName', $event)"
+                aria-describedby="app-project-app-name-guide">
+            </label>
+            <p id="app-project-app-name-guide" class="hint">{{ '用于显示和搜索此应用，同一包名的所有源码组共用。' | t }}</p>
           }
           <div class="fields">
             <label>
               {{ '源码组名称' | t }}
-              <input name="groupName" type="text" required autocomplete="off"
+              <input name="groupName" type="text" required maxlength="100" autocomplete="off"
+                [placeholder]="'例如正式版或开发版' | t"
                 [ngModel]="form.name" (ngModelChange)="updateDraft('name', $event)">
             </label>
             <label>
@@ -150,7 +160,7 @@
           <p id="app-project-additional-guide" class="hint">{{ '每行填写一个附加目录的绝对路径。' | t }}</p>
           <div class="actions">
             <button type="submit" class="primary" [disabled]="!validDraftPackage() || !form.name.trim() || !form.project_dir.trim()">
-              {{ (saving() ? '保存中…' : '保存源码组') | t }}
+              {{ (saving() ? '保存中…' : form.newBinding ? '保存绑定' : '保存源码组') | t }}
             </button>
             <button type="button" (click)="draft.set(null)">{{ '取消' | t }}</button>
           </div>
@@ -161,7 +171,7 @@
     <div class="fields app-browse-controls">
       <label for="app-project-browse-query">
         {{ '搜索已绑定应用' | t }}
-        <input id="app-project-browse-query" type="search" [placeholder]="'按包名搜索' | t"
+        <input id="app-project-browse-query" type="search" [placeholder]="'按应用名称或包名搜索' | t"
           [ngModel]="browseQuery()" (ngModelChange)="browseQuery.set($event)">
       </label>
       <label class="installed-filter">
@@ -173,7 +183,7 @@
     @if (readingGroups()) {
       <p role="status">{{ '正在读取源码组…' | t }}</p>
     } @else if (!groups().length) {
-      <p class="hint">{{ '暂无源码组。新建时可填写 Android 应用包名。' | t }}</p>
+      <p class="hint">{{ '暂无应用绑定。选择「绑定应用」添加包名和源码目录。' | t }}</p>
     } @else if (!visibleApps().length) {
       <p class="hint" role="status">{{ '没有符合筛选条件的已绑定应用。' | t }}</p>
     }
@@ -215,7 +225,7 @@
                 </div>
                 @if (removing() === group.id) {
                   <div class="remove-confirmation">
-                    <p>{{ '确认移除源码组「{0}」？' | t:[group.name] }}</p>
+                    <p>{{ (app.groups.length === 1 ? '移除「{0}」后，此应用也会解除源码绑定。' : '确认移除源码组「{0}」？') | t:[group.name] }}</p>
                     <div class="actions">
                       <button type="button" class="danger" (click)="remove(group)"
                         [disabled]="readingGroups() || saving() || verifying()">{{ '确认移除' | t }}</button>
@@ -240,32 +250,32 @@
 
   <section aria-labelledby="app-project-verification">
     <h2 id="app-project-verification">{{ '真机定位对照' | t }}</h2>
-    <p class="hint">{{ '在所选设备上打开目标页面。A 和 B 用同一帧比较定位结果，本次验证不会点击屏幕。' | t }}</p>
+    <p class="hint">{{ '在所选设备上打开目标页面。对照会在同一画面比较常规定位和加入源码线索后的结果，全程只查看画面。' | t }}</p>
     <fieldset [disabled]="readingGroups() || readingDevice() || saving() || verifying()">
       <legend>{{ '对照条件' | t }}</legend>
       <div class="fields">
         <label>
-          {{ '验证源码组' | t }}
+          {{ '用于对照的源码组' | t }}
           <select [ngModel]="verifyGroup()" (ngModelChange)="verifyGroup.set($event); resetComparison()">
-            <option value="">{{ '手动选择一组' | t }}</option>
+            <option value="">{{ '请选择源码组' | t }}</option>
             @for (group of availableGroups(); track group.id) {
-              <option [value]="group.id">{{ group.package }} · {{ group.name }}</option>
+              <option [value]="group.id">{{ appNames()[group.package] || group.package }} · {{ group.name }}</option>
             }
           </select>
         </label>
         <label>
-          {{ '定位描述' | t }}
+          {{ '要查找的控件' | t }}
           <input type="text" [ngModel]="query()" (ngModelChange)="query.set($event); resetComparison()">
         </label>
         <label>
-          {{ '预期目标' | t }}
+          {{ '用于核对的文字或 ID' | t }}
           <input type="text" [ngModel]="expectedTarget()"
             (ngModelChange)="expectedTarget.set($event); resetComparison()"
             aria-describedby="app-project-expected-guide">
         </label>
       </div>
       <p class="hint" id="app-project-expected-guide">
-        {{ '填写当前页面唯一控件的准确文字或完整 ID，用于独立判定定位是否正确。' | t }}
+        {{ '填写能在当前页面唯一确认目标的完整文字或控件 ID，用于判定两组结果是否正确。' | t }}
       </p>
       @if (!serial() || !availableGroups().length) {
         <p class="hint">{{ '选择设备后，可以对其已安装 App 的源码组进行验证。' | t }}</p>

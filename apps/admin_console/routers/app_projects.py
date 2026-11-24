@@ -82,19 +82,19 @@ def get_source_locating_stats(request: Request) -> dict[str, int | float | None]
 
 
 @router.post("", status_code=201)
-def create_group(request: Request, body: service.SourceGroupInput) -> service.SourceGroup:
-    """校验并保存 body 指定的一组目录，返回新组及其 UUID。"""
+def create_group(request: Request, body: service.SourceGroupRequest) -> service.SourceGroup:
+    """校验本机写请求，保存 body 的源码目录及可选应用名称，返回带 UUID 的组。"""
     with _binding_request(request, write=True):
-        return service.create_group(body)
+        return service.create_group(body, app_name=body.app_name)
 
 
 @router.put("/{group_id}")
 def update_group(
-    request: Request, group_id: UUID, body: service.SourceGroupInput
+    request: Request, group_id: UUID, body: service.SourceGroupRequest
 ) -> service.SourceGroup:
-    """用 body 的完整配置替换 group_id，返回保存后的组，未知 ID 返回 404。"""
+    """校验本机写请求，按 body 更新 group_id 的目录及可选应用名称，未知 ID 返回 404。"""
     with _binding_request(request, write=True):
-        return service.update_group(str(group_id), body)
+        return service.update_group(str(group_id), body, app_name=body.app_name)
 
 
 @router.delete("/{group_id}")

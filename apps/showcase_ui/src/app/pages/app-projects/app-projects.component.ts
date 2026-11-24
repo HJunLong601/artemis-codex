@@ -35,6 +35,10 @@ interface GroupDraft extends Omit<SourceGroupInput, 'additional_dirs'> {
   id: string | null;
   /** 每行一个可选附加目录，空白行在保存时忽略。 */
   additional: string;
+  /** 从页面顶部发起时允许输入包名，并与首组源码一起保存。 */
+  newBinding: boolean;
+  /** 应用卡片的自定义名称，空白时采用设备名称或包名。 */
+  appName: string;
 }
 
 /** 设备清单中的字段；对照只使用 ready 且不忙碌的 Android 设备。 */
@@ -65,7 +69,7 @@ interface InstalledApp {
 interface AppSourceGroups {
   /** 用于分组及新建绑定的准确包名。 */
   package: string;
-  /** 当前设备可提供的应用名称，离线时可能缺失。 */
+  /** 优先使用已保存的应用名称，其次使用设备名称，均缺失时由模板显示包名。 */
   name?: string;
   /** 同一个包名下已保存的各组源码。 */
   groups: SourceGroup[];
@@ -150,6 +154,8 @@ export class AppProjectsComponent {
 
   /** 后台已经落盘的全部源码组。 */
   readonly groups = signal<SourceGroup[]>([]);
+  /** 已保存的应用名称，以包名为键，同一应用的各组源码共用。 */
+  readonly appNames = signal<Record<string, string>>({});
   /** 新建或编辑中的表单，null 表示未打开。 */
   readonly draft = signal<GroupDraft | null>(null);
   /** 已要求确认移除的组 ID，空字符串表示未请求移除。 */
@@ -174,16 +180,20 @@ export class AppProjectsComponent {
   readonly visibleApps = computed(() => {
     const query = this.browseQuery().trim().toLowerCase();
     const installed = this.installedByPackage();
+    // 离线时依然可以依靠本机绑定中保存的名称筛选应用。
+    const appNames = this.appNames();
     const filterInstalled = this.installedOnly() && this.appsReady();
     const grouped = new Map<string, AppSourceGroups>();
     for (const group of this.groups()) {
       const app = installed.get(group.package);
-      if ((filterInstalled && !app) || !matchesApp(group.package, app?.name, query)) continue;
+      // 卡片与搜索使用相同的展示名称。
+      const name = appNames[group.package] || app?.name;
+      if ((filterInstalled && !app) || !matchesApp(group.package, name, query)) continue;
       const existing = grouped.get(group.package);
       if (existing) {
         existing.groups.push(group);
       } else {
-        grouped.set(group.package, { package: group.package, name: app?.name, groups: [group] });
+        grouped.set(group.package, { package: group.package, name, groups: [group] });
       }
     }
     return [...grouped.values()];
@@ -277,12 +287,13 @@ export class AppProjectsComponent {
     if (this.readingGroups() || this.saving() || this.verifying()) return;
     this.error.set('');
     this.readingGroups.set(true);
-    this.http.get<{ groups: SourceGroup[] }>(this.api).pipe(
+    this.http.get<{ groups: SourceGroup[]; app_names?: Record<string, string> }>(this.api).pipe(
       takeUntilDestroyed(this.destroyRef),
       finalize(() => this.readingGroups.set(false)),
     ).subscribe({
       next: response => {
         this.groups.set(response.groups);
+        this.appNames.set(response.app_names ?? {});
         if (!response.groups.some(group => group.id === this.verifyGroup())) this.verifyGroup.set('');
         this.resetComparison();
       },
@@ -359,16 +370,19 @@ export class AppProjectsComponent {
     this.draft.set(group ? {
       id: group.id, package: group.package, name: group.name,
       project_dir: group.project_dir, additional: group.additional_dirs.join('\n'),
+      newBinding: false, appName: this.appNames()[group.package] ?? '',
     } : {
-      id: null, package: packageName, name: '', project_dir: '', additional: '',
+      // 新组预填当前界面语言的默认名称，用户可直接保存或改名。
+      id: null, package: packageName, name: this.i18n.t('主工程'), project_dir: '', additional: '',
+      newBinding: !packageName, appName: '',
     });
     // 从较下方的 App 卡片操作时，也能看到实际打开的表单。
     afterNextRender(() => this.editor()?.nativeElement.scrollIntoView({ block: 'nearest' }), { injector: this.injector });
   }
 
   /** 更新一个表单字段，值使用用户输入原文，保存后由后台校验路径。 */
-  updateDraft(field: 'package' | 'name' | 'project_dir' | 'additional', value: string): void {
-    this.draft.update(draft => draft && (field !== 'package' || !draft.id) ? { ...draft, [field]: value } : draft);
+  updateDraft(field: 'package' | 'name' | 'project_dir' | 'additional' | 'appName', value: string): void {
+    this.draft.update(draft => draft && (field !== 'package' || draft.newBinding) ? { ...draft, [field]: value } : draft);
   }
 
   /** 用户明确选择当前设备建议时，将包名填写到新建草稿，不改变浏览状态。 */
@@ -385,12 +399,17 @@ export class AppProjectsComponent {
     if (!draft || !packageName || !draft.name.trim() || !draft.project_dir.trim()
       || this.readingGroups() || this.saving() || this.verifying()) return;
     // 每行都是独立路径。绝对性、规范化、去重和可读性由后台判断。
-    const body: SourceGroupInput = {
+    const body: SourceGroupInput & { app_name?: string } = {
       package: packageName,
       name: draft.name.trim(),
       project_dir: draft.project_dir.trim(),
       additional_dirs: draft.additional.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
     };
+    // 只提交已改动的名称；编辑时清空输入可恢复默认展示。
+    const appName = draft.appName.trim();
+    if ((draft.id && appName !== (this.appNames()[packageName] ?? '')) || (draft.newBinding && appName)) {
+      body.app_name = appName;
+    }
     this.error.set('');
     this.message.set('');
     this.saving.set(true);
@@ -401,7 +420,10 @@ export class AppProjectsComponent {
     request.pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.saving.set(false))).subscribe({
       next: group => {
         this.groups.update(groups => draft.id ? groups.map(item => item.id === group.id ? group : item) : [...groups, group]);
-        this.message.set('源码组已保存。');
+        if (body.app_name !== undefined) {
+          this.appNames.update(names => ({ ...names, [group.package]: appName }));
+        }
+        this.message.set(draft.newBinding ? '应用绑定已保存。' : '源码组已保存。');
         this.draft.set(null);
         this.resetComparison();
       },
@@ -421,6 +443,14 @@ export class AppProjectsComponent {
     ).subscribe({
       next: () => {
         this.groups.update(groups => groups.filter(item => item.id !== group.id));
+        if (!this.groups().some(item => item.package === group.package)) {
+          this.appNames.update(names => {
+            // 其余应用的展示名称继续保留在当前列表快照中。
+            const remaining = { ...names };
+            delete remaining[group.package];
+            return remaining;
+          });
+        }
         if (this.verifyGroup() === group.id) {
           this.verifyGroup.set('');
           this.resetComparison();

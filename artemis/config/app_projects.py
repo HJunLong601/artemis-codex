@@ -58,6 +58,17 @@ class SourceGroup(SourceGroupInput):
     id: UUID
 
 
+# 自定义的应用展示名称，首尾空格不保留，空字符串表示清除已保存的名称。
+AppName = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
+
+
+class SourceGroupRequest(SourceGroupInput):
+    """编辑源码组时可同时修改该包名的展示名称，兼容只发送组字段的旧客户端。"""
+
+    # 属于包名而不是源码组；省略或传 null 时保留已有展示名称。
+    app_name: AppName | None = None
+
+
 class SourceGroups(BaseModel):
     """本机绑定配置，一个包名可对应多组，初始为空。"""
 
@@ -65,6 +76,8 @@ class SourceGroups(BaseModel):
 
     # 已保存记录，按创建顺序展示。
     groups: list[SourceGroup] = Field(default_factory=list)
+    # 以 Android 包名为键保存可选的应用展示名称，旧配置缺少该字段时视为空。
+    app_names: dict[str, AppName] = Field(default_factory=dict)
 
 
 def _path() -> Path:
@@ -188,26 +201,39 @@ def get_group(group_id: str) -> SourceGroup:
     return group
 
 
-def create_group(input_group: SourceGroupInput) -> SourceGroup:
-    """保存一组 input_group，使用新 UUID 返回已持久化的记录。"""
-    group = SourceGroup(id=uuid4(), **(input_group.model_dump() | _normalize(input_group)))
+def create_group(input_group: SourceGroupInput, *, app_name: AppName | None = None) -> SourceGroup:
+    """校验 input_group 的目录，并原子保存新 UUID 和可选的包名展示名称。
+
+    app_name 为 None 时保留名称，空字符串清除名称。目录或保存失败时抛出 BindingError。
+    """
+    group = SourceGroup(id=uuid4(), **(input_group.model_dump(exclude={"app_name"}) | _normalize(input_group)))
     with _WRITE_LOCK:
         path = _path()
         snapshot = _read(path)
         snapshot.groups.append(group)
+        _set_app_name(snapshot, group.package, app_name)
         _write(path, snapshot)
     return group
 
 
-def update_group(group_id: str, input_group: SourceGroupInput) -> SourceGroup:
-    """使用 input_group 替换 group_id 对应配置，保留该记录的 UUID 与列表位置。"""
+def update_group(
+    group_id: str, input_group: SourceGroupInput, *, app_name: AppName | None = None
+) -> SourceGroup:
+    """在写锁内替换 group_id 对应的组，保留 UUID 和顺序，并更新目标包名的展示名称。
+
+    app_name 为 None 时保留名称，空字符串清除名称。无效目录、未知组或写入失败时抛出 BindingError。
+    """
     paths = _normalize(input_group)
     with _WRITE_LOCK:
         path = _path()
         snapshot = _read(path)
         index = _position(snapshot, group_id)
-        group = SourceGroup(id=snapshot.groups[index].id, **(input_group.model_dump() | paths))
+        # 旧组提供原包名和 UUID；旧客户端可能使用此接口修改包名。
+        previous = snapshot.groups[index]
+        group = SourceGroup(id=previous.id, **(input_group.model_dump(exclude={"app_name"}) | paths))
         snapshot.groups[index] = group
+        _drop_unbound_name(snapshot, previous.package)
+        _set_app_name(snapshot, group.package, app_name)
         _write(path, snapshot)
     return group
 
@@ -217,5 +243,23 @@ def delete_group(group_id: str) -> None:
     with _WRITE_LOCK:
         path = _path()
         snapshot = _read(path)
-        del snapshot.groups[_position(snapshot, group_id)]
+        # 删除前记住所属包名，以便在最后一组移除时清理展示名称。
+        removed = snapshot.groups.pop(_position(snapshot, group_id))
+        _drop_unbound_name(snapshot, removed.package)
         _write(path, snapshot)
+
+
+def _set_app_name(snapshot: SourceGroups, package: str, app_name: AppName | None) -> None:
+    """在写锁内更新快照里的包名展示名称。None 保持原值，空字符串清除，不单独落盘。"""
+    if app_name is None:
+        return
+    if app_name:
+        snapshot.app_names[package] = app_name
+    else:
+        snapshot.app_names.pop(package, None)
+
+
+def _drop_unbound_name(snapshot: SourceGroups, package: str) -> None:
+    """在写锁内清理失去最后一组源码的包名展示名称，不单独落盘。"""
+    if not any(group.package == package for group in snapshot.groups):
+        snapshot.app_names.pop(package, None)
