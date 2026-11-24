@@ -49,6 +49,7 @@ from artemis.agents.explorer.explorer import Explorer
 from artemis.agents.explorer.geometry import (
     is_valid_norm_point,
     norm_to_pixel,
+    pixel_to_norm,
     resolve_screen_size,
 )
 from artemis.agents.explorer.tiers import get_tier
@@ -259,6 +260,31 @@ def _element_pixel_bounds(element: dict[str, Any]) -> tuple[int, int, int, int] 
     return None
 
 
+def _find_project_element(
+    indexed_elements: list[dict[str, Any]], bounds: NormBounds | None, width: int, height: int
+) -> dict[str, Any] | None:
+    """只复用与源码候选的当前真机矩形完全一致的原生索引。"""
+    if bounds is None:
+        return None
+    # 归一化后按同一尺度比较，避免近邻或覆盖目标的小控件接管点击。
+    matches = []
+    for element in indexed_elements:
+        if (
+            not isinstance(element, dict)
+            or element.get("class") == "ExplorerCandidate"
+            or element.get("is_ocr")
+        ):
+            continue
+        box = _element_pixel_bounds(element)
+        if box is None:
+            continue
+        left, top = pixel_to_norm(*box[:2], width, height)
+        right, bottom = pixel_to_norm(*box[2:], width, height)
+        if (left, top, right, bottom) == bounds:
+            matches.append(element)
+    return matches[0] if len(matches) == 1 else None
+
+
 # --------------------------------------------------------------------------- #
 # Pipeline
 # --------------------------------------------------------------------------- #
@@ -323,7 +349,10 @@ def register_candidates(
     for cand in outcome.candidates:
         pixel = norm_to_pixel(cand.coords[0], cand.coords[1], width, height)
 
-        existing = _find_existing_element(indexed_elements, pixel, width)
+        if cand.source == "project":
+            existing = _find_project_element(indexed_elements, cand.bounds, width, height)
+        else:
+            existing = _find_existing_element(indexed_elements, pixel, width)
         if existing is not None:
             index = int(existing.get("index") or (indexed_elements.index(existing) + 1))
             registered.append(

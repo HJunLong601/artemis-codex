@@ -17,12 +17,13 @@
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { I18nService } from '../../core/i18n/i18n.service';
 
-import { Component, ChangeDetectionStrategy, NgZone, DestroyRef, inject, computed, signal, ViewChild, ElementRef, OnInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, NgZone, DestroyRef, inject, computed, signal, ViewChild, ElementRef, OnInit, viewChild } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { AgentStreamComponent } from '../../components/agent-stream/agent-stream.component';
 import { ChatInterfaceComponent } from '../../components/chat-interface/chat-interface.component';
 import { FloatingVideoPlayerComponent } from '../../components/floating-video-player/floating-video-player.component';
+import { TaskSourceGroupSelectComponent } from '../../components/task-source-group-select/task-source-group-select.component';
 import { AgentService } from '../../services/agent.service';
 
 @Component({
@@ -32,7 +33,8 @@ import { AgentService } from '../../services/agent.service';
     FormsModule,
     AgentStreamComponent,
     ChatInterfaceComponent,
-    FloatingVideoPlayerComponent
+    FloatingVideoPlayerComponent,
+    TaskSourceGroupSelectComponent
 ],
   templateUrl: './workspace.component.html',
   styleUrl: './workspace.component.scss',
@@ -43,6 +45,8 @@ export class WorkspaceComponent implements OnInit {
   public agentService = inject(AgentService);
   private zone = inject(NgZone);
   private destroyRef = inject(DestroyRef);
+  /** 本次命令输入框关联的可选源码组。 */
+  private readonly sourceGroup = viewChild(TaskSourceGroupSelectComponent);
 
   // Default right panel width to 1/3 of the screen (or 450px as fallback)
   public rightPanelWidth = signal<number>(
@@ -135,7 +139,8 @@ export class WorkspaceComponent implements OnInit {
     return (
       this.isHoveringCard() ||
       this.isInputFocused() ||
-      this.taskInput.trim().length > 0
+      this.taskInput.trim().length > 0 ||
+      !!this.sourceGroup()?.selection()
     );
   });
 
@@ -236,8 +241,11 @@ export class WorkspaceComponent implements OnInit {
     }
     this.isInputFocused.set(false);
 
-    this.agentService.runTask(goal, this.selectedProfile()).subscribe({
+    this.agentService.runTask(
+      goal, this.selectedProfile(), undefined, undefined, undefined, this.sourceGroup()?.selection()
+    ).subscribe({
       next: (res) => {
+        this.sourceGroup()?.reset();
         this.taskInput = '';
         if (this.dockInputRef?.nativeElement) {
           this.dockInputRef.nativeElement.style.height = 'auto';

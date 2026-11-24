@@ -1,6 +1,70 @@
 """Read-only cache history and paginated element projections."""
 
 import json
+from sqlite3 import Connection
+
+# 这三项属于源码定位，独立于原视觉缓存的历史统计和耗时估算。
+_SOURCE_LOCATING_METRICS = (
+    "source_locating_targets",
+    "source_locating_hits",
+    "source_locating_batches",
+)
+
+
+def read_source_locating(db: Connection | None = None) -> dict[str, int | float | None]:
+    """从已有只读快照汇总源码定位计数，缺少连接或指标表时返回空统计。
+
+    attempts、hits、fallbacks 按目标计数，batches 按定位批次计数。
+    average_ms 是单批平均耗时，单位毫秒，无批次时为 None。
+    estimated_saved_ms 按同一设备同一 App 的真实视觉耗时估算，无匹配样本
+    时为 None。estimated_hits 是纳入耗时估算的源码命中数。
+    """
+    # 每组保留设备与 App 的耗时差异，计数仍在下方合并成全局投影。
+    groups = {}
+    if (
+        db is not None
+        and db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='cache_metrics'"
+        ).fetchone()
+    ):
+        for device, app, name, count, elapsed_ms in db.execute(
+            """SELECT device_key, application, metric,
+                COALESCE(SUM(count), 0), COALESCE(SUM(total_ms), 0)
+            FROM cache_metrics WHERE metric IN (?, ?, ?, 'visual_batches')
+            GROUP BY device_key, application, metric""",
+            _SOURCE_LOCATING_METRICS,
+        ):
+            groups.setdefault((device, app), {})[name] = (count, elapsed_ms)
+
+    # 目标 / 批次计数与总耗时，没样本时返回零和空平均值。
+    attempts = matches = batches = 0
+    total_ms = 0.0
+    # 独立于总命中计数，只有同组有对照耗时的命中才能参与估算。
+    estimated_hits = 0
+    estimated_saved_ms = 0.0
+    for metrics in groups.values():
+        attempts += metrics.get("source_locating_targets", (0, 0))[0]
+        # 同组源码命中数、批次数和总耗时，毫秒；包含回退批次的检查成本。
+        group_hits = metrics.get("source_locating_hits", (0, 0))[0]
+        source_count, source_ms = metrics.get("source_locating_batches", (0, 0))
+        matches += group_hits
+        batches += source_count
+        total_ms += source_ms
+        # 使用同组真实视觉批次作为对照，缺采样时不把猜测计入节省时间。
+        visual_count, visual_ms = metrics.get("visual_batches", (0, 0))
+        if group_hits > 0 and source_count > 0 and visual_count > 0 and visual_ms > 0:
+            estimated_hits += group_hits
+            estimated_saved_ms += max(0.0, group_hits * visual_ms / visual_count - source_ms)
+
+    return {
+        "attempts": attempts,
+        "hits": matches,
+        "fallbacks": max(0, attempts - matches),
+        "batches": batches,
+        "average_ms": total_ms / batches if batches else None,
+        "estimated_saved_ms": round(estimated_saved_ms, 1) if estimated_hits else None,
+        "estimated_hits": estimated_hits,
+    }
 
 
 def estimate_saved_time(db):
@@ -11,7 +75,9 @@ def estimate_saved_time(db):
     """
     groups = {}
     for device, app, name, count, total_ms in db.execute(
-        "SELECT device_key,application,metric,count,total_ms FROM cache_metrics"
+        """SELECT device_key,application,metric,count,total_ms FROM cache_metrics
+        WHERE metric NOT IN (?, ?, ?)""",
+        _SOURCE_LOCATING_METRICS,
     ):
         groups.setdefault((device, app), {})[name] = (count, total_ms)
     saved_ms = 0.0
@@ -38,8 +104,11 @@ def read_history(db):
     estimated_saved_ms = None
     estimated_hits = 0
     if "cache_metrics" in tables:
+        # 只排除新增源码定位项，旧历史起点也继续按视觉缓存计算。
         for name, count, total_ms, first in db.execute(
-            "SELECT metric,SUM(count),SUM(total_ms),MIN(since) FROM cache_metrics GROUP BY metric"
+            """SELECT metric,SUM(count),SUM(total_ms),MIN(since) FROM cache_metrics
+            WHERE metric NOT IN (?, ?, ?) GROUP BY metric""",
+            _SOURCE_LOCATING_METRICS,
         ):
             metrics[name] = {"count": count, "total_ms": total_ms}
             since = min(since, first) if since else first

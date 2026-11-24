@@ -286,6 +286,9 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
         """
         enriched: list[Any] = []
         for cand in candidates:
+            if isinstance(cand, dict) and cand.get("source") == "project":
+                # project 只由真机层级验证分支产生，不能采信模型自报的来源。
+                cand = {key: value for key, value in cand.items() if key != "source"}
             element = (
                 self.label_registry.get(str(cand.get("label"))) if isinstance(cand, dict) else None
             )
@@ -431,7 +434,13 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
                 cached = await asyncio.to_thread(
                     cache.get_many, scope, targets, namespace, ctx=self.ctx, frame=screenshot_path
                 )
-                prepass.extend(cached.values())
+                # 旧缓存可能保存过模型返回的同名字段，缓存命中不能冒充本次源码验证。
+                prepass.extend(
+                    {key: value for key, value in match.items() if key != "source"}
+                    if match.get("source") == "project"
+                    else match
+                    for match in cached.values()
+                )
                 cache_hits = len(cached)
                 engine_query = " | ".join(p for p in targets if p not in cached)
                 if not engine_query:
@@ -461,6 +470,40 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
                         ensure_ascii=False,
                     )
                 engine_query = " | ".join(unresolved) if ocr_hits else engine_query
+                if (
+                    not self.location_cache_bypass
+                    and (
+                        getattr(self.ctx, "app_source_group", None) is not None
+                        or getattr(self.ctx, "automatic_source_groups", None)
+                    )
+                    and str(screenshot_path) == getattr(state, "latest_screenshot", None)
+                ):
+                    from artemis.utils.app_project_locators import resolve_project_locations
+
+                    # 项目线索只补层级、缓存与 OCR 未解决的目标，仍使用原始查询关联返回值。
+                    targets = [part.strip() for part in engine_query.split("|") if part.strip()]
+                    project_matches = await resolve_project_locations(
+                        self.ctx, state, screenshot_path, targets, cache_scope=scope
+                    )
+                    if project_matches:
+                        prepass.extend(
+                            {"label": f"P{index}", "description": target, **match}
+                            for index, (target, match) in enumerate(
+                                project_matches.items(), start=1
+                            )
+                        )
+                        engine_query = " | ".join(
+                            target for target in targets if target not in project_matches
+                        )
+                        if not engine_query:
+                            return json.dumps(
+                                {
+                                    "candidates": prepass,
+                                    "fallback_message": "",
+                                    "location_cache_hits": cache_hits,
+                                },
+                                ensure_ascii=False,
+                            )
                 lease = (
                     await asyncio.to_thread(cache.claim_page_elements, scope)
                     if cache

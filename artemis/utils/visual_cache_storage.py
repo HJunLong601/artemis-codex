@@ -33,7 +33,12 @@ class CacheStorage:
         try:
             # WAL allows dashboard readers and independent device workers to coexist.
             if db.execute("PRAGMA journal_mode").fetchone()[0] != "wal":
-                db.execute("PRAGMA journal_mode=WAL")
+                try:
+                    db.execute("PRAGMA journal_mode=WAL")
+                except sqlite3.OperationalError as exc:
+                    # 首次并发打开时可能抢不到切换锁。沿用当前日志模式，事务仍由 SQLite 保证。
+                    if exc.sqlite_errorcode != sqlite3.SQLITE_BUSY:
+                        raise
             db.execute("""CREATE TABLE IF NOT EXISTS locations (
                 device_key TEXT NOT NULL, device_info TEXT NOT NULL, category TEXT NOT NULL,
                 application TEXT NOT NULL, page_key TEXT NOT NULL, target_key TEXT NOT NULL,
@@ -100,6 +105,23 @@ class CacheStorage:
                 self._event(db, scope, metric, count, elapsed_ms)
         except (OSError, sqlite3.Error):
             logger.debug("Cache telemetry unavailable: %s", metric)
+
+    def record_source_locating(self, scope, attempts: int, hits: int, elapsed_ms: float) -> None:
+        """用一笔事务累计某 App 的源码核对批次、目标数、命中数和毫秒。
+
+        scope 来自已确认的当前前台。attempts 是批内去重目标数，hits 是已通过
+        真机核验的目标数。写入失败时继续定位流程，不保存源目录、截图或坐标。
+        """
+        try:
+            with closing(self._connect()) as db, db:
+                self._event(db, scope, "source_locating_targets", count=attempts)
+                self._event(db, scope, "source_locating_hits", count=hits)
+                self._event(db, scope, "source_locating_batches", elapsed_ms=elapsed_ms)
+        except (OSError, sqlite3.Error) as exc:
+            logger.debug(
+                "Source locating telemetry unavailable (%s)",
+                getattr(exc, "sqlite_errorname", type(exc).__name__),
+            )
 
     def record_bypass(self, reason):
         """Scope-admission attempts, kept outside target lookup/hit statistics.

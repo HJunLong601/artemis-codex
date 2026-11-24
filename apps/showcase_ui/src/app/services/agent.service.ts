@@ -27,6 +27,14 @@ export type { Session, ModelInfo, TaskQueueItem, AgentStatusResponse, StepItemDa
 
 const SESSION_CACHE_KEY = 'artemis.sessions.v1';
 
+/** 提交普通任务时明确选择的源码组及其 Android 设备。 */
+export interface TaskSourceGroupSelection {
+  /** 后台保存的源码组标识，不包含工程目录。 */
+  id: string;
+  /** 用户选组时有效的 Android 设备序列号。 */
+  deviceSerial: string;
+}
+
 export interface VideoSegment {
   url: string;
   /** Back-to-back playlist timeline start (seconds); gaps between segments are not represented. */
@@ -420,7 +428,8 @@ export class AgentService {
     profile: string = 'flash',
     expectedOutput?: string,
     enableOutputter?: boolean,
-    proTuning?: ProTuningOptions
+    proTuning?: ProTuningOptions,
+    sourceGroup?: TaskSourceGroupSelection
   ): Observable<any> {
     return new Observable((obs) => {
       const submittedEvent: StartupProgressEvent = {
@@ -443,8 +452,22 @@ export class AgentService {
         payload.explorer_mode = proTuning.explorerMode;
       }
       this.clearUserPinnedSession();
-      this.http.post<any>('/api/run', payload).subscribe({
+      // 只有明确选组才传递标识和当时有效的目标设备，提交前端不传源码目录。
+      const request = sourceGroup
+        ? this.http.post<any>('/api/run', {
+          ...payload,
+          source_group_id: sourceGroup.id,
+          device_serial: sourceGroup.deviceSerial,
+        }, { headers: { 'X-Artemis-App-Project-Intent': 'run' } })
+        : this.http.post<any>('/api/run', payload);
+      request.subscribe({
         next: (res) => {
+          // 设备在选组后断开时，队列可返回 HTTP 200 的业务拒绝；保留表单让用户处理。
+          if (sourceGroup && res?.status === 'rejected') {
+            this.pendingStartupProgress.set([]);
+            obs.error({ error: { detail: res.error } });
+            return;
+          }
           if (res && res.tasks && res.tasks.length > 0) {
             const newSessionId = res.tasks[0].session_id;
             if (newSessionId) {

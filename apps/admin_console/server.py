@@ -246,8 +246,9 @@ app.include_router(tasks.router)
 app.include_router(replay.router)
 app.include_router(system.router)
 app.include_router(visual_cache.router)
-from apps.admin_console.routers import cache_exploration, model_settings
+from apps.admin_console.routers import app_projects, cache_exploration, model_settings
 
+app.include_router(app_projects.router)
 app.include_router(cache_exploration.router)
 app.include_router(model_settings.router)
 

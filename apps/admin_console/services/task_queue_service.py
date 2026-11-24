@@ -524,6 +524,15 @@ class TaskQueueService:
 
         test_name = f"web_{int(time.time())}_{run_key[:8]}"
         env = os.environ.copy()
+        # 子进程只接收本次选择的 UUID，避免沿用服务进程环境里的旧选择。
+        env.pop("ARTEMIS_TASK_SOURCE_GROUP_ID", None)
+        # 自动匹配也是单次任务权限，不能从守护进程环境继承。
+        env.pop("ARTEMIS_TASK_AUTO_SOURCE_GROUPS", None)
+        source_group_id = task_item.get("source_group_id")
+        if source_group_id is not None:
+            env["ARTEMIS_TASK_SOURCE_GROUP_ID"] = source_group_id
+        elif task_item.get("auto_source_groups"):
+            env["ARTEMIS_TASK_AUTO_SOURCE_GROUPS"] = "1"
         pythonpath_parts = [
             str(WORKSPACE_ROOT),
             str(WORKSPACE_ROOT / "apps" / "admin_console"),
@@ -941,8 +950,15 @@ class TaskQueueService:
         device_platform: str,
         endpoint: AdbEndpoint,
         now: float,
+        source_group_id: str | None = None,
+        auto_source_groups: bool = False,
     ) -> dict[str, Any] | None:
-        """Return the short-circuit response for a duplicate submission, if any."""
+        """Return the short-circuit response for a duplicate submission, if any.
+
+        source_group_id 是手选源码组 UUID，仅用于一秒内的自动去重，显式
+        session_id 重试继续按会话去重。
+        auto_source_groups 表示是否允许按包名自动匹配，旧队列记录视为 False。
+        """
         # 1. Deduplication by session_id: if session_id is already running or queued, do not re-enqueue
         if session_id and len(goals) == 1:
             target_sid = str(session_id)
@@ -982,6 +998,8 @@ class TaskQueueService:
                     and (not device_serial or item.get("device_serial") == device_serial)
                     and item.get("device_platform", "android") == device_platform
                     and item.get("adb_endpoint", {}).get("identity") == endpoint.identity
+                    and item.get("source_group_id") == source_group_id
+                    and bool(item.get("auto_source_groups")) == auto_source_groups
                     and (now - float(item.get("created_at", 0))) < 1.0
                 ),
                 None,
@@ -1050,8 +1068,14 @@ class TaskQueueService:
         conversation_id: str | None,
         verification_level: str | None = None,
         explorer_mode: str | None = None,
+        source_group_id: str | None = None,
+        auto_source_groups: bool = False,
     ) -> dict[str, Any]:
-        """Reserve a device slot and build one pending queue item for a goal."""
+        """Reserve a device slot and build one pending queue item for a goal.
+
+        选定源码组时，source_group_id 是交给 worker 的 UUID，目录配置留在本机。
+        auto_source_groups 为 True 时才写入自动匹配许可。
+        """
         sess_id = single_session_id if single_session_id else str(uuid.uuid4())
         # enqueue_tasks resolves the device before creating queue items.
         assigned_serial = device_serial
@@ -1068,7 +1092,8 @@ class TaskQueueService:
             ingress=ingress,
             lock_scope=endpoint.identity,
         )
-        return {
+        # 完整队列记录用于调度，源码组选项只出现于明确选定的任务。
+        item = {
             "session_id": sess_id,
             "goal": goal,
             "profile": profile or "flash",
@@ -1088,6 +1113,11 @@ class TaskQueueService:
             "created_at": now + index * 0.001,
             "start_time": now + index * 0.001,
         }
+        if source_group_id is not None:
+            item["source_group_id"] = source_group_id
+        elif auto_source_groups:
+            item["auto_source_groups"] = True
+        return item
 
     @classmethod
     async def enqueue_tasks(
@@ -1105,12 +1135,16 @@ class TaskQueueService:
         conversation_id: str | None = None,
         verification_level: str | None = None,
         explorer_mode: str | None = None,
+        source_group_id: str | None = None,
+        auto_source_groups: bool = False,
     ) -> dict[str, Any]:
         """Enqueues one or more goals and wakes up the background worker.
 
         ``verification_level`` and ``explorer_mode`` are Pro-profile tuning knobs
         forwarded to the worker as ``--verification-level`` / ``--explorer-pro-mode``;
         they are normalised here so the queue item and the CLI see one spelling.
+        source_group_id 是调用入口验证过的 UUID，留空时任务无绑定记录。
+        auto_source_groups 默认为 False，仅未手选源码组的 Android 任务可开启。
         """
         verification_level = (
             str(verification_level).strip().lower() or None if verification_level else None
@@ -1118,6 +1152,10 @@ class TaskQueueService:
         explorer_mode = str(explorer_mode).strip().lower() or None if explorer_mode else None
         platform, device_serial = normalize_device_request(device_platform, device_serial)
         platform = platform or DevicePlatform.ANDROID
+        # 手选组优先，只让没有手选组的 Android 任务携带自动匹配许可。
+        auto_source_groups = (
+            auto_source_groups and source_group_id is None and platform == DevicePlatform.ANDROID
+        )
         cls.ensure_worker_running()
 
         enqueued_tasks = []
@@ -1125,7 +1163,14 @@ class TaskQueueService:
         endpoint = current_adb_endpoint()
 
         duplicate_response = cls._find_duplicate_submission(
-            goals, session_id, device_serial, platform.value, endpoint, now
+            goals,
+            session_id,
+            device_serial,
+            platform.value,
+            endpoint,
+            now,
+            source_group_id,
+            auto_source_groups,
         )
         if duplicate_response is not None:
             return duplicate_response
@@ -1165,6 +1210,8 @@ class TaskQueueService:
                 conversation_id,
                 verification_level=verification_level,
                 explorer_mode=explorer_mode,
+                source_group_id=source_group_id,
+                auto_source_groups=auto_source_groups,
             )
             state.queue_items.append(task_item)
             enqueued_tasks.append(task_item)

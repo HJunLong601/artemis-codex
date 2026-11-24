@@ -69,6 +69,7 @@ Run `.\start.bat` in Windows PowerShell or `./start.sh` on macOS or Linux. Follo
 | [Codex sign-in](#model-configuration) | Use your local Codex account to operate a phone. Core workflows need no separate API key. |
 | [Wi-Fi ADB](#wifi-adb) | Switch an authorized USB phone to Wi-Fi or use a pairing code on Android 11 and later. |
 | [Page cache and learning](#visual-location-cache) | Let ARTEMIS remember control positions and reuse them when it returns to a page. |
+| [Source binding](./docs/source-binding.md) | Bind an Android app to its local source so ARTEMIS can use IDs and labels to find controls before visual locating. |
 | [Android devices](./docs/testing.md#android-emulator-without-a-physical-device) | Prefer an idle phone or discover and start an installed emulator. |
 | [iOS devices](./docs/macos-support_EN.md#ios-devices) | Control iOS Simulator on a Mac. Paired iPhones support screen mirroring and recording. Automated taps on physical iPhones still await verification. |
 

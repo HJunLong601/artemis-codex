@@ -167,6 +167,8 @@ limitations under the License.
                   </button>
                 </div>
               </div>
+              <app-task-source-group-select [disabled]="isSubmitting()" (click)="$event.stopPropagation()"
+                (focusin)="onInputFocus()" (focusout)="onInputBlur()" />
             </div>
           </div>
         </div>

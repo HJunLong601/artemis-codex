@@ -18,9 +18,10 @@ import { UiText, uiMessage } from '../../core/i18n/message';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { I18nService } from '../../core/i18n/i18n.service';
 
-import { Component, signal, computed, effect, inject, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { Component, signal, computed, effect, inject, OnInit, OnDestroy, ChangeDetectionStrategy, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CodexAuthComponent } from '../../components/codex-auth/codex-auth.component';
+import { TaskSourceGroupSelectComponent } from '../../components/task-source-group-select/task-source-group-select.component';
 import { Router, RouterLink } from '@angular/router';
 import { AgentService } from '../../services/agent.service';
 import { SystemService } from '../../services/system.service';
@@ -108,7 +109,7 @@ type AdbGuideTab = 'emulator' | 'usb' | 'wifi' | 'remote';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [TranslatePipe, FormsModule, CodexAuthComponent],
+  imports: [TranslatePipe, FormsModule, CodexAuthComponent, TaskSourceGroupSelectComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './home.component.scss'
@@ -119,6 +120,8 @@ export class HomeComponent implements OnInit, OnDestroy {
   public systemService = inject(SystemService);
   public taskRecService = inject(TaskRecommendationService);
   private router = inject(Router);
+  /** 启动表单的可选源码组，诊断页没有该控件。 */
+  private readonly sourceGroup = viewChild(TaskSourceGroupSelectComponent);
 
   // High-level navigation mode: 'diagnostics' (System Setup Guide) vs 'launcher' (Task Execution)
   public activeTab = signal<'diagnostics' | 'launcher'>('launcher');
@@ -1242,10 +1245,12 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.selectedProfile() === 'pro' ? this.enableOutputter() : undefined,
         this.selectedProfile() === 'pro'
           ? { verificationLevel: this.verificationLevel().id, explorerMode: this.explorerMode().id }
-          : undefined
+          : undefined,
+        this.sourceGroup()?.selection()
       )
       .subscribe({
         next: () => {
+          this.sourceGroup()?.reset();
           this.isSubmitting.set(false);
           this.router.navigate(['/workspace']);
         },

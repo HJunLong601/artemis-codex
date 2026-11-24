@@ -1922,6 +1922,8 @@
               </div>
             </div>
 
+            <app-task-source-group-select [disabled]="isSubmitting()" />
+
             <div class="bar-right">
               @if (taskGoal().length > 0) {
                 <span class="char-count">{{ '{0} chars' | t:[(taskGoal().length)] }}</span>

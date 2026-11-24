@@ -136,13 +136,15 @@ class RunSetupMixin:
             for idx, item in enumerate(detected_items):
                 pos = item.get("point")
                 if pos and isinstance(pos, list) and len(pos) == 2:
-                    candidates.append(
-                        {
-                            "label": f"D{idx + 1}",
-                            "coords": pos,
-                            "description": item.get("label", query),
-                        }
-                    )
+                    # 继承真机层级确认的项目候选边界。视觉与缓存结果沿用原有返回结构。
+                    candidate = {
+                        "label": f"D{idx + 1}",
+                        "coords": pos,
+                        "description": item.get("label", query),
+                    }
+                    if item.get("source") == "project":
+                        candidate.update(bounds=item["bounds"], source="project")
+                    candidates.append(candidate)
             fallback_message = "" if candidates else f"Failed to detect: {query}"
             answer = {"candidates": candidates, "fallback_message": fallback_message}
             if result.get("location_cache_hits"):

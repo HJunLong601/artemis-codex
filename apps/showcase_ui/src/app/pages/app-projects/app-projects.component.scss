@@ -1,0 +1,98 @@
+:host { display: block; color: #172b4d; }
+main { max-width: 1120px; margin: 0 auto; padding: 84px 24px 48px; }
+h1 { margin: 0 0 20px; font-size: 30px; }
+h2 { margin: 0; font-size: 20px; }
+h3 { margin: 0 0 6px; font-size: 16px; }
+.group h4 { margin: 0 0 6px; font-size: 15px; }
+p { line-height: 1.55; overflow-wrap: anywhere; }
+section { padding: 22px; margin-top: 20px; min-width: 0; background: #fff; border: 1px solid #dbe4ee; border-radius: 16px; }
+.section-heading, .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.section-heading { justify-content: space-between; margin-bottom: 15px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 225px), 1fr)); gap: 14px; }
+
+label { display: flex; flex-direction: column; gap: 7px; min-width: 0; font-size: 13px; }
+input, select, textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #bcccdc;
+  border-radius: 7px;
+  padding: 10px;
+  font: inherit;
+  color: inherit;
+  background: white;
+}
+input[type='checkbox'] { width: auto; margin: 0; }
+textarea { resize: vertical; }
+button {
+  border: 1px solid #bcccdc;
+  border-radius: 8px;
+  padding: 9px 13px;
+  background: white;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid #1967d2;
+  outline-offset: 3px;
+}
+.primary { background: #1967d2; color: white; border-color: #1967d2; }
+.danger { color: #a32323; }
+
+fieldset { min-width: 0; margin: 14px 0 0; padding: 16px; border: 1px solid #dce5ee; border-radius: 10px; }
+legend { padding: 0 6px; font-weight: 600; }
+.hint { margin: 8px 0 12px; color: #526884; font-size: 13px; }
+// 统计卡片按容器宽度换行，窄屏上也保留估算值和样本范围的完整文字。
+.source-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: 12px; margin: 0; }
+.source-summary { grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); margin-bottom: 12px; }
+.source-metrics > div { min-width: 0; padding: 12px; border-radius: 10px; background: #f4f7fc; overflow-wrap: anywhere; }
+.source-summary > div { background: #edf4ff; }
+.source-metrics dt, .source-basis { color: #526884; font-size: 12px; }
+.source-metrics dd { margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.source-value { font-size: 24px; font-weight: 650; }
+.package { margin: 0 0 12px; color: #526884; font-size: 13px; }
+.app-browse-controls { align-items: end; margin: 14px 0; }
+.installed-filter { flex-direction: row; align-items: center; min-height: 40px; }
+.device-app-picker { margin: 0 0 14px; }
+.device-app-picker summary { margin: 0 0 10px; cursor: pointer; }
+.app-source-groups { display: grid; gap: 14px; }
+.app-source-group { min-width: 0; padding: 14px; border: 1px solid #dce5ee; border-radius: 12px; }
+.app-source-heading > div { min-width: 0; overflow-wrap: anywhere; }
+.app-source-heading .package, .app-source-group-count { margin: 0; }
+.group-list { display: grid; gap: 10px; }
+.group {
+  display: flex;
+  align-items: start;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #e3eaf2;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 14px;
+}
+.group-info { flex: 1 1 260px; min-width: 0; }
+.group dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 13px; }
+.group dt { color: #526884; }
+.group dd { margin: 0; overflow-wrap: anywhere; }
+.group ul { margin: 0; padding: 0; list-style: none; }
+.remove-confirmation p { margin-top: 0; }
+.consent { flex-direction: row; align-items: flex-start; margin: 12px 0; }
+.notice { padding: 12px; border-radius: 8px; }
+.error { color: #a32323; background: #fff1f1; }
+.success { color: #176338; background: #eaf7ef; }
+
+.table-scroll { overflow-x: auto; margin-top: 10px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid #e3eaf2; }
+thead { background: #edf4ff; }
+.pass { color: #176338; }
+
+@media (max-width: 600px) {
+  main { padding: 98px 12px 24px; }
+  section { padding: 16px; }
+  h1 { font-size: 26px; }
+  .group dl { grid-template-columns: minmax(0, 1fr); }
+}

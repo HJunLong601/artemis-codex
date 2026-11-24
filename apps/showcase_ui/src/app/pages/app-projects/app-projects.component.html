@@ -1,0 +1,319 @@
+<main>
+  <h1>{{ '工程源码' | t }}</h1>
+  @if (error()) { <p role="alert" class="notice error">{{ error() | t }}</p> }
+  @if (message()) { <p role="status" class="notice success">{{ message() | t }}</p> }
+
+  <section aria-labelledby="source-locating-heading" [attr.aria-busy]="readingStats()">
+    <div class="section-heading">
+      <h2 id="source-locating-heading">{{ '源码辅助定位' | t }}</h2>
+      <button type="button" (click)="loadStats()" [disabled]="readingStats()">
+        {{ (readingStats() ? '读取中…' : '刷新统计') | t }}
+      </button>
+    </div>
+    @if (locatingStats(); as source) {
+      <dl class="source-metrics source-summary">
+        <div>
+          <dt>{{ '累计命中目标数' | t }}</dt>
+          <dd class="source-value">{{ source.hits | number:'1.0-0':i18n.locale() }}</dd>
+        </div>
+        <div>
+          <dt>{{ '预计节省时间' | t }}</dt>
+          <dd class="source-value">{{ source.estimated_saved_ms == null ? ('暂无估算' | t) : (source.estimated_saved_ms / 1000 | number:'1.0-3':i18n.locale()) + (' s' | t) }}</dd>
+          @if (source.estimated_saved_ms == null) {
+            <dd class="source-basis">{{ '暂无可比较的视觉定位耗时样本。' | t }}</dd>
+          } @else {
+            <dd class="source-basis">{{ '基于 {0} / {1} 次命中对应的可比视觉定位耗时样本估算。' | t:[(source.estimated_hits | number:'1.0-0':i18n.locale()), (source.hits | number:'1.0-0':i18n.locale())] }}</dd>
+          }
+        </div>
+      </dl>
+      <dl class="source-metrics source-details">
+        <div><dt>{{ '检查目标数' | t }}</dt><dd>{{ source.attempts | number:'1.0-0':i18n.locale() }}</dd></div>
+        <div><dt>{{ '回退目标数' | t }}</dt><dd>{{ source.fallbacks | number:'1.0-0':i18n.locale() }}</dd></div>
+        <div><dt>{{ '检查批次' | t }}</dt><dd>{{ source.batches | number:'1.0-0':i18n.locale() }}</dd></div>
+        <div><dt>{{ '每批平均耗时' | t }}</dt><dd>{{ source.average_ms == null ? '—' : (source.average_ms | number:'1.0-2':i18n.locale()) + (' ms' | t) }}</dd></div>
+      </dl>
+      <p class="hint">{{ '统计实际进入源码辅助检查的目标。实时 UI 树确认唯一可点击目标时记为命中，其余回到原有定位流程。耗时为源码辅助检查阶段的实测值。' | t }}</p>
+    } @else if (readingStats()) {
+      <p class="hint" role="status">{{ '正在读取源码辅助定位统计…' | t }}</p>
+    }
+    @if (statsError()) { <p class="hint" role="status">{{ statsError() | t }}</p> }
+  </section>
+
+  <section aria-labelledby="app-project-device">
+    <div class="section-heading">
+      <h2 id="app-project-device">{{ '设备与应用' | t }}</h2>
+      <button type="button" (click)="loadDevices()" [disabled]="readingDevice() || saving() || verifying()">
+        {{ '刷新设备' | t }}
+      </button>
+    </div>
+    <div class="fields">
+      <label>
+        {{ '目标设备' | t }}
+        <select [ngModel]="serial()" (ngModelChange)="selectDevice($event)"
+          [disabled]="readingDevice() || saving() || verifying()">
+          <option value="">{{ '明确选择设备' | t }}</option>
+          @for (device of devices(); track device.canonical_id) {
+            <option [value]="device.canonical_id" [disabled]="device.is_busy">
+              {{ device.name || device.serial }}{{ device.is_busy ? ('（忙碌）' | t) : '' }}
+            </option>
+          }
+        </select>
+      </label>
+    </div>
+    @if (readingDevice()) {
+      <p class="hint" role="status">{{ (serial() ? '读取应用中…' : '正在读取设备…') | t }}</p>
+    } @else if (!devices().length) {
+      <p class="hint" role="status">{{ '未发现已授权的 Android 设备。' | t }}</p>
+    }
+  </section>
+
+  <section aria-labelledby="app-project-groups">
+    <div class="section-heading">
+      <h2 id="app-project-groups">{{ '源码组' | t }}</h2>
+      <div class="actions">
+        <button type="button" (click)="loadGroups()"
+          [disabled]="readingGroups() || saving() || verifying() || !!draft()">
+          {{ '刷新源码组' | t }}
+        </button>
+        <button type="button" class="primary" (click)="edit()"
+          [disabled]="readingGroups() || saving() || verifying() || !!draft()">
+          {{ '新增源码组' | t }}
+        </button>
+      </div>
+    </div>
+    @if (draft(); as form) {
+      <form #groupForm (ngSubmit)="save()" class="group-form">
+        <fieldset [disabled]="readingGroups() || saving() || verifying()">
+          <legend>{{ (form.id ? '编辑源码组' : '新增源码组') | t }}</legend>
+          @if (form.id) {
+            <p class="package">{{ form.package }}</p>
+          } @else {
+            <label for="source-group-package">
+              {{ 'Android 应用包名' | t }}
+              <input id="source-group-package" name="package" type="text" required maxlength="255" autocomplete="off"
+                spellcheck="false" [ngModel]="form.package" (ngModelChange)="updateDraft('package', $event)"
+                [attr.aria-invalid]="!!form.package.trim() && !validDraftPackage()"
+                aria-describedby="app-project-app-guide">
+            </label>
+            <p id="app-project-app-guide" class="hint">
+              {{ (form.package.trim() && !validDraftPackage()
+                ? '请输入有效的 Android 包名，例如 com.example.app。'
+                : '可直接填写包名。选择设备时可从其已安装应用中选择。') | t }}
+            </p>
+            @if (appsReady() && apps().length) {
+              <details class="device-app-picker">
+                <summary>{{ '从所选设备选择应用' | t }}</summary>
+                <div class="fields">
+                  <label for="source-group-app-search">
+                    {{ '搜索已安装应用' | t }}
+                    <input id="source-group-app-search" name="appSearch" type="search"
+                      [placeholder]="'按包名搜索' | t" autocomplete="off"
+                      [ngModel]="appSearch()" (ngModelChange)="appSearch.set($event)">
+                  </label>
+                  <label for="source-group-installed-app">
+                    {{ '已安装应用' | t }}
+                    <select id="source-group-installed-app" name="installedApp"
+                      [ngModel]="selectedDeviceSuggestion()" (ngModelChange)="chooseInstalledApp($event)">
+                      <option value="">{{ '请选择已安装应用' | t }}</option>
+                      @for (app of filteredDeviceApps(); track app.package) {
+                        <option [value]="app.package">{{ app.name && app.name !== app.package ? app.name + ' · ' + app.package : app.package }}</option>
+                      }
+                    </select>
+                  </label>
+                </div>
+                @if (!filteredDeviceApps().length) {
+                  <p class="hint" role="status">{{ '没有匹配的已安装应用。' | t }}</p>
+                }
+              </details>
+            }
+          }
+          <div class="fields">
+            <label>
+              {{ '源码组名称' | t }}
+              <input name="groupName" type="text" required autocomplete="off"
+                [ngModel]="form.name" (ngModelChange)="updateDraft('name', $event)">
+            </label>
+            <label>
+              {{ '主工程目录' | t }}
+              <input name="projectDirectory" type="text" required autocomplete="off" spellcheck="false"
+                [ngModel]="form.project_dir" (ngModelChange)="updateDraft('project_dir', $event)"
+                aria-describedby="app-project-directory-guide">
+            </label>
+          </div>
+          <p id="app-project-directory-guide" class="hint">{{ '填写 ARTEMIS 所在电脑上的绝对路径。' | t }}</p>
+          <label>
+            {{ '附加目录（可选）' | t }}
+            <textarea name="additionalDirectories" rows="3" autocomplete="off" spellcheck="false"
+              [ngModel]="form.additional" (ngModelChange)="updateDraft('additional', $event)"
+              aria-describedby="app-project-additional-guide"></textarea>
+          </label>
+          <p id="app-project-additional-guide" class="hint">{{ '每行填写一个附加目录的绝对路径。' | t }}</p>
+          <div class="actions">
+            <button type="submit" class="primary" [disabled]="!validDraftPackage() || !form.name.trim() || !form.project_dir.trim()">
+              {{ (saving() ? '保存中…' : '保存源码组') | t }}
+            </button>
+            <button type="button" (click)="draft.set(null)">{{ '取消' | t }}</button>
+          </div>
+        </fieldset>
+      </form>
+    }
+
+    <div class="fields app-browse-controls">
+      <label for="app-project-browse-query">
+        {{ '搜索已绑定应用' | t }}
+        <input id="app-project-browse-query" type="search" [placeholder]="'按包名搜索' | t"
+          [ngModel]="browseQuery()" (ngModelChange)="browseQuery.set($event)">
+      </label>
+      <label class="installed-filter">
+        <input id="app-project-installed-only" type="checkbox" [disabled]="!appsReady()"
+          [ngModel]="installedOnly() && appsReady()" (ngModelChange)="installedOnly.set($event)">
+        {{ '仅显示所选设备已安装的应用' | t }}
+      </label>
+    </div>
+    @if (readingGroups()) {
+      <p role="status">{{ '正在读取源码组…' | t }}</p>
+    } @else if (!groups().length) {
+      <p class="hint">{{ '暂无源码组。新建时可填写 Android 应用包名。' | t }}</p>
+    } @else if (!visibleApps().length) {
+      <p class="hint" role="status">{{ '没有符合筛选条件的已绑定应用。' | t }}</p>
+    }
+    <div class="app-source-groups">
+      @for (app of visibleApps(); track app.package) {
+        <article class="app-source-group" [attr.data-package]="app.package">
+          <div class="section-heading app-source-heading">
+            <div>
+              <h3>{{ app.name || app.package }}</h3>
+              @if (app.name && app.name !== app.package) {
+                <p class="package"><code>{{ app.package }}</code></p>
+              }
+              <p class="hint app-source-group-count">{{ '{0} 个源码组' | t:[(app.groups.length | number:'1.0-0':i18n.locale())] }}</p>
+            </div>
+            <button type="button" class="app-add-group" (click)="edit(undefined, app.package)"
+              [disabled]="readingGroups() || saving() || verifying() || !!draft()">
+              {{ '新增源码组' | t }}
+            </button>
+          </div>
+          <div class="group-list">
+            @for (group of app.groups; track group.id) {
+              <article class="group">
+                <div class="group-info">
+                  <h4>{{ group.name }}</h4>
+                  <dl>
+                    <dt>{{ '主工程目录' | t }}</dt>
+                    <dd><code>{{ group.project_dir }}</code></dd>
+                    @if (group.additional_dirs.length) {
+                      <dt>{{ '附加目录' | t }}</dt>
+                      <dd>
+                        <ul>
+                          @for (directory of group.additional_dirs; track directory) {
+                            <li><code>{{ directory }}</code></li>
+                          }
+                        </ul>
+                      </dd>
+                    }
+                  </dl>
+                </div>
+                @if (removing() === group.id) {
+                  <div class="remove-confirmation">
+                    <p>{{ '确认移除源码组「{0}」？' | t:[group.name] }}</p>
+                    <div class="actions">
+                      <button type="button" class="danger" (click)="remove(group)"
+                        [disabled]="readingGroups() || saving() || verifying()">{{ '确认移除' | t }}</button>
+                      <button type="button" (click)="removing.set('')" [disabled]="saving()">{{ '取消' | t }}</button>
+                    </div>
+                  </div>
+                } @else {
+                  <div class="actions">
+                    <button type="button" (click)="edit(group)"
+                      [disabled]="readingGroups() || saving() || verifying() || !!draft()">{{ '编辑' | t }}</button>
+                    <button type="button" class="danger" (click)="removing.set(group.id)"
+                      [disabled]="readingGroups() || saving() || verifying() || !!draft()">{{ '移除' | t }}</button>
+                  </div>
+                }
+              </article>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  </section>
+
+  <section aria-labelledby="app-project-verification">
+    <h2 id="app-project-verification">{{ '真机定位对照' | t }}</h2>
+    <p class="hint">{{ '在所选设备上打开目标页面。A 和 B 用同一帧比较定位结果，本次验证不会点击屏幕。' | t }}</p>
+    <fieldset [disabled]="readingGroups() || readingDevice() || saving() || verifying()">
+      <legend>{{ '对照条件' | t }}</legend>
+      <div class="fields">
+        <label>
+          {{ '验证源码组' | t }}
+          <select [ngModel]="verifyGroup()" (ngModelChange)="verifyGroup.set($event); resetComparison()">
+            <option value="">{{ '手动选择一组' | t }}</option>
+            @for (group of availableGroups(); track group.id) {
+              <option [value]="group.id">{{ group.package }} · {{ group.name }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          {{ '定位描述' | t }}
+          <input type="text" [ngModel]="query()" (ngModelChange)="query.set($event); resetComparison()">
+        </label>
+        <label>
+          {{ '预期目标' | t }}
+          <input type="text" [ngModel]="expectedTarget()"
+            (ngModelChange)="expectedTarget.set($event); resetComparison()"
+            aria-describedby="app-project-expected-guide">
+        </label>
+      </div>
+      <p class="hint" id="app-project-expected-guide">
+        {{ '填写当前页面唯一控件的准确文字或完整 ID，用于独立判定定位是否正确。' | t }}
+      </p>
+      @if (!serial() || !availableGroups().length) {
+        <p class="hint">{{ '选择设备后，可以对其已安装 App 的源码组进行验证。' | t }}</p>
+      }
+      <label class="consent">
+        <input type="checkbox" [ngModel]="confirmed()" (ngModelChange)="confirmed.set($event)">
+        {{ '我允许本次对照在需要时向已配置的模型服务发送当前截图。' | t }}
+      </label>
+      <button type="button" class="primary" (click)="verify()" [disabled]="!canVerify()">
+        {{ (verifying() ? '正在进行真机对照…' : '开始真机对照') | t }}
+      </button>
+    </fieldset>
+    @if (verifying()) {
+      <p role="status">{{ '正在进行真机对照…' | t }}</p>
+    }
+    @if (comparison(); as outcome) {
+      <p class="hint" role="status">
+        {{ '设备采集 {0} 毫秒，A 和 B 共用' | t:[(outcome.observation_ms | number:'1.0-1':i18n.locale())] }}
+      </p>
+      @if (!outcome.vision_enabled) {
+        <p class="hint">{{ '本次仅对照本地定位。' | t }}</p>
+      }
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">{{ '对照分支' | t }}</th>
+              <th scope="col">{{ '定位路径' | t }}</th>
+              <th scope="col">{{ '判定' | t }}</th>
+              <th scope="col">{{ '视觉调用次数' | t }}</th>
+              <th scope="col">{{ '定位耗时（毫秒）' | t }}</th>
+              <th scope="col">{{ '归一化坐标' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (arm of [outcome.a, outcome.b]; track $index) {
+              <tr>
+                <th scope="row">{{ ($first ? 'A · 现有定位' : 'B · 加入源码线索') | t }}</th>
+                <td>{{ sourceLabels[arm.source] | t }}</td>
+                <td [class.pass]="arm.correct">{{ (arm.correct ? '正确' : '未命中预期目标') | t }}</td>
+                <td>{{ arm.vision_calls | number:'1.0-0':i18n.locale() }}</td>
+                <td>{{ arm.elapsed_ms | number:'1.0-1':i18n.locale() }}</td>
+                <td>{{ arm.coords ? arm.coords.join(', ') : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</main>

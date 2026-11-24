@@ -18,6 +18,7 @@ import json
 from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from apps.admin_console.routers.codex_auth import require_local
 from artemis.core.diagnostics import readiness_engine
 from artemis.context import DevicePlatform
 from artemis.runtime import (
@@ -74,7 +75,13 @@ async def get_task_catalog():
 
 
 @router.post("/api/run")
-async def run_task(request: RunRequest):
+async def run_task(request: RunRequest, http_request: Request = None):
+    """接受普通任务，使用手动选定的源码组时检查本机请求及 App 归属。
+
+    request 是任务请求体。http_request 由 FastAPI 注入，既有进程内调用可
+    省略。带源码组的新任务必须通过校验后才能探测设备和入队。
+    本机同源 Android 请求留空时，允许 worker 根据实际前台包名匹配源码组。
+    """
     incoming_goals = []
     if request.goals:
         incoming_goals = request.goals
@@ -87,10 +94,26 @@ async def run_task(request: RunRequest):
             detail="Either 'goal' or 'goals' list must be provided.",
         )
 
-    platform, requested_device = normalize_device_request(
-        request.device_platform, request.device_serial
-    )
+    # 仅传输手动选择的 UUID。普通任务仍可由现有调用方提交。
+    source_group_id = str(request.source_group_id) if request.source_group_id else None
+    if source_group_id is not None:
+        if http_request is None:
+            raise HTTPException(403, "使用 App 源码组需要本机控制台请求。")
+        require_local(http_request)
+        if http_request.headers.get("x-artemis-app-project-intent") != "run":
+            raise HTTPException(403, "运行任务时需要明确选择 App 源码组。")
+
+    try:
+        platform, requested_device = normalize_device_request(
+            request.device_platform, request.device_serial
+        )
+    except ValueError:
+        if source_group_id is None:
+            raise
+        raise HTTPException(422, "使用 App 源码组需要有效的 Android 设备。") from None
     platform = platform or DevicePlatform.ANDROID
+    if source_group_id is not None and platform != DevicePlatform.ANDROID:
+        raise HTTPException(422, "App 源码组暂仅支持 Android 任务。")
 
     # Idempotent SDK retries must never re-run device readiness checks. A task
     # can hold the device while its admission response is lost in transit; in
@@ -125,6 +148,25 @@ async def run_task(request: RunRequest):
                 "enqueued_count": 0,
                 "total_queued": len(state.queue_tasks),
             }
+
+    # 已接受的 session_id 重试先返回原任务，组的后续编辑只影响新任务。
+    source_group_args: dict[str, str | bool] = {}
+    if source_group_id is not None:
+        from artemis.config.app_projects import BindingError, get_group
+
+        try:
+            # 读取配置并检查本机目录，避免阻塞后台事件循环。
+            group = await asyncio.to_thread(get_group, source_group_id)
+        except BindingError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+        if request.locked_app_package and request.locked_app_package != group.package:
+            raise HTTPException(409, "所选源码组和本次任务锁定的 App 不一致。")
+        source_group_args["source_group_id"] = source_group_id
+    elif platform == DevicePlatform.ANDROID and http_request is not None:
+        # 非本机或跨域请求仍能提交普通任务，只是不读取本机源码绑定。
+        with suppress(HTTPException, ValueError):
+            require_local(http_request)
+            source_group_args["auto_source_groups"] = True
 
     # Reject an explicit unknown/offline target before running the more
     # expensive readiness probe. Besides producing a stable SDK response,
@@ -205,6 +247,7 @@ async def run_task(request: RunRequest):
         ingress=request.ingress or "frontend",
         session_id=request.session_id,
         conversation_id=request.conversation_id,
+        **source_group_args,
     )
 
 

@@ -86,12 +86,15 @@ def local_guard(scope, location):
     )
 
 
-def has_local_target(scope, location):
+def has_local_target(scope, location, *, verified_target_id: str = ""):
     """Permit cross-structure reuse only with a live, bounded clickable target.
 
     Intersecting nodes (including full-screen ancestors and transparent overlays)
     remain covered by local_guard. A modal/keyboard elsewhere may block input
     globally, so its presence rejects this fallback even outside the crop.
+
+    verified_target_id 仅在源码与当前帧的目标 ID 已精确吻合时传入。它只避免把该
+    按钮 ID 中的 dialog 字样误当成模态窗口；独立节点、控件类和模态标记仍参与检查。
     """
     if not scope.activity or not scope.structure_key or not location.get("bounds"):
         return False
@@ -107,8 +110,26 @@ def has_local_target(scope, location):
     )
     targets = []
     for node in scope.hierarchy:
+        # 当前已核实的按钮可以叫 OpenDialogButton，但名称中的 dialog 只描述它的动作。
+        resource = node.get("resource-id")
+        if verified_target_id and not resource:
+            resource = node.get("resource_id") or node.get("resourceId")
+        frame = node_bounds(node)
+        named_button = (
+            verified_target_id
+            and resource == verified_target_id
+            and verified_target_id.casefold().endswith("button")
+            and frame
+            and frame[0] < x < frame[2]
+            and frame[1] < y < frame[3]
+        )
         name = str(
-            [node.get("class"), node.get("resource-id"), node.get("role"), node.get("package")]
+            [
+                node.get("class"),
+                None if named_button else resource,
+                node.get("role"),
+                node.get("package"),
+            ]
         ).lower()
         if (
             node.get("modal") in (True, "true")
@@ -119,7 +140,6 @@ def has_local_target(scope, location):
             )
         ):
             return False
-        frame = node_bounds(node)
         if not frame or not (frame[0] < x < frame[2] and frame[1] < y < frame[3]):
             continue
         if node.get("package") and node["package"] != scope.application:

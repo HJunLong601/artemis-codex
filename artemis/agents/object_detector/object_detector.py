@@ -166,7 +166,9 @@ async def _run_object_detection(
     cached_hits = 0
     # Legacy/direct detection tools share the same XML-first ordering. Crops,
     # annotations and historical frames cannot borrow the live-screen scope.
-    if state is not None and str(target_img) == getattr(state, "latest_screenshot", None):
+    # 源码辅助定位同样要求传入当前原图路径，不能把裁剪图或字节输入视为当前画面。
+    live_frame = state is not None and str(target_img) == getattr(state, "latest_screenshot", None)
+    if live_frame:
         from artemis.agents.explorer.geometry import pixel_to_norm, resolve_screen_size
         from artemis.agents.explorer.screen_index import ScreenIndex
 
@@ -209,6 +211,31 @@ async def _run_object_detection(
             resolved.append({"label": query, "point": value["coords"]})
         cached_hits = len(values)
         queries = [query for query in queries if query not in values]
+    if (
+        queries
+        and live_frame
+        and not bypass_cache
+        and (
+            getattr(ctx, "app_source_group", None) is not None
+            or getattr(ctx, "automatic_source_groups", None)
+        )
+    ):
+        from artemis.utils.app_project_locators import resolve_project_locations
+
+        # 只查缓存未解决的原始查询。真机确认的点已经是 [x, y]，不进入下方模型转置或写缓存。
+        project_matches = await resolve_project_locations(
+            ctx, state, target_img, queries, cache_scope=cache_scope
+        )
+        for query, match in project_matches.items():
+            resolved.append(
+                {
+                    "label": query,
+                    "point": match["coords"],
+                    "bounds": match["bounds"],
+                    "source": "project",
+                }
+            )
+        queries = [query for query in queries if query not in project_matches]
     if not queries:
         answer = {"detected": resolved, "failed": []}
         if cached_hits:
@@ -297,6 +324,9 @@ async def _run_object_detection(
 
     # Swap coordinates from [y, x] normalized to [x, y] normalized if needed
     for item in fused_results:
+        if isinstance(item, dict) and item.get("source") == "project":
+            # fused_results 此时只包含模型响应，不得认领真机层级验证分支的来源。
+            item.pop("source")
         if (
             isinstance(item, dict)
             and "point" in item

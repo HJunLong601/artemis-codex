@@ -34,6 +34,13 @@ from artemis.config import (
     run_tuning_for_profile,
     settings,
 )
+from artemis.config.app_projects import (
+    BindingError,
+    TASK_AUTO_SOURCE_GROUPS_ENV,
+    TASK_SOURCE_GROUP_ENV,
+    get_automatic_groups,
+    get_group,
+)
 from artemis.context import (
     ArtemisContext,
     DevicePlatform,
@@ -308,6 +315,25 @@ class Agent(AgentBase):
     def _prepare_tracing(self, task: Task, context: ArtemisContext):
         """Prepare tracing and data engine setup."""
         task_name = self._prepare_trace_paths(task)
+
+        # 普通 Android worker 只加载一份绑定快照，手选优先，配置失效继续正常定位。
+        group_id = os.environ.get(TASK_SOURCE_GROUP_ENV)
+        if (
+            os.environ.get("ARTEMIS_TASK_WORKER") == "1"
+            and context.device.mobile_platform == DevicePlatform.ANDROID
+        ):
+            try:
+                if group_id:
+                    context.app_source_group = get_group(group_id)
+                elif (
+                    os.environ.get(TASK_AUTO_SOURCE_GROUPS_ENV) == "1"
+                    and os.environ.get("ARTEMIS_CLOUD_MODE") != "1"
+                ):
+                    context.automatic_source_groups = get_automatic_groups()
+            except BindingError as exc:
+                logger.warning(
+                    f"Task source group unavailable ({exc.status}); using normal locating"
+                )
 
         context.execution_setup = ExecutionSetup(
             traces_path=self._tmp_traces_dir,

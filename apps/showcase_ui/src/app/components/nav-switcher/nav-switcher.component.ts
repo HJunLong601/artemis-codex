@@ -51,6 +51,10 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         <span class="material-symbols-outlined tab-icon">database</span>
         <span class="tab-label">{{ '页面缓存' | t }}</span>
       </a>
+      <a routerLink="/settings/app-projects" routerLinkActive="active" class="nav-tab-btn" [title]="'管理工程源码并查看定位统计' | t">
+        <span class="material-symbols-outlined tab-icon">folder_open</span>
+        <span class="tab-label">{{ '工程源码' | t }}</span>
+      </a>
       <a routerLink="/settings/models" routerLinkActive="active" class="nav-tab-btn" [title]="'可视化配置默认模型与角色模型' | t">
         <span class="material-symbols-outlined tab-icon">tune</span>
         <span class="tab-label">{{ '模型配置' | t }}</span>

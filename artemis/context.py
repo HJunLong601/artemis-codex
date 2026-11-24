@@ -34,6 +34,7 @@ from artemis.utils.video import detect_video_tools_enabled
 
 
 from artemis.config import ExplorerConfig, LLMConfig, OutputterConfig
+from artemis.config.app_projects import SourceGroup
 
 
 from third_party.mobile_use.context import (
@@ -119,6 +120,12 @@ class ArtemisContext(DeviceClientAccessors, BaseModel):
     device: DeviceContext
     llm_config: LLMConfig | None = None
     agent_config: Any = None
+    # 普通任务手选的源码组，运行期间固定。真实目录不进入序列化或 repr。
+    app_source_group: SourceGroup | None = Field(default=None, exclude=True, repr=False)
+    # 未手选的本机普通任务持有一份可自动使用的包名绑定快照，同包多组时没有条目。
+    automatic_source_groups: dict[str, SourceGroup] = Field(
+        default_factory=dict, exclude=True, repr=False
+    )
     adb_client: Any | None = None
     ui_adb_client: Any | None = None
     adb_task_registry: Any | None = None

@@ -15,6 +15,7 @@ from apps.admin_console.routers.visual_cache_details import (
     read_history,
     read_elements,
     read_failures,
+    read_source_locating,
 )
 
 from artemis.utils.visual_location_cache import (
@@ -57,7 +58,10 @@ async def warm_visual_cache_page(request: Request, body: WarmupRequest):
 
 @router.get("/visual-cache")
 def get_visual_cache_stats():
-    """Inspect a snapshot without creating a database or updating LRU/hit counters."""
+    """Inspect a snapshot without creating a database or updating LRU/hit counters.
+
+    源码定位单独汇总，暂无数据时返回空统计。
+    """
     cache = configured_cache()
     config = cache_config_for_context()
     result = {
@@ -72,6 +76,7 @@ def get_visual_cache_stats():
         "checked_at": time.time(),
         "totals": {"devices": 0, "applications": 0, "pages": 0, "positions": 0, "hits": 0},
         "groups": [],
+        "source_locating": read_source_locating(),
         "history": {
             "since": None,
             "metrics": {},
@@ -101,6 +106,8 @@ def get_visual_cache_stats():
             page_name_column = "page_name" if "page_name" in columns else "''"
             db.execute("BEGIN")
             result["history"] = read_history(db)
+            # 复用同一只读快照。源码核对与视觉缓存的复用开关各自独立。
+            result["source_locating"] = read_source_locating(db)
             prefetched_column = (
                 "prefetched=1" if "prefetched" in columns else "target_key LIKE 'page:%'"
             )

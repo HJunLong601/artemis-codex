@@ -43,6 +43,12 @@ dependencies = [
     # Configuration, Models & Validation
     "pydantic>=2.7.0",
     "pydantic-settings>=2.10.1",
+    "pyyaml>=6.0",
+    "pygments>=2.18",
+    # RN JSX 与 Compose Kotlin 的本机语法树，避免执行所绑定工程的代码。
+    "tree-sitter>=0.25,<0.28",
+    "tree-sitter-typescript>=0.23.2,<0.24",
+    "tree-sitter-kotlin>=1.1,<1.2",
     "python-dotenv>=1.0.1",
     "jinja2>=3.1.5",
     "typing-extensions>=4.12.0",

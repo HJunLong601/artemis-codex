@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -33,6 +35,8 @@ class RunRequest(BaseModel):
     ingress: str | None = "frontend"
     session_id: str | None = None
     conversation_id: str | None = None
+    # 本次任务手动选择的源码组 UUID，留空时沿用原定位流程。
+    source_group_id: UUID | None = None
 
 
 class ReplayRequest(BaseModel):
